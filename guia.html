@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guía de uso · Evaluación, Corrector y Tutoría</title>
+<meta name="theme-color" content="#0a1120">
+<style>
+  :root{
+    --ink:#141b28; --mut:#5b6b82; --paper:#eef1f6; --card:#fff;
+    --line:#dde3ec; --accent:#8a6a24; --accent-soft:#faf3e2; --warning:#a3620a; --warning-soft:#fdf1de;
+    --font-serif:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;line-height:1.6}
+  header{background:linear-gradient(120deg,#0a1120 0%,#152a44 55%,#25456b 100%);border-bottom:1px solid rgba(215,180,99,.18);position:sticky;top:0;z-index:5}
+  .wrap{max-width:860px;margin:0 auto;padding:14px 20px}
+  header h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em;font-family:var(--font-serif);color:#f4ecd8}
+  header .sub{color:rgba(244,236,216,.75);font-size:13px;margin:2px 0 0}
+  main{max-width:860px;margin:0 auto;padding:24px 20px 60px}
+  h2{font-size:22px;font-weight:800;letter-spacing:-.01em;font-family:var(--font-serif);margin:44px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+  main > h2:first-of-type{border-top:none;margin-top:8px}
+  h3{font-size:16px;font-weight:700;margin:26px 0 6px}
+  p{margin:10px 0;font-size:15px}
+  li{font-size:15px;margin:6px 0}
+  code{background:var(--accent-soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0}
+  .tip{background:var(--accent-soft);border:1px solid #c9a54a;border-radius:12px;padding:12px 16px;margin:14px 0;font-size:14.5px}
+  .tip::before{content:"💡 ";}
+  .warn{background:var(--warning-soft);border:1px solid var(--warning);border-radius:12px;padding:12px 16px;margin:14px 0;font-size:14.5px}
+  .warn::before{content:"⚠️ ";}
+  .pill{display:inline-block;background:linear-gradient(135deg,#d7b463,#b3893a);color:#1c1408;border-radius:20px;padding:2px 12px;font-size:12.5px;font-weight:700;vertical-align:middle}
+  .kbd{display:inline-block;background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 8px;font-size:13px}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--accent-soft);font-weight:700}
+  nav.toc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:18px 0}
+  nav.toc strong{font-size:14px}
+  nav.toc ol{margin:8px 0 0;padding-left:22px}
+  nav.toc a{color:#8a6a24;text-decoration:none;font-weight:600}
+  nav.toc a:hover{text-decoration:underline}
+  .flow{display:grid;gap:8px;margin:14px 0}
+  .flow .step{background:var(--card);border:1px solid var(--line);border-left:4px solid #b3893a;border-radius:10px;padding:10px 14px;font-size:14.5px}
+  .flow .step b{color:#8a6a24}
+  footer{color:var(--mut);font-size:13px;text-align:center;padding:20px;border-top:1px solid var(--line);margin-top:40px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1>Guía de uso</h1>
+        <p class="sub">Evaluación por Competencias · Corrector de Exámenes · Gestor de Tutoría — Geografía e Historia</p>
+      </div>
+      <a href="index.html" style="flex-shrink:0;text-decoration:none;color:rgba(244,236,216,.92);border:1px solid rgba(215,180,99,.35);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;background:rgba(215,180,99,.08);white-space:nowrap">🏠 Inicio</a>
+    </div>
+  </div>
+</header>
+<main>
+
+<nav class="toc">
+  <strong>Contenido</strong>
+  <ol>
+    <li><a href="#vision">Qué es esta suite y cómo se organiza</a></li>
+    <li><a href="#primeros">Primeros pasos: crear un grupo y su alumnado</a></li>
+    <li><a href="#competencial">Evaluación por Competencias</a></li>
+    <li><a href="#corrector">Corrector de Exámenes (rúbricas)</a></li>
+    <li><a href="#conexion">Cómo se conectan Corrector y Competencias</a></li>
+    <li><a href="#tutoria">Gestor de Tutoría</a></li>
+    <li><a href="#copias">Copias de seguridad (imprescindible)</a></li>
+    <li><a href="#papelera">Papelera: recuperar lo borrado por error</a></li>
+    <li><a href="#offline">Uso sin conexión e instalación como app</a></li>
+    <li><a href="#calendario">Calendario de Inicio</a></li>
+    <li><a href="#reuniones">Reuniones y actas</a></li>
+    <li><a href="#buscador">Buscador global</a></li>
+    <li><a href="#refuerzo">Plan de Refuerzo</a></li>
+    <li><a href="#repeticion">Plan de Repetición</a></li>
+    <li><a href="#nese">Alumnos NESE</a></li>
+    <li><a href="#horario">Mi horario semanal</a></li>
+    <li><a href="#tema">Modo oscuro</a></li>
+    <li><a href="#faq">Preguntas frecuentes</a></li>
+  </ol>
+</nav>
+
+<h2 id="vision">1. Qué es esta suite y cómo se organiza</h2>
+<p>Al abrir la aplicación aparece la pantalla de <strong>Inicio</strong>, con siete tarjetas agrupadas en tres bloques — todas comparten los mismos grupos, alumnado y notas, salvo Gestor de Tutoría, que es independiente:</p>
+<ul>
+  <li><strong>Evaluación y corrección</strong>: 📊 Evaluación por Competencias (alumnado, actividades, calificación por criterios LOMLOE, competencias específicas y clave, informes por trimestre) y 🖊️ Corrector de Exámenes (corrige pregunta a pregunta con rúbrica; la nota se guarda sola en Competencias).</li>
+  <li><strong>Seguimiento y apoyo al alumnado</strong>: 📈 Plan de Refuerzo, 🔁 Plan de Repetición y 🧩 Alumnos NESE.</li>
+  <li><strong>Organización</strong>: 🗂️ Reuniones (actas con familias, alumnado y equipo directivo) y 👥 Gestor de Tutoría (control de sesiones de evaluación, promoción y estadísticas de grupos — <strong>sus propios datos</strong>, no comparte nada con las demás).</li>
+</ul>
+<p>Cada uno de esos tres bloques, y el de Calendario/Horario, tiene una cabecera con una flechita (▾/▸): pulsándola se pliega o despliega esa sección sin afectar a las demás — útil si solo usas unas pocas herramientas a diario y quieres una pantalla de Inicio más corta.</p>
+<p>Debajo de las tarjetas, la sección <strong>📅 Calendario</strong> / <strong>🗓️ Mi horario</strong> (una pestaña a la vez, para no saturar la pantalla) y, al final de todo, <strong>Ayuda</strong> — con la misma cabecera plegable que el resto de secciones, pero alineada a la derecha — que abre esta guía y la nota sobre Tutoría sin ocupar espacio cuando no lo necesitas.</p>
+<p>Desde cualquier pantalla puedes volver al Inicio con el botón <span class="kbd">🏠 Inicio</span> de la barra superior o pulsando el título de la página.</p>
+<div class="tip">Todos los datos se guardan <strong>en el propio dispositivo</strong> (en el almacenamiento del navegador). No hay cuenta, no hay servidor, nada sale de tu iPad u ordenador. La contrapartida: las copias de seguridad son cosa tuya (ver <a href="#copias">apartado 7</a>).</div>
+
+<h2 id="primeros">2. Primeros pasos: crear un grupo y su alumnado</h2>
+<div class="flow">
+  <div class="step"><b>1.</b> En Inicio, abre <strong>Evaluación por Competencias</strong>.</div>
+  <div class="step"><b>2.</b> Escribe el nombre del grupo (p. ej. <em>2º ESO A</em>), elige el catálogo de tu materia y curso, y pulsa <strong>Crear grupo</strong>. El catálogo trae ya las competencias específicas y los criterios de evaluación oficiales.</div>
+  <div class="step"><b>3.</b> En la pestaña <strong>Alumnado</strong>, añade a tus alumnos: uno a uno (Apellidos + Nombre) o pegando una lista completa / importando un CSV en "Añadir varios a la vez".</div>
+  <div class="step"><b>4.</b> Elige el trimestre de trabajo en el selector <strong>Periodo</strong> de la barra superior. Todo lo que crees (actividades, exámenes) pertenece al periodo seleccionado.</div>
+</div>
+<div class="tip">Protección de datos: usa iniciales o número de expediente en lugar del nombre completo si el dispositivo lo comparte más gente. En cada alumno puedes marcar <strong>NESE</strong> y su nivel de referencia, si tiene <strong>Plan</strong> (Refuerzo/Repetición) y si es <strong>Repetidor</strong>, y añadir observaciones internas (que nunca se imprimen en informes).</div>
+
+
+<h2 id="competencial">3. Evaluación por Competencias</h2>
+<h3>Pestañas del grupo</h3>
+<table>
+  <tr><th>Pestaña</th><th>Qué se hace ahí</th></tr>
+  <tr><td><strong>Alumnado</strong></td><td>Altas, bajas, NESE, observaciones internas y la papelera de alumnado.</td></tr>
+  <tr><td><strong>Actividades</strong></td><td>Crear actividades del trimestre (tarea, trabajo, exposición, examen…), asignarlas a un bloque de calificación, marcar los criterios de evaluación que trabajan (con su peso) y, opcionalmente, agruparlas por Situación de Aprendizaje.</td></tr>
+  <tr><td><strong>Calificar</strong></td><td>Poner nota a una actividad para todo el grupo de una vez.</td></tr>
+  <tr><td><strong>Resultados</strong></td><td>El informe individual de cada alumno: nota del trimestre y final, desglose de actividades (editable aquí mismo), competencias específicas y clave, comentarios a la calificación, y exportación a informe imprimible (individual o de todo el grupo).</td></tr>
+  <tr><td><strong>Resumen</strong></td><td>Incluye un gráfico de evolución de aprobados entre evaluaciones, de un vistazo. La foto del grupo por evaluación: gráfico de aprobados/suspensos de cada evaluación y de la final, seguimiento de Situaciones de Aprendizaje trabajadas frente a las previstas (que indicas tú en cada evaluación), y propuestas de mejora por evaluación y de final de curso. Todo ello se incorpora automáticamente al informe de grupo imprimible.</td></tr>
+  <tr><td><strong>Cobertura</strong></td><td>Qué criterios del currículo has trabajado ya este trimestre y cuáles no: tu radar de programación.</td></tr>
+  <tr><td><strong>Ajustes</strong></td><td>Pesos de los bloques de calificación, pesos de los trimestres en la nota final, umbrales de adquisición, duplicar la estructura del grupo, exportar/importar el grupo suelto.</td></tr>
+</table>
+<h3>Los dos tipos de calificación</h3>
+<ul>
+  <li><strong>Actividades normales:</strong> se califican con una escala de 4 niveles por criterio (Realizada con éxito / Realizada / Incompleta / No realizada). De esos niveles sale tanto la nota del bloque como la adquisición de competencias.</li>
+  <li><strong>Exámenes:</strong> tienen <strong>dos notas separadas</strong>: la <em>cuantitativa</em> (0–10, cuenta para la media del bloque y del trimestre) y la <em>cualitativa por criterio</em> (alimenta las competencias específicas y clave). Puedes ponerlas a mano… o dejar que el Corrector las calcule solas (siguiente apartado).</li>
+</ul>
+
+<h2 id="corrector">4. Corrector de Exámenes (rúbricas)</h2>
+<p>El Corrector usa <strong>los mismos grupos y el mismo alumnado</strong> que Competencias: no hay que dar de alta a nadie dos veces. Elige el grupo en la barra superior y el trimestre en <strong>Periodo</strong>.</p>
+<h3>Crear un examen y su rúbrica</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> Pestaña <strong>Nuevo examen</strong>: nombre, bloque de calificación y (opcional) Situación de Aprendizaje. Se crea en el trimestre activo.</div>
+  <div class="step"><b>2.</b> Se abre el <strong>editor de rúbrica</strong>: organiza el examen en <em>apartados</em> (p. ej. "Pregunta 1", "Comentario de mapa") y dentro de cada uno sus <em>ítems</em> de corrección.</div>
+  <div class="step"><b>3.</b> A cada ítem dale su <strong>puntuación máxima</strong>. La suma de todos los ítems debe ser exactamente <strong>10</strong> — el indicador de arriba te avisa en rojo mientras no cuadre.</div>
+  <div class="step"><b>4.</b> En cada ítem, pulsa <strong>Vincular criterios</strong> y marca qué criterios de evaluación del currículo trabaja ese ítem (puede ser ninguno — p. ej. "presentación y ortografía" — uno, o varios con distinto peso).</div>
+  <div class="step"><b>5.</b> (Opcional) Añade <em>descriptores</em> a cada ítem: qué esperas encontrar para dar la puntuación completa. Los verás mientras corriges.</div>
+</div>
+<h3>Corregir</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> Botón <strong>Corregir</strong> del examen: verás la lista del alumnado con su estado (corregido / sin corregir), la media y los aprobados.</div>
+  <div class="step"><b>2.</b> Entra en un alumno y ve poniendo los puntos de cada ítem. Debajo verás actualizarse en directo su <strong>nota cuantitativa</strong> (suma de puntos) y su <strong>calificación por criterio</strong> (porcentaje logrado en los ítems vinculados a cada criterio).</div>
+  <div class="step"><b>3.</b> Usa <span class="kbd">← Anterior</span> / <span class="kbd">Siguiente →</span> para pasar de alumno sin volver a la lista. Puedes dejar un comentario individual por examen.</div>
+  <div class="step"><b>4.</b> No hay botón de guardar: <strong>todo se guarda solo</strong> al instante. Puedes corregir a medias y continuar otro día.</div>
+  <div class="step"><b>5.</b> Si lo necesitas, exporta las notas del examen a <strong>CSV</strong> desde la lista.</div>
+</div>
+<div class="tip">Botón <strong>"💾 Guardar como plantilla"</strong> en el editor: guarda la rúbrica actual (ítems, puntos y descriptores) para reutilizarla en otro examen desde "Nuevo examen" → "Empezar la rúbrica desde". Los criterios vinculados solo se copian si existen en el catálogo del grupo donde la apliques.</div>
+<div class="tip">Puedes <strong>editar la rúbrica después de haber corregido</strong>: las notas de todo el alumnado se recalculan solas. Si reduces el máximo de un ítem por debajo de puntuaciones ya puestas, estas se reajustan automáticamente al nuevo máximo.</div>
+
+<h2 id="conexion">5. Cómo se conectan Corrector y Competencias</h2>
+<p>No hay "sincronización" que pueda fallar: son <strong>la misma base de datos vista desde dos pantallas</strong>. Al corregir en el Corrector:</p>
+<ul>
+  <li>La <strong>nota cuantitativa</strong> (0–10) entra directamente en la media del bloque y del trimestre del alumno.</li>
+  <li>La <strong>calificación por criterio</strong> entra en el cálculo de sus competencias específicas y clave. A diferencia de las actividades normales (4 niveles), aquí es un <strong>porcentaje continuo y preciso</strong> (p. ej. 87 %), porque sale de puntos reales de examen.</li>
+</ul>
+<p>En Competencias, ese examen aparece como una actividad más, pero <strong>de solo lectura</strong>: en Actividades, Calificar y Resultados verás sus notas con un botón 🖊️ / "Abrir en el Corrector" para modificarlas donde corresponde — pregunta a pregunta, no a ojo.</p>
+<div class="warn">Los exámenes creados <em>a mano</em> en Competencias (sin rúbrica) siguen funcionando como siempre: nota 0–10 y escala de 4 niveles por criterio, editables directamente. Ambos tipos de examen pueden convivir en el mismo trimestre.</div>
+
+<h2 id="tutoria">6. Gestor de Tutoría</h2>
+<p>Se abre desde su tarjeta en Inicio. Es una aplicación <strong>independiente</strong>: gestiona sesiones de evaluación, actas, decisiones de promoción y estadísticas de grupos, con sus propios archivos y su propio sistema de guardado y exportación (.ev). No comparte alumnado ni notas con las otras dos aplicaciones.</p>
+<div class="tip">Para que sus gráficos y la vista previa de PDF funcionen sin conexión, sigue una única vez las instrucciones de <code>tutoria/vendor/LEEME.txt</code> (descargar 3 archivos). Sin ese paso, todo lo demás funciona igual.</div>
+
+<h2 id="calendario">6b. Calendario de Inicio</h2>
+<p>En la pantalla de Inicio, debajo de las tres tarjetas, hay un calendario para exámenes, entregas, reuniones y cualquier otra cosa que quieras anotar.</p>
+<ul>
+  <li><strong>Crear:</strong> pulsa cualquier día del calendario, o el botón "+ Nuevo"/"+ Añadir evento".</li>
+  <li><strong>Editar o eliminar:</strong> pulsa el evento en la lista de la derecha; se abre el mismo formulario, con "Eliminar" aparte.</li>
+  <li><strong>Aviso del día:</strong> si hoy tienes algo, aparece arriba de las tarjetas nada más abrir la app.</li>
+  <li><strong>Próximos:</strong> la pestaña "Próximos" de la lista muestra los siguientes eventos aunque caigan en otro mes, sin tener que navegar.</li>
+  <li><strong>Filtro por grupo:</strong> el selector junto al mes limita el calendario y la lista a un grupo (o a los eventos generales sin grupo).</li>
+  <li><strong>Vincular con un examen:</strong> al crear un examen en el Corrector puedes indicarle una fecha y se crea su evento solo; o, al crear/editar un evento de tipo "Examen", puedes enlazarlo a un examen ya existente. El evento vinculado muestra un acceso directo "Corregir →".</li>
+  <li><strong>Repetir semanalmente:</strong> al crear un evento nuevo, marca "Repetir semanalmente" e indica hasta qué fecha; se crean todas las repeticiones de una vez, vinculadas entre sí. Al abrir cualquiera de ellas puedes "Eliminar" solo esa fecha o "Eliminar serie" para quitar todas.</li>
+  <li><strong>Exportar a tu calendario:</strong> "Exportar .ics" descarga un archivo que puedes importar en el Calendario del iPad/iPhone/Mac o en Google Calendar. Si tienes un filtro de grupo activo, exporta solo esos eventos.</li>
+</ul>
+<div class="tip">Los eventos se guardan junto con todo lo demás: viajan solos dentro de Exportar/Importar copia, sin ningún paso aparte.</div>
+
+<h2 id="reuniones">6c. Reuniones y actas</h2>
+<p>Cuarta tarjeta del Inicio. Un registro de reuniones —con familias, con el alumnado o con el equipo directivo— con acta imprimible al final.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> "+ Nueva reunión": título, tipo, fecha y hora, y opcionalmente el grupo (y dentro de él, el alumno/a) con quien se relaciona. Si le das fecha, se crea también su evento en el calendario de Inicio, ya vinculado.</div>
+  <div class="step"><b>2.</b> En el detalle: asistentes, orden del día, desarrollo de la reunión, acuerdos y compromisos, observaciones, próxima reunión y firmantes — todo con filas que puedes añadir o quitar. Se guarda solo, sin botón de guardar.</div>
+  <div class="step"><b>3.</b> "Marcar como cerrada" cuando la reunión ya está terminada y revisada (por defecto queda como Borrador).</div>
+  <div class="step"><b>4.</b> "🖨️ Imprimir acta" abre una vista lista para imprimir o guardar como PDF, con todo lo anterior maquetado como un acta formal.</div>
+</div>
+<p>En la lista puedes buscar por título y filtrar por tipo. Desde el propio evento del calendario (si la reunión tiene fecha) hay un acceso directo "Ver reunión →", y viceversa: si editas el título o la fecha en el detalle, el evento del calendario se actualiza solo.</p>
+<div class="tip">Al crear una reunión puedes partir de una <strong>plantilla de orden del día</strong> (unas cuantas ya vienen incluidas, y puedes guardar las tuyas con "💾 Guardar orden del día como plantilla" desde el detalle).</div>
+<p>El botón <strong>"⬇ Exportar a Excel"</strong> de la lista descarga un resumen (título, tipo, fecha, grupo, alumno, estado, nº de asistentes/temas/acuerdos) en un archivo <code>.csv</code> que abre directamente Excel o Google Sheets. Respeta el filtro/búsqueda que tengas activo.</p>
+<div class="tip">Igual que exámenes y eventos, las reuniones viajan dentro de Exportar/Importar copia sin ningún paso aparte.</div>
+
+<h2 id="buscador">6d. Buscador global</h2>
+<p>Botón <strong>🔍 Buscar</strong> en la cabecera (o atajo <strong>Ctrl/Cmd + K</strong>), disponible en cualquier pantalla. Busca a la vez en alumnado, actividades y exámenes, reuniones y eventos del calendario, de todos los grupos.</p>
+<ul>
+  <li>No hace falta escribir las palabras en orden ni con tildes: "garcia lucia" encuentra a "García, Lucía".</li>
+  <li>Pulsa un resultado para ir directo a él: un alumno abre su ficha en Resultados, un examen con rúbrica abre el Corrector, uno sin rúbrica abre Actividades, una reunión abre su acta, un evento abre su ficha en el calendario de Inicio.</li>
+  <li><kbd>Esc</kbd> cierra el buscador.</li>
+</ul>
+
+<h2 id="refuerzo">6e. Plan de Refuerzo</h2>
+<p>Para un alumno/a que promociona con tu materia <strong>no superada</strong>. Organizado en tres evaluaciones, cada una con los elementos curriculares no conseguidos y su propia evaluación — más un diario de seguimiento fechado para el día a día.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> "+ Nuevo plan": grupo, alumno/a, curso académico y, si quieres, un <strong>modelo del departamento</strong> (ver más abajo). El título se genera solo; edítalo cuando quieras.</div>
+  <div class="step"><b>2.</b> <strong>Motivos de la no superación</strong>: Absentismo, Dificultades de aprendizaje, Enfermedad, Problemática sociofamiliar, Falta de motivación, Falta de trabajo y estudio, Otros (con texto libre).</div>
+  <div class="step"><b>3.</b> Tres tarjetas, una por evaluación. En cada una, una <strong>tabla agrupada por competencia específica</strong>: la columna CE y la de competencia clave se escriben una sola vez por competencia (afectan a todos sus criterios de golpe), cada criterio de evaluación no conseguido es su propia fila con una casilla <strong>Trabajado</strong>, y debajo <strong>actividades de evaluación</strong> (con un dossier de actividades ya puesto por defecto), <strong>calificación obtenida</strong> y una <strong>valoración</strong> (Positiva/Negativa) con su <strong>justificación</strong>.</div>
+  <div class="step"><b>4.</b> "+ Añadir competencia específica" crea un grupo nuevo; dentro de cada grupo, "+ Añadir criterio a [CE]" añade otra fila a esa misma competencia.</div>
+  <div class="step"><b>5.</b> Al final del plan, una <strong>leyenda</strong> siempre visible con el enunciado completo de las 9 competencias específicas y el significado de las siglas de competencias clave (CCL, CP, CMCT, CD, CPSAA, CC, CE, CCEC).</div>
+  <div class="step"><b>6.</b> Una <strong>valoración final</strong> del plan completo (Positiva/Negativa), además de las tres por evaluación.</div>
+  <div class="step"><b>7.</b> El diario de seguimiento (fecha + nota + valoración Positiva/Neutra/Preocupante) sigue igual que antes, para anotaciones sueltas a lo largo del curso.</div>
+  <div class="step"><b>8.</b> Cambia el estado (Activo / Pausado / Superado / No superado), añade observaciones finales, e imprime el informe completo cuando quieras — la tabla se imprime limpia, con el CE y la competencia clave abarcando sus filas y la columna Trabajado marcada con ✓.</div>
+</div>
+<p>Si el alumno/a tiene reuniones registradas, aparecen enlazadas al final del plan.</p>
+
+<h2 id="repeticion">6f. Plan de Repetición</h2>
+<p>Distinto del Plan de Refuerzo: para un alumno/a que <strong>repite curso</strong>, cuando una de las causas fue no superar tu materia. Mismos motivos, misma tabla agrupada por competencia específica en las tres evaluaciones (criterios no conseguidos, actividades, calificación, valoración y justificación) — y además:</p>
+<div class="flow">
+  <div class="step"><b>1.</b> "+ Nuevo plan": grupo, alumno/a, curso que repite (se sugiere solo desde el catálogo del grupo), curso académico y, si quieres, un modelo del departamento.</div>
+  <div class="step"><b>2.</b> Los mismos <strong>motivos de la no superación</strong> que en Refuerzo.</div>
+  <div class="step"><b>3.</b> <strong>Medidas propuestas para el curso</strong>, en dos bloques:
+    <ul style="margin:6px 0 0 18px">
+      <li><strong>Nivel II</strong>: programaciones didácticas multinivel, actividades de refuerzo, trabajo cooperativo, ajuste de procedimientos e instrumentos de evaluación, docencia compartida, otros.</li>
+      <li><strong>Nivel III</strong>: adecuación personalizada de las propuestas didácticas, acompañamiento y soporte personalizado (PT), enseñanza intensiva de lenguas oficiales (alumnado recién llegado), repetición con programa (PAC, PDC 3.º, PDC 4.º, FPB), otros.</li>
+    </ul>
+  </div>
+  <div class="step"><b>4.</b> Las tres evaluaciones, igual que en Refuerzo: tabla por competencia específica con los criterios no conseguidos <strong>del curso que repite</strong>, cada uno con su casilla Trabajado, actividades de evaluación (dossier por defecto), calificación, valoración y justificación.</div>
+  <div class="step"><b>5.</b> La misma leyenda de competencias específicas y competencias clave, valoración final del plan, estado, observaciones finales e informe imprimible.</div>
+</div>
+<p>Si el alumno/a tiene planes de refuerzo o reuniones registradas, aparecen enlazados al final del plan.</p>
+
+<h3>Modelos del departamento</h3>
+<p>Al crear un plan de Refuerzo (1.º-3.º ESO) o de Repetición (1.º-4.º ESO), el desplegable <strong>"Cargar modelo del departamento"</strong> rellena las tres evaluaciones a partir de la propuesta pedagógica de ese nivel: cada competencia específica trabajada ese trimestre aparece como un grupo, con sus criterios de evaluación no conseguidos ya dentro (casilla Trabajado sin marcar) y, siempre, la elaboración de un <strong>dossier de actividades</strong> como actividad de evaluación mínima.</p>
+<p><strong>En Refuerzo</strong>, el nivel del modelo es el <strong>curso suspendido</strong> (el anterior al de matrícula actual). <strong>En Repetición</strong>, es el <strong>curso que repite</strong> (el actual). Elegir "Sin modelo" crea el plan en blanco. Con o sin modelo, todo queda editable después: añadir o quitar competencias específicas y criterios, marcar Trabajado, reescribir cualquier texto.</p>
+
+<h3>Preparar el curso siguiente</h3>
+<p>Hay <strong>dos formas</strong> de dejar preparado un plan para el año que viene, según si el alumno/a tiene o no un plan este curso:</p>
+<p><strong>Desde un plan ya existente:</strong> en su detalle, el botón <strong>"➜ Preparar curso siguiente"</strong> — útil al terminar el curso, cuando ya sabes quién aprueba y quién no. Pregunta qué tipo de plan crear para el año que viene:</p>
+<ul>
+  <li><strong>Va a repetir curso</strong> → crea un nuevo Plan de Repetición.</li>
+  <li><strong>Promociona pero necesita apoyo</strong> → crea un nuevo Plan de Refuerzo.</li>
+</ul>
+<p>El plan nuevo lleva el nombre del alumno/a, con las observaciones finales del plan anterior como contexto en "Otros" dentro de los motivos.</p>
+<p><strong>Para un alumno/a que este curso NO tiene ningún plan:</strong> el botón <strong>"📅 Preparar curso siguiente"</strong>, en la propia lista de Plan de Refuerzo o de Plan de Repetición (junto a "+ Nuevo plan"). Por ejemplo, un alumno de 2º de ESO que este año aprueba sin problema, pero que va a pasar a 3º con la materia suspendida: eliges su grupo y su nombre de este curso, y se crea el plan del tipo correspondiente, vacío, listo para ir rellenando desde ya e imprimirlo para quien lo tenga el año próximo.</p>
+<p>En los dos casos el plan se crea <strong>sin grupo asignado</strong> — el del curso que viene todavía no existe. En cuanto crees ese grupo, abre el plan y usa el aviso "pendiente de asignar" para elegir grupo y alumno/a; entonces queda enlazado con normalidad.</p>
+
+<h3>Marcar el plan y la repetición en el alumnado</h3>
+<p>En Evaluación por Competencias → Alumnado, junto a NESE, hay dos columnas nuevas:</p>
+<ul>
+  <li><strong>Plan</strong>: Ninguno / Refuerzo / Repetición — es solo una etiqueta informativa sobre el alumno/a (no crea el plan por ti; el plan se crea desde su propio módulo).</li>
+  <li><strong>Repite</strong>: marca si el alumno/a es repetidor, independientemente de si tiene o no un plan asociado (puede repetir sin haber suspendido tu materia el año anterior).</li>
+</ul>
+<p>Ambas insignias se muestran también junto al nombre del alumno/a dentro del detalle de sus planes de Refuerzo y Repetición.</p>
+
+<h2 id="nese">6g. Alumnos NESE</h2>
+<p>Séptima tarjeta del Inicio. El alumnado marcado como NESE en Evaluación por Competencias (pestaña Alumnado, columna NESE) aparece aquí solo, organizado por grupo — no hace falta darlo de alta dos veces.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> Cada alumno/a NESE aparece en la tarjeta de su grupo. Si no tiene plan todavía, verás "+ Crear plan".</div>
+  <div class="step"><b>2.</b> Al crear el plan, eliges uno de los <strong>tres modelos</strong> (1er, 2º o 3er ciclo de Primaria) según el nivel de competencia curricular real del alumno/a, no su curso de matrícula. Si el alumno/a ya tiene un "nivel de referencia" marcado en Alumnado (p. ej. "3º de Primaria"), el modelo correspondiente aparece preseleccionado.</div>
+  <div class="step"><b>3.</b> El plan copia las tablas del modelo elegido (saberes, criterios, competencias) del Bloque 3 de Conocimiento del Medio. Se valora cada fila con <strong>I / P / A</strong> en las columnas 1T, 2T y 3T, a lo largo del curso — la escala queda siempre visible arriba de las tablas, y también se imprime en los informes.</div>
+  <div class="step"><b>4.</b> Además del detalle fila a fila, hay un campo de <strong>valoración</strong> por cada evaluación y uno de <strong>valoración final</strong>, para el aprovechamiento global del plan — no solo el criterio suelto.</div>
+  <div class="step"><b>5.</b> "Informe 1ª/2ª/3ª evaluación" genera solo lo trabajado en ese trimestre (con su valoración correspondiente); "🖨️ Informe final" muestra el curso completo con las tres columnas y las cuatro valoraciones.</div>
+  <div class="step"><b>6.</b> Puedes editar los datos del plan (necesidad específica, medidas, fecha, valoraciones) o eliminarlo en cualquier momento desde su propio detalle.</div>
+</div>
+<div class="tip">Estos modelos no sustituyen al Plan de Actuación Personalizado oficial del departamento de orientación — son la herramienta de trabajo del profesor de Geografía e Historia para concretar, trimestre a trimestre, qué se está trabajando y con qué nivel de logro.</div>
+
+<h2 id="horario">6h. Mi horario semanal</h2>
+<p>En la pantalla de Inicio, debajo del calendario. Una cuadrícula de lunes a viernes con las franjas horarias de tu centro (de 7:45 a 15:05, con los dos recreos ya marcados).</p>
+<div class="flow">
+  <div class="step"><b>1.</b> Pulsa cualquier casilla para abrir su editor.</div>
+  <div class="step"><b>2.</b> Elige el tipo: Clase (con materia, nivel y grupo, y aula), Guardia, Complementaria, Reducción, Reunión, Atención a Familias, Recreo u Otro — todos menos Clase llevan una nota libre.</div>
+  <div class="step"><b>3.</b> Las casillas de recreo aparecen marcadas como tal por defecto (con una textura rayada), pero puedes convertir cualquiera en Guardia si te toca ese día.</div>
+  <div class="step"><b>4.</b> "Vaciar casilla" la deja en blanco de nuevo.</div>
+  <div class="step"><b>5.</b> "🖨️ Imprimir horario" genera el documento completo de la semana.</div>
+</div>
+<p>Es tuyo, no de un grupo concreto — se guarda junto con el resto de la copia de seguridad.</p>
+
+<h3>Copiar una casilla en varias a la vez</h3>
+<p>Si una misma clase se repite varios días, no hace falta rellenarla a mano cada vez:</p>
+<div class="flow">
+  <div class="step"><b>1.</b> Toca el icono 📋 que aparece en la esquina de cualquier casilla ya rellena.</div>
+  <div class="step"><b>2.</b> Aparece un aviso "Copiando…" arriba de la cuadrícula. Toca cualquier otra casilla — vacía o con contenido — para pegarle el mismo tipo, materia, nivel/grupo, aula o nota.</div>
+  <div class="step"><b>3.</b> Puedes pegar en tantas casillas seguidas como quieras, sin volver a tocar el icono de copiar.</div>
+  <div class="step"><b>4.</b> "Cancelar" (junto al aviso) devuelve las casillas a su comportamiento normal de edición.</div>
+</div>
+
+<h2 id="tema">6i. Modo oscuro y versión de pantalla</h2>
+<p>Dos botones en la cabecera, junto al buscador:</p>
+<ul>
+  <li><strong>🌙/☀️</strong> cambia toda la aplicación a un tema oscuro pensado para corregir de noche.</li>
+  <li><strong>🖥️/📱</strong> alterna entre la <strong>versión iPad</strong> (ancho de siempre, pensada para tablet) y la <strong>versión escritorio</strong> (aprovecha casi todo el ancho del monitor, con un margen pequeño a cada lado). Útil si usas la app en un ordenador con pantalla grande.</li>
+</ul>
+<p>Las dos son preferencias del dispositivo — no viajan con las copias de seguridad ni se sincronizan entre dispositivos, así que puedes elegir la que te convenga en cada sitio donde abras la app.</p>
+
+<h2 id="copias">7. Copias de seguridad (imprescindible)</h2>
+<p>Los datos viven en el almacenamiento del navegador del dispositivo. Eso significa que <strong>borrar los datos de navegación puede borrar tus notas</strong>. La defensa es sencilla:</p>
+<ul>
+  <li>Pulsa <strong>Exportar copia</strong> (barra superior) con regularidad. Descarga un archivo <code>.json</code> con absolutamente todo: grupos, alumnado, actividades, rúbricas, notas y comentarios.</li>
+  <li>Guarda ese archivo fuera del navegador: en Archivos/iCloud (iPad), en una carpeta del PC, en Drive…</li>
+  <li>Para recuperar: <strong>Importar copia</strong> y eliges el archivo. También puedes usarlo para <strong>pasar tus datos a otro dispositivo</strong> (exporta en uno, importa en el otro).</li>
+  <li>La propia app te avisa con <span class="pill">⚠️ Conviene exportar copia</span> si llevas más de una semana o muchos cambios sin exportar.</li>
+</ul>
+<div class="warn">En el iPad, si la app está añadida a la pantalla de inicio, iOS puede purgar el almacenamiento de webs que llevan <em>muchas semanas</em> sin abrirse. Usándola con normalidad no pasa, pero es un motivo más para exportar copia al cerrar cada evaluación.</div>
+
+<h2 id="papelera">8. Papelera: recuperar lo borrado por error</h2>
+<ul>
+  <li><strong>Alumnos borrados:</strong> pestaña Alumnado → papelera al final. Se restauran con todas sus notas, incluidas las de rúbrica y los comentarios de examen.</li>
+  <li><strong>Actividades y exámenes borrados:</strong> pestaña Actividades → papelera al final. Un examen restaurado vuelve con su rúbrica, todas las puntuaciones y comentarios.</li>
+  <li>La papelera guarda los <strong>últimos 10</strong> elementos de cada tipo por grupo.</li>
+  <li><strong>Borrar un grupo entero no tiene papelera</strong> (se avisa antes): la única vuelta atrás es importar una copia de seguridad.</li>
+</ul>
+
+<h2 id="offline">9. Uso sin conexión e instalación como app</h2>
+<h3>En iPad</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> Abre la URL en <strong>Safari</strong> (con conexión, la primera vez).</div>
+  <div class="step"><b>2.</b> Botón compartir <span class="kbd">⬆️</span> → <strong>Añadir a pantalla de inicio</strong>.</div>
+  <div class="step"><b>3.</b> A partir de ahí se abre a pantalla completa desde su icono, y funciona <strong>también sin wifi</strong> (incluso en modo avión).</div>
+</div>
+<p>Puedes repetir el paso 2 dentro del Gestor de Tutoría para tener también su icono propio (azul).</p>
+<h3>En ordenador</h3>
+<ul>
+  <li><strong>Por la URL de GitHub Pages:</strong> igual que en el iPad; en Chrome/Edge además puedes "Instalarla" desde el icono de la barra de direcciones para tenerla en ventana propia.</li>
+  <li><strong>Abriendo el archivo local (doble clic en <code>index.html</code>):</strong> funciona igualmente y siempre sin conexión — no depende de nada externo.</li>
+</ul>
+
+<h2 id="faq">10. Preguntas frecuentes</h2>
+<h3>¿Puedo usar la app en el iPad y en el PC a la vez?</h3>
+<p>Sí, pero <strong>cada dispositivo tiene sus propios datos</strong> (no se sincronizan solos). El puente es Exportar copia en uno → Importar copia en el otro. Recomendación práctica: trabaja habitualmente en un solo dispositivo y usa el otro para consultar tras importar.</p>
+<h3>¿Un ítem de la rúbrica puede no tener criterio vinculado?</h3>
+<p>Sí. Contará para la nota cuantitativa (sus puntos suman) pero no influirá en ninguna competencia. Útil para presentación, ortografía, limpieza…</p>
+<h3>¿Y varios ítems vinculados al mismo criterio?</h3>
+<p>Sí. La calificación de ese criterio será la media ponderada del porcentaje logrado en cada uno de esos ítems (el peso se ajusta en el propio vínculo).</p>
+<h3>¿Qué pasa si cambio el trimestre en el selector Periodo?</h3>
+<p>Todo lo que ves (actividades, exámenes, resultados, cobertura) se filtra al periodo elegido. Los datos de los otros trimestres no se tocan: solo dejan de mostrarse hasta que vuelvas a ese periodo.</p>
+<h3>¿Puedo reutilizar la estructura de un grupo para otro?</h3>
+<p>Sí: Ajustes → <strong>Duplicar estructura (sin alumnado)</strong>. Copia bloques, pesos, umbrales, actividades y rúbricas (vacías de notas) a un grupo nuevo, al que solo tendrás que añadir su alumnado.</p>
+<h3>¿Los informes se pueden imprimir o pasar a PDF?</h3>
+<p>Sí: en Resultados, "Exportar informe" (individual) o "Exportar todos" abre una vista de impresión; desde ahí, imprimir o "Guardar como PDF". El <strong>informe de grupo</strong> se genera eligiendo la evaluación (1ª, 2ª, 3ª o final) en el selector que hay junto al botón.</p>
+<h3>¿Dónde meto las propuestas de mejora y el seguimiento de SdA para la memoria?</h3>
+<p>En la pestaña <strong>Resumen</strong> del grupo: cada evaluación tiene su gráfico de aprobados/suspensos, su contador de SdA trabajadas frente a previstas (las previstas las escribes tú) y su cuadro de propuestas de mejora; y hay un bloque de evaluación final para la valoración de curso.</p>
+<h3>¿Cómo saco el informe de grupo de cada evaluación?</h3>
+<p>En Resultados, junto al botón <strong>Informe de grupo</strong> hay un selector con <em>1ª, 2ª, 3ª evaluación</em> y <em>Evaluación final (curso completo)</em>. Los informes de cada evaluación contienen solo lo de esa evaluación (resumen, notas, competencias y propuestas de mejora del periodo), sin ninguna referencia a la final. El de <strong>evaluación final</strong> es el más completo — resumen de las tres evaluaciones, notas de todo el curso, competencias anuales y todas las propuestas de mejora — y es el pensado para entregar a las familias.</p>
+<h3>He borrado los datos del navegador y lo he perdido todo. ¿Hay solución?</h3>
+<p>Solo si tienes una copia exportada: Importar copia y listo. Por eso el apartado 7 es el más importante de esta guía.</p>
+
+<footer>Guía de uso · Suite de Geografía e Historia · Los datos nunca salen de tu dispositivo</footer>
+</main>
+</body>
+</html>

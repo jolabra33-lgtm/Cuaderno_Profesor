@@ -1,0 +1,19 @@
+{
+  "name": "EvalIES — Control de Evaluaciones",
+  "short_name": "EvalIES",
+  "description": "Gestión de tutoría, seguimiento y control de evaluaciones.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "id": "/tutoria/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "es",
+  "background_color": "#080b14",
+  "theme_color": "#4f8ef7",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
