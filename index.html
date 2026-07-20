@@ -109,6 +109,11 @@ if ('serviceWorker' in navigator) {
   }
   input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent-2)}
   .in{padding:9px 12px;border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);transition:border-color .15s, box-shadow .15s, background .15s}
+  /* Safari (iPad/iPhone) calcula el ancho del input de fecha con su propia UI
+     interna (icono + selectores), ignorando el ancho fijado por CSS, y en
+     un .grid/.flex el min-width:auto por defecto agrava el problema. */
+  input[type="date"].in{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;overflow:hidden;min-height:38px}
+  .grid input[type="date"],.flex input[type="date"]{min-width:0}
   .in:focus{outline:none;border-color:var(--accent-2);background:var(--card);box-shadow:0 0 0 3px var(--accent-soft)}
   .tab{padding:8px 16px;border-radius:999px;border:1px solid transparent;background:var(--surface-2);color:var(--mut);font-size:13.5px;font-weight:700;letter-spacing:-.005em;transition:.15s}
   .tab:hover{background:var(--line)}
@@ -5249,7 +5254,7 @@ function abrirVentanaInforme(titulo,bodyHtml){
     .alert{background:#fcf4e3;border:1px solid #b57b0e;padding:10px;font-size:13px;border-radius:6px;margin:10px 0}
     @media print{ .btnbar{display:none} }
   </style></head><body>
-  <div class="btnbar"><button onclick="window.print()">Imprimir / Guardar como PDF</button></div>
+  <div class="btnbar"><button onclick="window.print()">Imprimir / Guardar como PDF</button> <button onclick="window.close()" style="background:#eee;color:#333">✕ Cerrar</button></div>
   ${bodyHtml}
   </body></html>`);
   w.document.close();
