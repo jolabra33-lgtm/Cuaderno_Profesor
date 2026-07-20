@@ -3801,8 +3801,12 @@ window.horGuardarCelda=(fila,dia)=>{
   save(); render();
 };
 window.horBorrarCelda=(fila,dia)=>{
-  if(!state.horario||!state.horario.celdas) { state.ui.horModalCelda=null; save(); render(); return; }
-  delete state.horario.celdas[horClave(fila,dia)];
+  if(!state.horario) state.horario={celdas:{}};
+  if(!state.horario.celdas) state.horario.celdas={};
+  // Se guarda explícitamente vacía (en vez de borrar la clave) para que, en las
+  // filas de Recreo, quede realmente en blanco y no vuelva a aparecer "Recreo"
+  // por defecto ese día concreto.
+  state.horario.celdas[horClave(fila,dia)]={tipo:"",materia:"",nivelGrupo:"",aula:"",nota:""};
   state.ui.horModalCelda=null;
   save(); render();
 };
@@ -3850,7 +3854,7 @@ function horRenderGridHTML(){
       const vacio=!c.tipo;
       const onclickAttr=enModoCopia?`horPegarEnCelda(${fi},'${d.id}')`:`horAbrirModal(${fi},'${d.id}')`;
       const copiarBtn=(!vacio && !enModoCopia)?`<button class="hor-copiar-btn" onclick="event.stopPropagation();horCopiarCelda(${fi},'${d.id}')" title="Copiar esta casilla">📋</button>`:"";
-      return `<div class="hor-cell hor-slot ${f.recreo?"hor-slot-recreo":""} ${enModoCopia?"hor-slot-pegar":""}" style="${!vacio?`background:${info.color}1a;border-color:${info.color}55;color:${info.color}`:""}" onclick="${onclickAttr}">
+      return `<div class="hor-cell hor-slot ${c.tipo==="recreo"?"hor-slot-recreo":""} ${enModoCopia?"hor-slot-pegar":""}" style="${!vacio?`background:${info.color}1a;border-color:${info.color}55;color:${info.color}`:""}" onclick="${onclickAttr}">
         ${horCeldaResumenHTML(fi,d.id)}
         ${copiarBtn}
       </div>`;
