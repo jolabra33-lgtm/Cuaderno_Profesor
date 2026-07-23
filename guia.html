@@ -16,7 +16,7 @@
   body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;line-height:1.6}
   header{background:linear-gradient(120deg,#0a1120 0%,#152a44 55%,#25456b 100%);border-bottom:1px solid rgba(215,180,99,.18);position:sticky;top:0;z-index:5}
   .wrap{max-width:860px;margin:0 auto;padding:14px 20px}
-  header h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em;font-family:var(--font-serif);color:#f4ecd8}
+  header h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em;font-family:var(--font-serif);color:#f7f2e4}
   header .sub{color:rgba(244,236,216,.75);font-size:13px;margin:2px 0 0}
   main{max-width:860px;margin:0 auto;padding:24px 20px 60px}
   h2{font-size:22px;font-weight:800;letter-spacing:-.01em;font-family:var(--font-serif);margin:44px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
@@ -30,7 +30,7 @@
   .tip::before{content:"💡 ";}
   .warn{background:var(--warning-soft);border:1px solid var(--warning);border-radius:12px;padding:12px 16px;margin:14px 0;font-size:14.5px}
   .warn::before{content:"⚠️ ";}
-  .pill{display:inline-block;background:linear-gradient(135deg,#d7b463,#b3893a);color:#1c1408;border-radius:20px;padding:2px 12px;font-size:12.5px;font-weight:700;vertical-align:middle}
+  .pill{display:inline-block;background:linear-gradient(135deg,#d7b463,#b3893a);color:#ffffff;border-radius:20px;padding:2px 12px;font-size:12.5px;font-weight:700;vertical-align:middle}
   .kbd{display:inline-block;background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 8px;font-size:13px}
   table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
   th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
@@ -79,6 +79,7 @@
     <li><a href="#repeticion">Plan de Repetición</a></li>
     <li><a href="#nese">Alumnos NESE</a></li>
     <li><a href="#horario">Mi horario semanal</a></li>
+    <li><a href="#pulido">Notificaciones y navegación rápida</a></li>
     <li><a href="#tema">Modo oscuro</a></li>
     <li><a href="#faq">Preguntas frecuentes</a></li>
   </ol>
@@ -107,18 +108,48 @@
 
 
 <h2 id="competencial">3. Evaluación por Competencias</h2>
-<h3>Pestañas del grupo</h3>
+<h3>Las secciones del grupo</h3>
+<p>Un único desplegable, arriba a la derecha de cada grupo, con este orden:</p>
 <table>
-  <tr><th>Pestaña</th><th>Qué se hace ahí</th></tr>
+  <tr><th>Sección</th><th>Qué se hace ahí</th></tr>
   <tr><td><strong>Alumnado</strong></td><td>Altas, bajas, NESE, observaciones internas y la papelera de alumnado.</td></tr>
   <tr><td><strong>Actividades</strong></td><td>Crear actividades del trimestre (tarea, trabajo, exposición, examen…), asignarlas a un bloque de calificación, marcar los criterios de evaluación que trabajan (con su peso) y, opcionalmente, agruparlas por Situación de Aprendizaje.</td></tr>
   <tr><td><strong>Calificar</strong></td><td>Poner nota a una actividad para todo el grupo de una vez.</td></tr>
-  <tr><td><strong>Resultados</strong></td><td>El informe individual de cada alumno: nota del trimestre y final, desglose de actividades (editable aquí mismo), competencias específicas y clave, comentarios a la calificación, y exportación a informe imprimible (individual o de todo el grupo).</td></tr>
-  <tr><td><strong>Resumen</strong></td><td>Incluye un gráfico de evolución de aprobados entre evaluaciones, de un vistazo. La foto del grupo por evaluación: gráfico de aprobados/suspensos de cada evaluación y de la final, seguimiento de Situaciones de Aprendizaje trabajadas frente a las previstas (que indicas tú en cada evaluación), y propuestas de mejora por evaluación y de final de curso. Todo ello se incorpora automáticamente al informe de grupo imprimible.</td></tr>
-  <tr><td><strong>Cobertura</strong></td><td>Qué criterios del currículo has trabajado ya este trimestre y cuáles no: tu radar de programación.</td></tr>
+  <tr><td><strong>Resultados</strong></td><td>Lo primero que ves es <strong>Toda la clase</strong>: una tabla con la nota de cada alumno/a (de un vistazo) y los botones de exportación de grupo. Toca cualquier alumno/a para desplegar debajo su informe completo — nota, desglose de actividades editable, competencias, comentarios—; vuelve a tocarlo (o pulsa "← Ver toda la clase") para plegarlo.</td></tr>
+  <tr><td><strong>Asistencia</strong></td><td>Pasar lista cualquier día, y un resumen de faltas justificadas, no justificadas y retrasos por semana, mes o curso completo.</td></tr>
+  <tr><td><strong>Convivencia</strong></td><td>Registro de AC (falta de actitud y comportamiento), RC (reconocimiento positivo) y PA (parte de amonestación, con las categorías oficiales del Decreto 193/2025).</td></tr>
+  <tr><td><strong>Familias</strong></td><td>Registro rápido de contacto con la familia (llamada, email, nota escrita, reunión informal…), independiente de las notas académicas.</td></tr>
+  <tr><td><strong>Resumen</strong></td><td>Justo debajo de la tarjeta "Resumen del grupo", la tabla de <strong>Asistencia y Convivencia</strong> de todo el alumnado, filtrable por evaluación o curso completo (necesita las fechas de cada trimestre puestas en Ajustes). Junto a "Evolución de aprobados", el recuento de alumnado NESE, repetidor y "con problemática" (la unión de los dos, sin contar dos veces a quien sea ambas cosas). Además, el gráfico de aprobados/suspensos de cada evaluación y de la final, seguimiento de Situaciones de Aprendizaje frente a las previstas, y propuestas de mejora. Todo ello se incorpora automáticamente al informe de grupo imprimible.</td></tr>
   <tr><td><strong>Diario</strong></td><td>Registro de qué se ha dado cada día con ese grupo: una entrada por fecha, con historial e informe imprimible — para saber siempre por dónde vas.</td></tr>
-  <tr><td><strong>Ajustes</strong></td><td>Pesos de los bloques de calificación, pesos de los trimestres en la nota final, umbrales de adquisición, duplicar la estructura del grupo, exportar/importar el grupo suelto.</td></tr>
+  <tr><td><strong>Cobertura</strong></td><td>Qué criterios del currículo has trabajado ya este trimestre y cuáles no: tu radar de programación.</td></tr>
+  <tr><td><strong>Ajustes</strong></td><td>Pesos de los bloques de calificación, pesos de los trimestres en la nota final, <strong>fechas de inicio/fin de cada evaluación</strong> (para poder filtrar Asistencia/Convivencia por trimestre en Resumen), umbrales de adquisición, duplicar la estructura del grupo, exportar/importar el grupo suelto.</td></tr>
 </table>
+
+<h3 id="asistencia-detalle">Asistencia, en detalle</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> Elige la fecha (por defecto, la de hoy) — cualquier día del curso, sin relación con tu horario semanal.</div>
+  <div class="step"><b>2.</b> Por defecto todo el alumnado está en <strong>Presente</strong>; solo tienes que tocar la excepción de quien falte o llegue tarde: Falta justificada, Falta no justificada o Retraso.</div>
+  <div class="step"><b>3.</b> Al marcar cualquier falta o retraso aparece un campo de nota opcional (por ejemplo, "cita médica"). "Marcar todos presentes este día" limpia la fecha entera de un golpe.</div>
+  <div class="step"><b>4.</b> Debajo, el <strong>resumen</strong>: botones rápidos "Esta semana" / "Este mes" / "Curso completo", o un rango personalizado con Desde/Hasta. Cuenta faltas justificadas, no justificadas y retrasos por alumno/a en ese periodo, con informe imprimible.</div>
+</div>
+<p>El resumen de asistencia del curso completo aparece también, automáticamente, en el informe individual de evaluación de cada alumno/a (pestaña Resultados), y en el informe de grupo y en la pestaña Resumen — junto con los datos de Convivencia — no hace falta ir a buscarlo aparte.</p>
+
+<h3 id="convivencia-detalle">Convivencia, en detalle</h3>
+<p>A diferencia de Asistencia, aquí puede haber <strong>varios registros el mismo día</strong> para un mismo alumno/a — cada incidente o reconocimiento es su propia entrada.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> "+ Nuevo registro": elige alumno/a, fecha y tipo.</div>
+  <div class="step"><b>2.</b> <strong>AC</strong> (falta de actitud y comportamiento) y <strong>RC</strong> (reconocimiento positivo) piden solo una descripción breve de en qué consiste, y se guardan al momento.</div>
+  <div class="step"><b>3.</b> <strong>PA</strong> (parte de amonestación) abre directamente el formulario completo, con la misma maquetación de una hoja oficial de registro de incidencias — nombre y grupo ya vienen puestos solos — con Faltas Leves (10 supuestos) y sus Medidas Correctoras, Faltas Graves (17 supuestos) y sus Medidas Disciplinarias (todo según el Decreto 193/2025), más profesor/a, materia, hora, descripción de los hechos y observaciones. El nombre y código de tu centro (arriba del todo) se escriben una vez y quedan puestos para todos los partes siguientes. Se guarda automáticamente mientras lo rellenas, y "🖨️ Imprimir parte" genera el documento.</div>
+  <div class="step"><b>4.</b> El historial se filtra por alumno/a y por tipo (AC/RC/PA); toca cualquier entrada para reabrirla, editarla o eliminarla.</div>
+</div>
+
+<h3 id="familias-detalle">Contacto con familias, en detalle</h3>
+<p>Un registro ligero, pensado para dejar constancia rápida de "sí que avisé a la familia" — no es un acta formal como Reuniones, ni se mezcla con las notas académicas: no aparece en el informe individual del alumno/a a propósito.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> "+ Nuevo contacto": alumno/a, fecha, medio (llamada, email, nota escrita, reunión informal u otro), un asunto breve y notas opcionales sobre lo hablado.</div>
+  <div class="step"><b>2.</b> El historial se filtra por alumno/a y por medio; toca cualquier registro para ver o editar sus notas, o eliminarlo.</div>
+  <div class="step"><b>3.</b> "🖨️ Imprimir historial" genera el registro completo (con los filtros que tengas puestos).</div>
+</div>
 
 <h3 id="diario-detalle">Diario de clase, en detalle</h3>
 <div class="flow">
@@ -251,6 +282,7 @@
 <p>En Evaluación por Competencias → Alumnado, junto a NESE, hay dos columnas nuevas:</p>
 <ul>
   <li><strong>Plan</strong>: Ninguno / Refuerzo / Repetición — al elegir Refuerzo o Repetición, se crea automáticamente el plan correspondiente para ese alumno/a en su módulo, ya asignado al grupo (sin duplicar si ya tenía uno). Quitar la marca no borra el plan ya creado. La creación manual desde "+ Nuevo plan" sigue disponible en todo momento, por ejemplo para elegir un modelo del departamento o para un alumno/a sin esta marca puesta.</li>
+  <li><strong>Pendientes</strong>: para el caso de un alumno/a que promociona de curso pero arrastra tu materia suspendida de uno o varios cursos anteriores (distinto de Repetición, que es repetir el curso entero). El botón despliega los 4 cursos de ESO; marca los que tenga pendientes — puede ser más de uno a la vez (por ejemplo, un alumno de 4.º con 1.º, 2.º y 3.º pendientes). Por cada curso marcado se crea automáticamente su propio Plan de Refuerzo, con el modelo de ESE curso, sin mezclarse entre sí. Desmarcar un curso no borra el plan ya creado. La app no hace seguimiento de fechas de entrega ni de exámenes de pendientes — esos plazos los llevas tú en tu agenda o calendario.</li>
   <li><strong>Repite</strong>: marca si el alumno/a es repetidor, independientemente de si tiene o no un plan asociado (puede repetir sin haber suspendido tu materia el año anterior).</li>
 </ul>
 <p>Ambas insignias se muestran también junto al nombre del alumno/a dentro del detalle de sus planes de Refuerzo y Repetición.</p>
@@ -287,7 +319,11 @@
   <div class="step"><b>4.</b> "Cancelar" (junto al aviso) devuelve las casillas a su comportamiento normal de edición.</div>
 </div>
 
-<h2 id="tema">6i. Modo oscuro y versión de pantalla</h2>
+<h2 id="pulido">6i. Notificaciones y navegación rápida</h2>
+<p>Algunas acciones (exportar copia, guardar en el Diario, copiar/pegar en el horario, crear o eliminar un plan) muestran ahora un aviso breve en la parte inferior de la pantalla en vez de una alerta del navegador — desaparece solo a los pocos segundos, no hace falta cerrarlo.</p>
+<p>El buscador (<span class="kbd">Ctrl/Cmd + K</span>, o el botón "🔍 Buscar") funciona también como <strong>menú de navegación rápida</strong>: ábrelo y verás un acceso directo a cada módulo y a cada uno de tus grupos; escribe el nombre de cualquiera de ellos para saltar ahí al instante, además de para buscar contenido como hasta ahora.</p>
+
+<h2 id="tema">6j. Modo oscuro y versión de pantalla</h2>
 <p>Dos botones en la cabecera, junto al buscador:</p>
 <ul>
   <li><strong>🌙/☀️</strong> cambia toda la aplicación a un tema oscuro pensado para corregir de noche.</li>
