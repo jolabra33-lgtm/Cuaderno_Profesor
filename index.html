@@ -4441,7 +4441,27 @@ window.toggleNese=(id,checked)=>{ const g=grupoActual(); const a=g.alumnos.find(
 window.setNeseNivel=(id,v)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id);
   if(a){ a.neseNivel=v.trim(); save(); } };
 window.setAlumnoPlan=(id,v)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id);
-  if(a){ a.plan=v; save(); render(); } };
+  if(a){
+    a.plan=v;
+    if(v==="refuerzo") autoCrearPlanRefuerzoSiFalta(g,a);
+    else if(v==="repeticion") autoCrearPlanRepeticionSiFalta(g,a);
+    save(); render();
+  } };
+function autoCrearPlanRefuerzoSiFalta(g,a){
+  if(!Array.isArray(state.planesRefuerzo)) state.planesRefuerzo=[];
+  if(state.planesRefuerzo.some(p=>p.grupoId===g.id && p.alumnoId===a.id)) return; // ya tiene uno en este grupo, no duplicar
+  state.planesRefuerzo.push({ id:uid(), grupoId:g.id, alumnoId:a.id, alumnoNombre:a.nombre, titulo:"Refuerzo — "+a.nombre, cursoAcademico:"",
+    motivos:rfrpMotivosDefault(), trimestres:rfrpTrimestresIniciales(""), valoracionFinal:"",
+    fechaInicio:"", fechaFinPrevista:"", estado:"activo", seguimiento:[], observacionesFinales:"", planOrigenId:"", planOrigenTipo:"" });
+}
+function autoCrearPlanRepeticionSiFalta(g,a){
+  if(!Array.isArray(state.planesRepeticion)) state.planesRepeticion=[];
+  if(state.planesRepeticion.some(p=>p.grupoId===g.id && p.alumnoId===a.id)) return; // ya tiene uno en este grupo, no duplicar
+  state.planesRepeticion.push({ id:uid(), grupoId:g.id, alumnoId:a.id, alumnoNombre:a.nombre, cursoRepite:"", cursoAcademico:"",
+    motivos:rfrpMotivosDefault(), medidasNivelII:rpMedidasDefault(RP_MEDIDAS_II), medidasNivelIII:rpMedidasDefault(RP_MEDIDAS_III),
+    fechaInicio:"", estado:"activo", trimestres:rfrpTrimestresIniciales(""), valoracionFinal:"",
+    observacionesFinales:"", planOrigenId:"", planOrigenTipo:"" });
+}
 window.toggleRepetidor=(id,checked)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id);
   if(a){ a.repetidor=checked; save(); } };
 window.toggleObservacion=id=>{ state.ui.alumAbierto = state.ui.alumAbierto===id? null : id; save(); render(); };
@@ -5032,12 +5052,12 @@ function renderDiario(grupo){
   <div class="card">
     <h2 style="font-size:15px">📔 Diario de clase</h2>
     <p class="sub" style="margin:0 0 10px">Anota qué has dado cada día con este grupo, para saber siempre por dónde vas. Una entrada por fecha — si eliges un día que ya tiene nota, la verás para editarla.</p>
-    <div class="grid" style="gap:10px;max-width:640px">
-      <label style="font-size:12.5px;color:var(--mut);font-weight:500">Fecha
+    <div class="grid" style="gap:10px">
+      <label style="font-size:12.5px;color:var(--mut);font-weight:500;max-width:220px">Fecha
         <input type="date" class="in" style="width:100%;margin-top:4px" id="diarioFechaInput" value="${fechaSel}" onchange="diarioSeleccionarFecha(this.value)">
       </label>
       <label style="font-size:12.5px;color:var(--mut);font-weight:500">Qué se ha dado
-        <textarea class="in" style="width:100%;margin-top:4px;min-height:90px;resize:vertical" id="diarioNotaInput" placeholder="Ej. Tema 3, apartado 2: causas de la Revolución Industrial. Actividad de comentario de gráficos.">${esc(notaActual)}</textarea>
+        <textarea class="in" style="width:100%;margin-top:4px;min-height:120px;resize:vertical" id="diarioNotaInput" placeholder="Ej. Tema 3, apartado 2: causas de la Revolución Industrial. Actividad de comentario de gráficos.">${esc(notaActual)}</textarea>
       </label>
       <div class="flex">
         <button class="btn" onclick="diarioGuardarEntrada()">Guardar</button>
