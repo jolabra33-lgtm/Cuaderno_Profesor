@@ -988,7 +988,7 @@ function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:
   rfTab:"lista", rfId:"", rfModalNueva:false, rfFiltroEstado:"", rfBusqueda:"",
   neTab:"lista", neId:"", neModalCrear:null, prepNuevoModal:null, horModalCelda:null,
   rpTab:"lista", rpId:"", rpModalNueva:false, rpFiltroEstado:"", rpBusqueda:"", prepModal:null,
-  grupoId:null, tab:"alumnos", trim:0, calAct:"", calViewMode:"cards", resAl:"", alumAbierto:null, alumPendAbierto:null,
+  grupoId:null, tab:"alumnos", trim:0, calAct:"", calViewMode:"cards", resAl:"", alumAbierto:null, alumPendAbierto:null, fichaAlumnoId:"", alumColumnasOcultas:[],
   form:{editId:null,nombre:"",tipo:TIPOS[0],esExamen:false,bloqueId:"",pesoBloque:"",links:[],sda:""},
   nuevoGrupo:{nombre:"",catalogoKey:ORDEN_CATALOGOS[0]}, catImportTexto:"" } }; }
 
@@ -1045,8 +1045,37 @@ function normalizarAlumno(a){
   if(a.plan===undefined) a.plan="";
   if(a.repetidor===undefined) a.repetidor=false;
   if(!Array.isArray(a.pendientes)) a.pendientes=[];
+  if(a.fechaNacimiento===undefined) a.fechaNacimiento="";
   return a;
 }
+function calcularEdad(fechaNacimiento){
+  if(!fechaNacimiento) return null;
+  const nac=new Date(fechaNacimiento+"T00:00:00");
+  if(isNaN(nac.getTime())) return null;
+  const hoy=new Date();
+  let edad=hoy.getFullYear()-nac.getFullYear();
+  const m=hoy.getMonth()-nac.getMonth();
+  if(m<0 || (m===0 && hoy.getDate()<nac.getDate())) edad--;
+  return edad>=0 && edad<130 ? edad : null;
+}
+const ALUM_COLUMNAS_OPCIONALES=[
+  {id:"nese",label:"NESE"},
+  {id:"nivelNese",label:"Nivel NESE"},
+  {id:"plan",label:"Plan"},
+  {id:"repite",label:"Repite"},
+  {id:"pendientes",label:"Pendientes"},
+  {id:"nacimiento",label:"Nacimiento"},
+  {id:"edad",label:"Edad"},
+];
+function alumColVisible(colId){ return !(state.ui.alumColumnasOcultas||[]).includes(colId); }
+window.toggleColumnasAlumnoPanel=()=>{ alumColumnasPanelAbierto=!alumColumnasPanelAbierto; render(); };
+window.toggleColumnaAlumno=(colId,visible)=>{
+  if(!Array.isArray(state.ui.alumColumnasOcultas)) state.ui.alumColumnasOcultas=[];
+  const idx=state.ui.alumColumnasOcultas.indexOf(colId);
+  if(!visible && idx===-1) state.ui.alumColumnasOcultas.push(colId);
+  else if(visible && idx!==-1) state.ui.alumColumnasOcultas.splice(idx,1);
+  save(); render();
+};
 
 let state;
 try{ state=JSON.parse(localStorage.getItem(KEY)) || null; }catch(e){ state=null; }
@@ -1201,6 +1230,8 @@ if(state.ui.famModalNueva===undefined) state.ui.famModalNueva=false;
 if(state.ui.famFiltroAlumno===undefined) state.ui.famFiltroAlumno="";
 if(state.ui.famFiltroMedio===undefined) state.ui.famFiltroMedio="";
 if(state.ui.alumPendAbierto===undefined) state.ui.alumPendAbierto=null;
+if(state.ui.fichaAlumnoId===undefined) state.ui.fichaAlumnoId="";
+if(!Array.isArray(state.ui.alumColumnasOcultas)) state.ui.alumColumnasOcultas=[];
 if(state.centroNombre===undefined) state.centroNombre="";
 if(state.centroCodigo===undefined) state.centroCodigo="";
 if(state.programaciones && !Array.isArray(state.programaciones) && typeof state.programaciones==="object"){
@@ -4092,6 +4123,7 @@ function horRenderGridHTML(){
   }).join("");
   const bannerCopia=enModoCopia?`<div class="alert-box" style="margin-bottom:10px;align-items:center;flex-wrap:wrap;gap:8px">
     <span>📋 <strong>Copiando:</strong> ${esc(horResumenTextoPlano(horPortapapeles))} — toca cualquier casilla para pegar. Puedes pegar en varias seguidas.</span>
+    <button class="btn small" onclick="horCancelarCopia()">✓ Aceptar</button>
     <button class="ghost small" onclick="horCancelarCopia()">Cancelar</button>
   </div>`:"";
   return `<div class="card">
@@ -4105,22 +4137,42 @@ function horRenderGridHTML(){
   </div>`;
 }
 window.horImprimir=()=>{
+  const hexA=(hex,a)=>{
+    if(!hex.startsWith("#")) return `rgba(100,116,139,${a})`; // var(--muted-border) u otro sin hex
+    const n=parseInt(hex.slice(1),16); const r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    return `rgba(${r},${g},${b},${a})`;
+  };
   const filasHtml=HOR_FILAS.map((f,fi)=>{
     const celdas=HOR_DIAS.map(d=>{
       const c=horCelda(fi,d.id);
-      if(!c.tipo) return `<td></td>`;
-      if(c.tipo==="clase") return `<td><strong>${esc(c.materia||"Clase")}</strong>${c.nivelGrupo?"<br>"+esc(c.nivelGrupo):""}${c.aula?'<br><span style="color:#888">'+esc(c.aula)+"</span>":""}</td>`;
-      return `<td><strong>${horTipoInfo(c.tipo).label}</strong>${c.nota?"<br>"+esc(c.nota):""}</td>`;
+      const esRecreoVacio=f.recreo && !c.tipo;
+      if(!c.tipo){
+        return esRecreoVacio
+          ? `<td style="background:repeating-linear-gradient(135deg,#f3f3f3 0 6px,#e6e6e6 6px 12px)"></td>`
+          : `<td></td>`;
+      }
+      const info=horTipoInfo(c.tipo);
+      const bg=hexA(info.color,0.16);
+      const borde=hexA(info.color,0.55);
+      if(c.tipo==="clase") return `<td style="background:${bg};border-left:3px solid ${borde}"><strong>${esc(c.materia||"Clase")}</strong>${c.nivelGrupo?"<br>"+esc(c.nivelGrupo):""}${c.aula?'<br><span style="color:#777;font-size:11px">'+esc(c.aula)+"</span>":""}</td>`;
+      return `<td style="background:${bg};border-left:3px solid ${borde}"><strong>${info.label}</strong>${c.nota?"<br><span style=\"font-size:11px;color:#555\">"+esc(c.nota)+"</span>":""}</td>`;
     }).join("");
-    return `<tr><td style="white-space:nowrap;font-size:11px;color:#666">${f.inicio}–${f.fin}</td>${celdas}</tr>`;
+    return `<tr><td style="white-space:nowrap;font-size:11px;color:#666;font-weight:600">${f.inicio}–${f.fin}</td>${celdas}</tr>`;
   }).join("");
+  const leyenda=HOR_TIPOS.filter(t=>t.id && t.id!=="otro").map(t=>
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:11.5px;color:#555">
+      <span style="width:11px;height:11px;border-radius:3px;background:${hexA(t.color,0.35)};border:1.5px solid ${hexA(t.color,0.8)};display:inline-block"></span>${esc(t.label)}
+    </span>`).join("");
   const body=`
-    <h1>Horario semanal</h1>
-    <div class="meta">Generado el ${new Date().toLocaleDateString("es-ES")}</div>
-    <table>
+    <div style="background:linear-gradient(135deg,#152a44,#25456b);color:#fff;padding:16px 22px;border-radius:10px;margin-bottom:16px">
+      <div style="font-size:1.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em">${esc(state.centroNombre)||"Horario semanal"}</div>
+      <div style="font-size:.85rem;color:rgba(255,255,255,.85);margin-top:4px">Curso académico ${cursoAcademicoActual()}</div>
+    </div>
+    <table style="border-collapse:collapse">
       <thead><tr><th></th>${HOR_DIAS.map(d=>`<th>${d.label}</th>`).join("")}</tr></thead>
       <tbody>${filasHtml}</tbody>
     </table>
+    <div style="margin-top:14px">${leyenda}</div>
   `;
   abrirVentanaInforme("Horario semanal", body);
 };
@@ -4131,6 +4183,7 @@ window.horImprimir=()=>{
 let homeTabActual="calendario";
 let homeAyudaAbierta=false;
 let homeSecciones={evaluacion:true,seguimiento:true,organizacion:true,calendario:true};
+let alumColumnasPanelAbierto=false;
 let progTrimAbiertos={0:true,1:true,2:true};
 window.progToggleTrim=(t)=>{ progTrimAbiertos[t]=!progTrimAbiertos[t]; render(); };
 window.homeSetTab=(t)=>{ homeTabActual=t; render(); };
@@ -4498,30 +4551,52 @@ function renderAlumnos(grupo){
       </div>
       <button class="btn" onclick="addAlumno(); document.getElementById('alApellidos')?.focus()">Añadir</button>
     </div>
-    ${grupo.alumnos.length>5?`<div style="margin-bottom:10px">
-      <input class="in" id="alBuscar" style="width:100%;max-width:280px" placeholder="Buscar alumno/a…" oninput="filtrarAlumnos(this.value)">
-    </div>`:""}
+    <div class="flex" style="margin-bottom:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+      ${grupo.alumnos.length>5?`<input class="in" id="alBuscar" style="width:100%;max-width:280px" placeholder="Buscar alumno/a…" oninput="filtrarAlumnos(this.value)">`:"<span></span>"}
+      <div style="position:relative">
+        <button class="ghost" style="border:1px solid var(--line)" onclick="toggleColumnasAlumnoPanel()">⚙ Columnas</button>
+        ${alumColumnasPanelAbierto?`<div class="card" id="panelColumnasAlumnado" style="position:absolute;right:0;top:100%;margin-top:6px;z-index:20;width:220px;padding:12px">
+          <div style="font-size:12px;color:var(--mut);margin-bottom:8px">Elige qué columnas ver</div>
+          ${ALUM_COLUMNAS_OPCIONALES.map(c=>`<label style="display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0">
+            <input type="checkbox" ${alumColVisible(c.id)?"checked":""} onchange="toggleColumnaAlumno('${c.id}',this.checked)"> ${c.label}
+          </label>`).join("")}
+        </div>`:""}
+      </div>
+    </div>
     <div class="scroll">
     <table id="tablaAlumnos">
-      <thead><tr><th>Apellidos</th><th>Nombre</th><th>NESE</th><th>Nivel NESE</th><th>Plan</th><th>Repite</th><th>Pendientes</th><th></th><th></th></tr></thead>
+      <thead><tr>
+        <th>Apellidos</th><th>Nombre</th>
+        ${alumColVisible("nese")?`<th style="font-size:11.5px">NESE</th>`:""}
+        ${alumColVisible("nivelNese")?`<th style="font-size:11.5px">Nivel NESE</th>`:""}
+        ${alumColVisible("plan")?`<th style="font-size:11.5px">Plan</th>`:""}
+        ${alumColVisible("repite")?`<th style="font-size:11.5px">Repite</th>`:""}
+        ${alumColVisible("pendientes")?`<th style="font-size:11.5px">Pendientes</th>`:""}
+        ${alumColVisible("nacimiento")?`<th style="font-size:11.5px">Nacimiento</th>`:""}
+        ${alumColVisible("edad")?`<th style="font-size:11.5px">Edad</th>`:""}
+        <th></th><th></th><th></th>
+      </tr></thead>
       <tbody>
-      ${grupo.alumnos.length? grupo.alumnos.map(a=>`
+      ${grupo.alumnos.length? grupo.alumnos.map(a=>{ const edad=calcularEdad(a.fechaNacimiento); const colspanTotal=5+ALUM_COLUMNAS_OPCIONALES.filter(c=>alumColVisible(c.id)).length; return `
         <tr data-id="${a.id}" data-buscar="${esc(normalizarTexto(a.apellidos+" "+a.nombreP))}">
-          <td><input class="in" style="width:100%;min-width:130px;border-color:transparent;background:transparent" value="${esc(a.apellidos||"")}" onchange="renombrarApellidos('${a.id}',this.value)"></td>
-          <td><input class="in" style="width:100%;min-width:110px;border-color:transparent;background:transparent" value="${esc(a.nombreP||"")}" onchange="renombrarNombreP('${a.id}',this.value)"></td>
-          <td style="text-align:center"><input type="checkbox" ${a.nese?"checked":""} onchange="toggleNese('${a.id}',this.checked)"></td>
-          <td>${a.nese?neseNivelHTML(a):'<span style="color:var(--mut);font-size:13px">—</span>'}</td>
-          <td><select class="in" style="min-width:130px" onchange="setAlumnoPlan('${a.id}',this.value)">
+          <td><input class="in" style="width:100%;min-width:270px;border-color:transparent;background:transparent" value="${esc(a.apellidos||"")}" onchange="renombrarApellidos('${a.id}',this.value)"></td>
+          <td><input class="in" style="width:100%;min-width:150px;border-color:transparent;background:transparent" value="${esc(a.nombreP||"")}" onchange="renombrarNombreP('${a.id}',this.value)"></td>
+          ${alumColVisible("nese")?`<td style="text-align:center"><input type="checkbox" ${a.nese?"checked":""} onchange="toggleNese('${a.id}',this.checked)"></td>`:""}
+          ${alumColVisible("nivelNese")?`<td style="font-size:12.5px">${a.nese?neseNivelHTML(a):'<span style="color:var(--mut);font-size:12.5px">—</span>'}</td>`:""}
+          ${alumColVisible("plan")?`<td><select class="in" style="min-width:108px;font-size:12.5px;padding:6px 8px" onchange="setAlumnoPlan('${a.id}',this.value)">
             <option value="" ${!a.plan?"selected":""}>— Ninguno —</option>
             <option value="refuerzo" ${a.plan==="refuerzo"?"selected":""}>Refuerzo</option>
             <option value="repeticion" ${a.plan==="repeticion"?"selected":""}>Repetición</option>
-          </select></td>
-          <td style="text-align:center"><input type="checkbox" ${a.repetidor?"checked":""} onchange="toggleRepetidor('${a.id}',this.checked)"></td>
-          <td><button class="ghost" style="font-size:12px" onclick="togglePendientesRow('${a.id}')">${a.pendientes.length?esc(a.pendientes.map(n=>n+"º").join(", ")):"— Ninguna —"}</button></td>
+          </select></td>`:""}
+          ${alumColVisible("repite")?`<td style="text-align:center"><input type="checkbox" ${a.repetidor?"checked":""} onchange="toggleRepetidor('${a.id}',this.checked)"></td>`:""}
+          ${alumColVisible("pendientes")?`<td><button class="ghost" style="font-size:11.5px;padding:5px 8px" onclick="togglePendientesRow('${a.id}')">${a.pendientes.length?esc(a.pendientes.map(n=>n+"º").join(", ")):"— Ninguna —"}</button></td>`:""}
+          ${alumColVisible("nacimiento")?`<td><input type="date" class="in" style="min-width:132px;font-size:12.5px;padding:6px 8px" value="${esc(a.fechaNacimiento||"")}" onchange="setFechaNacimiento('${a.id}',this.value)"></td>`:""}
+          ${alumColVisible("edad")?`<td style="text-align:center;font-size:12.5px;color:${edad==null?"var(--mut)":"var(--ink)"}">${edad==null?"—":edad+" años"}</td>`:""}
+          <td><button class="ghost" onclick="abrirFichaAlumno('${a.id}')">Editar</button></td>
           <td><button class="ghost" onclick="toggleObservacion('${a.id}')">${abierto===a.id?"Ocultar obs.":(a.observaciones?"Ver obs.":"+ Obs.")}</button></td>
           <td><button class="ghost" onclick="delAlumno('${a.id}')">Eliminar</button></td>
         </tr>
-        ${state.ui.alumPendAbierto===a.id?`<tr data-pendfor="${a.id}"><td colspan="9" style="background:var(--paper)">
+        ${state.ui.alumPendAbierto===a.id?`<tr data-pendfor="${a.id}"><td colspan="${colspanTotal}" style="background:var(--paper)">
           <div style="padding:10px 4px">
             <div style="font-size:12.5px;color:var(--mut);margin-bottom:8px">Marca los cursos anteriores en los que este alumno/a tiene la materia pendiente. Al marcar uno, se crea automáticamente su Plan de Refuerzo (si no lo tenía ya) con el modelo de ese curso; desmarcarlo no borra el plan.</div>
             <div class="flex" style="gap:14px;flex-wrap:wrap">
@@ -4531,11 +4606,11 @@ function renderAlumnos(grupo){
             </div>
           </div>
         </td></tr>`:""}
-        ${abierto===a.id?`<tr data-obsfor="${a.id}"><td colspan="9" style="background:var(--paper)">
+        ${abierto===a.id?`<tr data-obsfor="${a.id}"><td colspan="${colspanTotal}" style="background:var(--paper)">
               <div style="font-size:12px;color:var(--mut);margin:6px 0 4px">Observaciones del alumno · uso interno, no se imprime</div>
               <textarea class="in" style="width:100%;min-height:80px;resize:vertical" placeholder="Notas privadas para ti sobre este alumno/a…" onchange="setObservacion('${a.id}',this.value)">${esc(a.observaciones||"")}</textarea>
-            </td></tr>`:""}`).join("")
-        : `<tr><td colspan="9" style="color:var(--mut);font-size:14px">Aún no hay alumnado. Añade el primero arriba, o usa la carga en bloque de más abajo.</td></tr>`}
+            </td></tr>`:""}`;}).join("")
+        : `<tr><td colspan="${5+ALUM_COLUMNAS_OPCIONALES.filter(c=>alumColVisible(c.id)).length}" style="color:var(--mut);font-size:14px">Aún no hay alumnado. Añade el primero arriba, o usa la carga en bloque de más abajo.</td></tr>`}
       </tbody>
     </table>
     <p id="alSinResultados" style="display:none;color:var(--mut);font-size:13.5px;margin-top:6px">Ningún alumno/a coincide con la búsqueda.</p>
@@ -4546,14 +4621,15 @@ function renderAlumnos(grupo){
     <p class="sub">Pega una lista (un alumno por línea, en formato <strong>Apellidos, Nombre</strong> — p. ej. "Pérez Martínez, Juan") o importa un CSV. Se aceptan tanto archivos con una columna (Apellidos, Nombre en la misma celda) como con dos columnas separadas (Apellidos / Nombre).</p>
     <div class="flex" style="align-items:flex-start;gap:20px">
       <div style="flex:1;min-width:220px">
-        <textarea class="in" id="alBulk" style="width:100%;min-height:100px;resize:vertical" placeholder="Pérez Martínez, Juan&#10;García López, Ana&#10;…"></textarea>
+        <textarea class="in" id="alBulk" style="width:100%;min-height:100px;resize:vertical" placeholder="Pérez Martínez, Juan&#10;García López, Ana, 14/03/2011&#10;…"></textarea>
         <button class="btn" style="margin-top:8px" onclick="addAlumnosBulk()">Añadir lista</button>
+        <p class="sub" style="margin:6px 0 0">Un tercer dato opcional por línea, DD/MM/AAAA, para la fecha de nacimiento.</p>
       </div>
       <div style="flex:1;min-width:220px">
         <label class="in file" style="display:block;text-align:center">Elegir archivo CSV…
           <input type="file" accept=".csv,text/csv" style="display:none" onchange="importarCSVAlumnos(this)">
         </label>
-        <p class="sub" style="margin:8px 0 0">Si la primera fila es una cabecera (p. ej. "Alumno" o "Apellidos"), se detecta y se ignora. El NESE y su nivel no se importan por CSV: se marcan a mano en la tabla de arriba.</p>
+        <p class="sub" style="margin:8px 0 0">Si la primera fila es una cabecera (p. ej. "Alumno" o "Apellidos"), se detecta y se ignora. Si además hay una columna "Fecha de nacimiento" (formato DD/MM/AAAA), se importa también. El NESE y su nivel no se importan por CSV: se marcan a mano en la tabla de arriba.</p>
       </div>
     </div>
   </div>
@@ -4571,7 +4647,8 @@ function renderAlumnos(grupo){
           </div>
         </div>`).join("")}
     </div>
-  </div>` : ""}`;
+  </div>` : ""}
+  ${state.ui.fichaAlumnoId?fichaAlumnoModalHTML(grupo,state.ui.fichaAlumnoId):""}`;
   const iAp=document.getElementById("alApellidos");
   const iNo=document.getElementById("alNombreP");
   iAp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); iNo.focus(); } });
@@ -4601,18 +4678,33 @@ window.addAlumno=()=>{
   ordenarAlumnos(g);
   save(); render();
 };
+function parsearFechaFlexible(str){
+  if(!str) return "";
+  str=String(str).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  let m=str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if(m){ const d=m[1].padStart(2,"0"),mo=m[2].padStart(2,"0"),y=m[3]; return `${y}-${mo}-${d}`; }
+  return "";
+}
+function normalizarEntradaAlumno(x){
+  // Acepta tanto un texto plano (compatibilidad con llamadas antiguas) como
+  // {nombre, fechaNacimiento}.
+  if(typeof x==="string") return {nombre:x, fechaNacimiento:""};
+  return {nombre:x.nombre||"", fechaNacimiento:x.fechaNacimiento||""};
+}
 function addAlumnosNombres(entradas){
   const g=grupoActual();
   const existentes=new Set(g.alumnos.map(a=>normalizarTexto(a.nombre)));
   let anadidos=0, omitidos=0;
-  entradas.forEach(linea=>{
-    linea=(linea||"").trim(); if(!linea) return;
-    const {apellidos,nombreP}=splitApellidosNombre(linea);
+  entradas.forEach(x=>{
+    const {nombre:linea,fechaNacimiento}=normalizarEntradaAlumno(x);
+    const texto=(linea||"").trim(); if(!texto) return;
+    const {apellidos,nombreP}=splitApellidosNombre(texto);
     const nombre=nombreCompleto(apellidos,nombreP);
     if(!nombre) return;
     const clave=normalizarTexto(nombre);
     if(existentes.has(clave)){ omitidos++; return; }
-    g.alumnos.push(normalizarAlumno({id:uid(),apellidos,nombreP,nombre}));
+    g.alumnos.push(normalizarAlumno({id:uid(),apellidos,nombreP,nombre,fechaNacimiento:parsearFechaFlexible(fechaNacimiento)}));
     existentes.add(clave);
     anadidos++;
   });
@@ -4622,9 +4714,17 @@ function addAlumnosNombres(entradas){
 }
 window.addAlumnosBulk=()=>{
   const ta=document.getElementById("alBulk");
-  const nombres=ta.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if(!nombres.length) return;
-  addAlumnosNombres(nombres);
+  const lineas=ta.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if(!lineas.length) return;
+  const entradas=lineas.map(linea=>{
+    const celdas=splitCSVLine(linea,",");
+    if(celdas.length>=3 && celdas[2] && celdas[2].trim()){
+      // "Apellidos, Nombre, DD/MM/AAAA"
+      return {nombre:nombreCompleto(celdas[0],celdas[1]), fechaNacimiento:parsearFechaFlexible(celdas[2])};
+    }
+    return {nombre:linea, fechaNacimiento:""};
+  });
+  addAlumnosNombres(entradas);
 };
 function splitCSVLine(line,delim){
   const cells=[]; let cur=""; let inQuotes=false;
@@ -4649,21 +4749,31 @@ function parseCSVAlumnos(text){
   const delim=(lines[0].match(/;/g)||[]).length>=(lines[0].match(/,/g)||[]).length?";":",";
   const primeraCeldas=splitCSVLine(lines[0],delim);
   const primera=(primeraCeldas[0]||"").toLowerCase();
-  const cabeceras=["nombre","alumno","alumno/a","nombre completo","name","apellidos, nombre","alumnado","apellidos"];
-  const inicio=cabeceras.includes(primera)?1:0;
+  const cabecerasNombre=["nombre","alumno","alumno/a","nombre completo","name","apellidos, nombre","alumnado","apellidos"];
+  const cabecerasFecha=["nacimiento","fecha nacimiento","fecha de nacimiento","f. nacimiento","fecha_nacimiento","nace"];
+  const esCabecera=cabecerasNombre.includes(primera);
+  let colFecha=-1;
+  if(esCabecera){
+    colFecha=primeraCeldas.findIndex(c=>cabecerasFecha.includes((c||"").trim().toLowerCase()));
+  }
+  const inicio=esCabecera?1:0;
   const entradas=[];
   for(let i=inicio;i<lines.length;i++){
     const celdas=splitCSVLine(lines[i],delim);
     if(!celdas.length || !celdas[0]) continue;
     let apellidos="",nombreP="";
-    if(celdas.length>=2 && celdas[1] && celdas[1].trim()){
+    // Si hay columna de fecha detectada, las columnas de nombre son las que quedan antes de ella
+    const colNombreFin = colFecha>=0? colFecha : celdas.length;
+    if(colNombreFin>=2 && celdas[1] && celdas[1].trim() && (colFecha!==1)){
       apellidos=celdas[0]; nombreP=celdas[1];
     } else {
       const partes=splitApellidosNombre(celdas[0]);
       apellidos=partes.apellidos; nombreP=partes.nombreP;
     }
     const nombre=nombreCompleto(apellidos,nombreP);
-    if(nombre) entradas.push(nombre);
+    if(!nombre) continue;
+    const fechaNacimiento = colFecha>=0 && celdas[colFecha] ? parsearFechaFlexible(celdas[colFecha]) : "";
+    entradas.push({nombre,fechaNacimiento});
   }
   return entradas;
 }
@@ -4691,7 +4801,7 @@ function neseNivelHTML(a){
   const esOtro = a.neseNivelOtro || !!(a.neseNivel && !NIVELES_NESE.includes(a.neseNivel));
   const selValue = esOtro? "__otro__" : (a.neseNivel||"");
   return `<div class="flex" style="gap:6px;flex-wrap:wrap;align-items:center">
-    <select class="in" style="min-width:150px" onchange="setNeseNivelSelect('${a.id}',this.value)">
+    <select class="in" style="min-width:128px;font-size:12.5px;padding:6px 8px" onchange="setNeseNivelSelect('${a.id}',this.value)">
       <option value="" ${selValue===""?"selected":""}>Seleccionar…</option>
       ${NIVELES_NESE.map(n=>`<option value="${esc(n)}" ${selValue===n?"selected":""}>${esc(n)}</option>`).join("")}
       <option value="__otro__" ${selValue==="__otro__"?"selected":""}>Otro (especificar)</option>
@@ -4751,6 +4861,68 @@ window.toggleRepetidor=(id,checked)=>{ const g=grupoActual(); const a=g.alumnos.
   if(a){ a.repetidor=checked; save(); } };
 window.toggleObservacion=id=>{ state.ui.alumAbierto = state.ui.alumAbierto===id? null : id; save(); render(); };
 window.togglePendientesRow=id=>{ state.ui.alumPendAbierto = state.ui.alumPendAbierto===id? null : id; save(); render(); };
+window.setFechaNacimiento=(id,valor)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id); if(a){ a.fechaNacimiento=valor; save(); render(); } };
+window.abrirFichaAlumno=(id)=>{ state.ui.fichaAlumnoId=id; save(); render(); };
+window.cerrarFichaAlumno=()=>{ state.ui.fichaAlumnoId=""; save(); render(); };
+function fichaAlumnoModalHTML(grupo,alumnoId){
+  const a=grupo.alumnos.find(x=>x.id===alumnoId);
+  if(!a) return "";
+  const edad=calcularEdad(a.fechaNacimiento);
+  return `<div class="modal-overlay" onclick="if(event.target===this) cerrarFichaAlumno()">
+    <div class="modal-box" style="max-width:520px">
+      <div class="flex" style="justify-content:space-between;align-items:center">
+        <h2 style="font-size:16px">Ficha de ${esc(a.nombre)}</h2>
+        <button class="ghost" onclick="cerrarFichaAlumno()">✕</button>
+      </div>
+      <div class="grid" style="gap:10px;margin-top:10px">
+        <div class="flex" style="gap:10px">
+          <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1">Apellidos
+            <input class="in" style="width:100%;margin-top:4px" value="${esc(a.apellidos||"")}" onchange="renombrarApellidos('${a.id}',this.value)">
+          </label>
+          <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1">Nombre
+            <input class="in" style="width:100%;margin-top:4px" value="${esc(a.nombreP||"")}" onchange="renombrarNombreP('${a.id}',this.value)">
+          </label>
+        </div>
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500;max-width:220px">Fecha de nacimiento
+          <input type="date" class="in" style="width:100%;margin-top:4px" value="${esc(a.fechaNacimiento||"")}" onchange="setFechaNacimiento('${a.id}',this.value)">
+          <span style="font-size:12px;color:var(--mut)">${edad==null?"":"→ "+edad+" años"}</span>
+        </label>
+        <div class="flex" style="gap:14px;flex-wrap:wrap;align-items:center;padding-top:4px;border-top:1px solid var(--line)">
+          <label style="font-size:13px;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" ${a.nese?"checked":""} onchange="toggleNese('${a.id}',this.checked)"> NESE
+          </label>
+          ${a.nese?neseNivelHTML(a):""}
+        </div>
+        <div class="flex" style="gap:14px;flex-wrap:wrap;align-items:center">
+          <label style="font-size:12.5px;color:var(--mut);font-weight:500">Plan
+            <select class="in" style="margin-top:4px;min-width:150px" onchange="setAlumnoPlan('${a.id}',this.value)">
+              <option value="" ${!a.plan?"selected":""}>— Ninguno —</option>
+              <option value="refuerzo" ${a.plan==="refuerzo"?"selected":""}>Refuerzo</option>
+              <option value="repeticion" ${a.plan==="repeticion"?"selected":""}>Repetición</option>
+            </select>
+          </label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:6px;margin-top:18px">
+            <input type="checkbox" ${a.repetidor?"checked":""} onchange="toggleRepetidor('${a.id}',this.checked)"> Repite curso
+          </label>
+        </div>
+        <div>
+          <div style="font-size:12.5px;color:var(--mut);font-weight:500;margin-bottom:4px">Materia pendiente de cursos anteriores</div>
+          <div class="flex" style="gap:14px;flex-wrap:wrap">
+            ${["1","2","3","4"].map(n=>`<label style="font-size:13px;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" ${a.pendientes.includes(n)?"checked":""} onchange="toggleAlumnoPendiente('${a.id}','${n}',this.checked)"> ${n}º ESO
+            </label>`).join("")}
+          </div>
+        </div>
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Observaciones (uso interno, no se imprime)
+          <textarea class="in" style="width:100%;margin-top:4px;min-height:70px;resize:vertical" onchange="setObservacion('${a.id}',this.value)">${esc(a.observaciones||"")}</textarea>
+        </label>
+      </div>
+      <div class="flex" style="justify-content:flex-end;margin-top:16px">
+        <button class="btn" onclick="cerrarFichaAlumno()">Listo</button>
+      </div>
+    </div>
+  </div>`;
+}
 window.toggleAlumnoPendiente=(alId,curso,checked)=>{
   const g=grupoActual(); const a=g.alumnos.find(x=>x.id===alId);
   if(!a) return;
@@ -6253,6 +6425,46 @@ window.progCrear=()=>{
   save(); render();
   mostrarToast("✓ Programación creada");
 };
+window.progExportar=(id)=>{
+  const p=progPorId(id); if(!p) return;
+  const cat=getCatalogo(p.catalogoKey);
+  const paquete={tipo:"geohist-programacion-aula",version:1,exportadoEl:new Date().toISOString(),programacion:p};
+  const blob=new Blob([JSON.stringify(paquete,null,2)],{type:"application/json"});
+  const u=URL.createObjectURL(blob); const a=document.createElement("a");
+  const nombreArchivo="programacion-"+p.nombre.replace(/[^a-z0-9]+/gi,"-").toLowerCase()+".json";
+  a.href=u; a.download=nombreArchivo; a.click(); URL.revokeObjectURL(u);
+  mostrarToast("✓ Programación exportada");
+};
+window.progImportarArchivo=inp=>{
+  const file=inp.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let datos;
+    try{ datos=JSON.parse(rd.result); }
+    catch(e){ alert("El archivo no es un JSON válido."); inp.value=""; return; }
+    const original = datos && datos.tipo==="geohist-programacion-aula" && datos.programacion ? datos.programacion : (datos && datos.sdas && datos.catalogoKey ? datos : null);
+    if(!original){ alert("Este archivo no parece ser una Programación de Aula exportada desde esta aplicación."); inp.value=""; return; }
+    if(!CATALOGOS[original.catalogoKey] && !(state.catalogosPersonalizados||{})[original.catalogoKey]){
+      alert("Esta Programación es de una materia/curso que no existe en tu catálogo — no se puede importar.");
+      inp.value=""; return;
+    }
+    // Se importa como una programación NUEVA e independiente: id propio, y los id de
+    // sus SdA/actividades se regeneran para no chocar con nada que ya tengas.
+    const mapaIds={};
+    const nuevasSdas=(original.sdas||[]).map(s=>{ const nid=uid(); mapaIds[s.id]=nid; return {...s,id:nid}; });
+    const nuevasActividades=(original.actividades||[]).map(a=>({...a, id:uid(), sdaIds:(a.sdaIds||[]).map(sid=>mapaIds[sid]).filter(Boolean), criterios:(a.criterios||[]).map(c=>({...c}))}));
+    const copia={id:uid(), nombre:original.nombre||"Programación importada", catalogoKey:original.catalogoKey,
+      sdas:nuevasSdas, actividades:nuevasActividades,
+      recursos:{...(original.recursos||progRecursosDefault())}, cursoEscolar:original.cursoEscolar||cursoAcademicoActual(),
+      profesorNombre:original.profesorNombre||""};
+    if(!Array.isArray(state.programaciones)) state.programaciones=[];
+    state.programaciones.push(copia);
+    save(); render();
+    mostrarToast("✓ Programación importada — añadida a tu lista");
+    inp.value="";
+  };
+  rd.readAsText(file);
+};
 window.progDuplicar=(id)=>{
   const orig=progPorId(id); if(!orig) return;
   const mapaIds={};
@@ -6307,10 +6519,16 @@ function progListaHTML(root){
   const progs=state.programaciones||[];
   root.innerHTML=`
   <div class="card">
-    <div class="flex" style="justify-content:space-between;align-items:center">
+    <div class="flex" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div><h2 style="font-size:15px">📘 Programaciones de Aula</h2><p class="sub" style="margin:0">Se crean una vez y se reutilizan curso tras curso. "Duplicar" es la forma de reaprovechar una programación en un año nuevo, con el seguimiento en blanco.</p></div>
-      <button class="btn" onclick="progAbrirModalNueva()">+ Nueva programación</button>
+      <div class="flex">
+        <label class="in file" style="text-align:center">Importar programación…
+          <input type="file" accept=".json,application/json" style="display:none" onchange="progImportarArchivo(this)">
+        </label>
+        <button class="btn" onclick="progAbrirModalNueva()">+ Nueva programación</button>
+      </div>
     </div>
+    <p class="sub" style="margin:8px 0 0">Importar añade la programación del archivo a tu lista, sin tocar ni sobrescribir ninguna de las que ya tengas.</p>
   </div>
   ${progs.length? progs.map(p=>{
       const cat=getCatalogo(p.catalogoKey);
@@ -6323,6 +6541,7 @@ function progListaHTML(root){
             <div class="sub" style="margin:2px 0 0">${gruposVinculados.length? "Vinculada a: "+gruposVinculados.map(esc).join(", ") : "Sin grupos vinculados todavía"}</div>
           </div>
           <div class="flex" onclick="event.stopPropagation()">
+            <button class="ghost" style="border:1px solid var(--line)" onclick="progExportar('${p.id}')">Exportar (.json)</button>
             <button class="ghost" style="border:1px solid var(--line)" onclick="progDuplicar('${p.id}')">Duplicar</button>
             <button class="ghost danger" onclick="progEliminar('${p.id}')">Eliminar</button>
           </div>

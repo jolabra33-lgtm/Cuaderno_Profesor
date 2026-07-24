@@ -17,7 +17,7 @@
 // cambiando el número de CACHE_NAME (v1 -> v2, etc.) para que se descargue la
 // versión nueva en vez de seguir sirviendo la antigua desde caché.
 
-const CACHE_NAME = 'geohist-suite-v50';
+const CACHE_NAME = 'geohist-suite-v53';
 
 // El "esqueleto" de las dos apps: HTML, manifest e iconos.
 const APP_SHELL = [

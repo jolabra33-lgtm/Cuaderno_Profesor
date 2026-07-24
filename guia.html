@@ -163,6 +163,7 @@
 <h2 id="programacion">3b. Programación de Aula</h2>
 <p>Es una sección <strong>independiente</strong> (como Refuerzo o Repetición), accesible desde Inicio — no vive dentro de un grupo. Se crea una vez al principio de curso y se va completando poco a poco; siempre es editable, no hace falta tenerla acabada desde el primer día.</p>
 <p><strong>Se guarda por sí sola, no por grupo</strong>: si dos de tus grupos son del mismo nivel (por ejemplo, 2º ESO A y 2º ESO B), creas <em>una</em> Programación y la <strong>vinculas</strong> a los dos desde Ajustes de cada grupo — la escribes una vez y la usan ambos, sin duplicar trabajo. De un año para otro, "Duplicar" copia una Programación entera (con sus SdA y actividades) en blanco de seguimiento, lista para reutilizar.</p>
+<p><strong>Compartir con otro profesor</strong>: "Exportar (.json)" descarga esa Programación en un archivo que puedes darle a un compañero; "Importar programación", en la parte de arriba de la lista, la añade a la suya. Importar solo <strong>añade</strong> — nunca sobrescribe ni toca ninguna Programación (ni ningún otro dato) que tu compañero ya tuviera.</p>
 <div class="flow">
   <div class="step"><b>1.</b> "+ Nueva programación": nombre y materia/curso. Marca los <strong>recursos didácticos</strong> que vayas a usar (libro de texto, presentaciones, fichas propias, mapas y atlas, documentales, TIC, salidas de campo, prensa…) — solo para dejar constancia, sin adjuntar ningún archivo.</div>
   <div class="step"><b>2.</b> Cada evaluación (1ª/2ª/3ª) tiene su propia cabecera <strong>colapsable</strong> — pliégala para no tener que desplazarte entre trimestres ya cerrados mientras trabajas en el actual.</div>
@@ -304,8 +305,11 @@
   <li><strong>Plan</strong>: Ninguno / Refuerzo / Repetición — al elegir Refuerzo o Repetición, se crea automáticamente el plan correspondiente para ese alumno/a en su módulo, ya asignado al grupo (sin duplicar si ya tenía uno). Quitar la marca no borra el plan ya creado. La creación manual desde "+ Nuevo plan" sigue disponible en todo momento, por ejemplo para elegir un modelo del departamento o para un alumno/a sin esta marca puesta.</li>
   <li><strong>Pendientes</strong>: para el caso de un alumno/a que promociona de curso pero arrastra tu materia suspendida de uno o varios cursos anteriores (distinto de Repetición, que es repetir el curso entero). El botón despliega los 4 cursos de ESO; marca los que tenga pendientes — puede ser más de uno a la vez (por ejemplo, un alumno de 4.º con 1.º, 2.º y 3.º pendientes). Por cada curso marcado se crea automáticamente su propio Plan de Refuerzo, con el modelo de ESE curso, sin mezclarse entre sí. Desmarcar un curso no borra el plan ya creado. La app no hace seguimiento de fechas de entrega ni de exámenes de pendientes — esos plazos los llevas tú en tu agenda o calendario.</li>
   <li><strong>Repite</strong>: marca si el alumno/a es repetidor, independientemente de si tiene o no un plan asociado (puede repetir sin haber suspendido tu materia el año anterior).</li>
+  <li><strong>Nacimiento</strong> y <strong>Edad</strong>: escribe la fecha de nacimiento y la edad se calcula sola, siempre al día — no hace falta actualizarla nunca.</li>
 </ul>
 <p>Ambas insignias se muestran también junto al nombre del alumno/a dentro del detalle de sus planes de Refuerzo y Repetición.</p>
+<p>El botón <strong>"Editar"</strong> de cada fila abre una ficha con todos los datos del alumno/a juntos (apellidos, nombre, fecha de nacimiento, NESE, Plan, Repite, Pendientes y observaciones) — útil para revisar o corregir todo de una vez, sin ir campo a campo por la tabla. Los campos de la tabla siguen siendo editables directamente también, como hasta ahora.</p>
+<p>El botón <strong>"⚙ Columnas"</strong>, junto al buscador, despliega una lista para marcar qué columnas ver — NESE, Nivel NESE, Plan, Repite, Pendientes, Nacimiento y Edad se pueden ocultar (Apellidos y Nombre siempre se ven). Útil si solo necesitas lo esencial a la vista un día concreto. Se recuerda para la próxima vez que abras la app.</p>
 
 <h2 id="nese">6g. Alumnos NESE</h2>
 <p>Séptima tarjeta del Inicio. El alumnado marcado como NESE en Evaluación por Competencias (pestaña Alumnado, columna NESE) aparece aquí solo, organizado por grupo — no hace falta darlo de alta dos veces.</p>
@@ -326,7 +330,7 @@
   <div class="step"><b>2.</b> Elige el tipo: Clase (con materia, nivel y grupo, y aula), Guardia, Complementaria, Reducción, Reunión, Atención a Familias, Recreo u Otro — todos menos Clase llevan una nota libre.</div>
   <div class="step"><b>3.</b> Las casillas de recreo aparecen marcadas como tal por defecto (con una textura rayada), pero puedes convertir cualquiera en Guardia si te toca ese día, o "Vaciar casilla" si ese día en concreto no hay recreo (por ejemplo, un viernes con horario reducido) — se queda realmente en blanco ese día, sin volver a mostrar "Recreo".</div>
   <div class="step"><b>4.</b> "Vaciar casilla" la deja en blanco de nuevo.</div>
-  <div class="step"><b>5.</b> "🖨️ Imprimir horario" genera el documento completo de la semana.</div>
+  <div class="step"><b>5.</b> "🖨️ Imprimir horario" genera el documento completo de la semana, con los mismos colores por tipo de casilla que ves en pantalla y una leyenda al final.</div>
 </div>
 <p>Es tuyo, no de un grupo concreto — se guarda junto con el resto de la copia de seguridad.</p>
 
@@ -336,7 +340,7 @@
   <div class="step"><b>1.</b> Toca el icono 📋 que aparece en la esquina de cualquier casilla ya rellena.</div>
   <div class="step"><b>2.</b> Aparece un aviso "Copiando…" arriba de la cuadrícula. Toca cualquier otra casilla — vacía o con contenido — para pegarle el mismo tipo, materia, nivel/grupo, aula o nota.</div>
   <div class="step"><b>3.</b> Puedes pegar en tantas casillas seguidas como quieras, sin volver a tocar el icono de copiar.</div>
-  <div class="step"><b>4.</b> "Cancelar" (junto al aviso) devuelve las casillas a su comportamiento normal de edición.</div>
+  <div class="step"><b>4.</b> Cuando termines, "✓ Aceptar" cierra el modo de copiar (o "Cancelar", que hace lo mismo — las casillas ya pegadas se quedan igual con cualquiera de los dos; son solo dos formas de cerrar el aviso).</div>
 </div>
 
 <h2 id="pulido">6i. Notificaciones y navegación rápida</h2>
