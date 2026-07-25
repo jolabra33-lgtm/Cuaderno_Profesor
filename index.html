@@ -1262,6 +1262,7 @@ state.programaciones.forEach(p=>{
     if(!Array.isArray(s.saberesIds)) s.saberesIds=[];
     if(typeof s.saberesOtros!=="string") s.saberesOtros = (typeof s.saberes==="string" ? s.saberes : "");
     delete s.saberes;
+    if(!Array.isArray(s.recursos)) s.recursos=[];
   });
 });
 if(state.ui.progTab===undefined) state.ui.progTab="lista";
@@ -6390,7 +6391,19 @@ const PROG_RECURSOS_OPCIONES=[
 ];
 function progPorId(id){ return (state.programaciones||[]).find(p=>p.id===id)||null; }
 function progDeGrupo(grupo){ return grupo&&grupo.programacionId? progPorId(grupo.programacionId) : null; }
-function progSdaDefault(trimestre){ return {id:uid(), titulo:"", trimestre:trimestre??0, sesionesPrevistas:"", saberesIds:[], saberesOtros:""}; }
+function progSdaDefault(trimestre){ return {id:uid(), titulo:"", trimestre:trimestre??0, sesionesPrevistas:"", saberesIds:[], saberesOtros:"", recursos:[]}; }
+function recursoIconoTipo(nombre,url){
+  const n=(nombre||"").toLowerCase(), u=(url||"").toLowerCase();
+  if(/\.pdf(\?|$|\s)/.test(n)) return "📄";
+  if(/\.(docx?|odt)(\?|$|\s)/.test(n)) return "📝";
+  if(/\.(pptx?|odp)(\?|$|\s)/.test(n)) return "📊";
+  if(/\.(xlsx?|ods|csv)(\?|$|\s)/.test(n)) return "📈";
+  if(/\.(mp4|mov|avi|mkv)(\?|$|\s)/.test(n)) return "🎬";
+  if(/youtube\.com|youtu\.be|vimeo\.com/.test(u)) return "🎥";
+  if(/onedrive\.live\.com|1drv\.ms|sharepoint\.com/.test(u)) return "☁️";
+  if(/drive\.google\.com|docs\.google\.com/.test(u)) return "📁";
+  return "🔗";
+}
 function progActividadDefault(){ return {id:uid(), nombre:"", tipo:TIPOS[0], esExamen:false, sdaIds:[], criterios:[]}; }
 function progSaberesDelCatalogo(catalogoKey){ return (typeof SABERES_BASICOS!=="undefined" && SABERES_BASICOS[catalogoKey]) || {}; }
 function progSesionesReales(grupo,sdaId){
@@ -6566,6 +6579,26 @@ window.progEliminarSda=(sdaId)=>{
   if(!confirm("¿Eliminar esta Situación de Aprendizaje? Las actividades que solo estuvieran enlazadas a ella se quedarán sin SdA asignada. No se puede deshacer.")) return;
   p.sdas=p.sdas.filter(s=>s.id!==sdaId);
   p.actividades.forEach(a=>{ a.sdaIds=(a.sdaIds||[]).filter(id=>id!==sdaId); });
+  save(); render();
+};
+window.progAnadirRecurso=(sdaId)=>{
+  const p=progPorId(state.ui.progId); if(!p) return;
+  const s=p.sdas.find(x=>x.id===sdaId); if(!s) return;
+  const inNombre=document.getElementById("progRecNombre_"+sdaId);
+  const inEnlace=document.getElementById("progRecEnlace_"+sdaId);
+  const nombre=(inNombre.value||"").trim();
+  let enlace=(inEnlace.value||"").trim();
+  if(!nombre||!enlace){ alert("Escribe un nombre y pega el enlace."); return; }
+  if(!/^https?:\/\//i.test(enlace)) enlace="https://"+enlace;
+  if(!Array.isArray(s.recursos)) s.recursos=[];
+  s.recursos.push({id:uid(), nombre, enlace});
+  save(); render();
+  mostrarToast("✓ Recurso añadido");
+};
+window.progEliminarRecurso=(sdaId,recursoId)=>{
+  const p=progPorId(state.ui.progId); if(!p) return;
+  const s=p.sdas.find(x=>x.id===sdaId); if(!s) return;
+  s.recursos=(s.recursos||[]).filter(r=>r.id!==recursoId);
   save(); render();
 };
 window.progSetSdaCampo=(sdaId,campo,valor)=>{
@@ -6757,6 +6790,18 @@ function progDetalleHTML(root){
         <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;margin-top:10px">Otros saberes / notas (opcional)
           <textarea class="in" style="width:100%;margin-top:4px;min-height:46px;resize:vertical" placeholder="Cualquier saber adicional no listado arriba…" onchange="progSetSdaCampo('${s.id}','saberesOtros',this.value)">${esc(s.saberesOtros||"")}</textarea>
         </label>
+        <div class="section-eyebrow" style="margin-top:12px">Recursos de esta SdA</div>
+        ${(s.recursos||[]).length? `<div class="grid" style="gap:4px;margin-top:4px">
+          ${s.recursos.map(r=>`<div class="flex" style="justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 10px">
+            <a href="${esc(r.enlace)}" target="_blank" rel="noopener" style="font-size:13.5px;text-decoration:underline;color:var(--brand-3)">${recursoIconoTipo(r.nombre,r.enlace)} ${esc(r.nombre||"(sin nombre)")}</a>
+            <button class="ghost" style="font-size:12px;padding:3px 8px" onclick="progEliminarRecurso('${s.id}','${r.id}')">🗑️</button>
+          </div>`).join("")}
+        </div>` : '<p class="sub" style="margin:4px 0 0">Ninguno todavía.</p>'}
+        <div class="flex" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+          <input class="in" style="flex:1;min-width:160px" id="progRecNombre_${s.id}" placeholder="Nombre (ej. Libro de Texto)">
+          <input class="in" style="flex:2;min-width:220px" id="progRecEnlace_${s.id}" placeholder="Enlace (OneDrive, YouTube…)">
+          <button class="ghost" style="border:1px solid var(--line)" onclick="progAnadirRecurso('${s.id}')">+ Añadir recurso</button>
+        </div>
         <div class="section-eyebrow" style="margin-top:12px">Actividades de esta SdA</div>
         ${p.actividades.filter(a=>(a.sdaIds||[]).includes(s.id)).map(a=>progActividadCardHTML(idx,a,p)).join("")}
         <button class="ghost" style="border:1px solid var(--line);margin-top:8px" onclick="progAnadirActividad('${s.id}')">+ Añadir actividad a esta SdA</button>
@@ -6821,10 +6866,12 @@ window.progImprimir=(id)=>{
       const actsHTML=acts.length? `<ul style="margin:4px 0 0 18px">${acts.map(a=>`<li>${esc(a.nombre||"(sin nombre)")} — ${esc(a.tipo)}${a.esExamen?" (examen)":""}${actividadCriteriosAbreviadosHTML(idx,a)}</li>`).join("")}</ul>` : '<p style="color:#999;font-style:italic;margin:2px 0">Sin actividades.</p>';
       const saberesTextos=(s.saberesIds||[]).map(textoSaber).filter(Boolean);
       const saberesHTML = saberesTextos.length? `<ul style="margin:4px 0 0 18px">${saberesTextos.map(t2=>`<li>${esc(t2)}</li>`).join("")}</ul>` : "";
+      const recursosHTML = (s.recursos||[]).length? `<p style="font-size:13px;margin:6px 0 0"><strong>Recursos:</strong></p><ul style="margin:4px 0 0 18px">${s.recursos.map(r=>`<li>${recursoIconoTipo(r.nombre,r.enlace)} <a href="${esc(r.enlace)}">${esc(r.nombre||"(sin nombre)")}</a></li>`).join("")}</ul>` : "";
       return `<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e5e5e5">
         <h3 style="margin:0 0 6px">${esc(s.titulo||"(sin título)")}</h3>
         <p style="font-size:12px;color:#666;margin:0 0 6px">Sesiones previstas: ${esc(s.sesionesPrevistas)||"—"}</p>
         ${saberesHTML||s.saberesOtros?`<p style="font-size:13px;margin:6px 0 0"><strong>Saberes básicos:</strong></p>${saberesHTML}${s.saberesOtros?`<p style="font-size:13px;margin:4px 0 0">${esc(s.saberesOtros)}</p>`:""}`:""}
+        ${recursosHTML}
         <p style="font-size:13px;margin:6px 0 0"><strong>Actividades:</strong></p>
         ${actsHTML}
       </div>`;
