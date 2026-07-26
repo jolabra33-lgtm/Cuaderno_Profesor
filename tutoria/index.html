@@ -3329,6 +3329,18 @@ let currentModalTarget = null;
 const _today = new Date().toISOString().split('T')[0];
 // evalDates is now per-nivel: evalDates[nivel] = {eval1, eval2, eval3}
 let evalDates = {};
+// Eventos propios del calendario de Tutoría (independientes de la app principal).
+// Cada uno: {id, fecha:"YYYY-MM-DD", titulo, tipo, nota}
+let calEventos = [];
+const CAL_EV_TIPOS = [
+  { id:'reunion',  label:'Reunión',          color:'#7c3aed' },
+  { id:'junta',    label:'Junta de evaluación', color:'#0d9488' },
+  { id:'entrega',  label:'Entrega / plazo',  color:'#2563eb' },
+  { id:'actividad',label:'Actividad',        color:'#16a34a' },
+  { id:'otro',     label:'Otro',             color:'#64748b' }
+];
+function calEvTipoInfo(id){ return CAL_EV_TIPOS.find(t=>t.id===id) || CAL_EV_TIPOS[4]; }
+function _calEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 NIVELES.forEach(n => { evalDates[n] = { eval1: _today, eval2: _today, eval3: _today }; });
 // Helper: get dates for the active nivel (or a specific one)
 function getDates(nivel) { return evalDates[nivel] || { eval1: _today, eval2: _today, eval3: _today }; }
@@ -12803,6 +12815,14 @@ function renderCalendario() {
     });
   });
   sessions.sort((a, b) => a.date.localeCompare(b.date));
+  // Eventos propios del calendario, en el mismo formato que las sesiones para
+  // poder pintarlos juntos (esEvento los distingue de las evaluaciones).
+  const eventosOrdenados = calEventos.slice().sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+  const eventosComoSesion = eventosOrdenados.map(e => {
+    const info = calEvTipoInfo(e.tipo);
+    return { date: e.fecha, nivel: e.titulo || '(sin título)', tipo: e.tipo, label: info.label, color: info.color, dot: info.color, esEvento: true, evId: e.id, nota: e.nota || '' };
+  });
+  const todosItems = sessions.concat(eventosComoSesion).sort((a,b) => (a.date||'').localeCompare(b.date||''));
 
   // ── Current display month (state stored on window) ──
   if (!window._calYear || !window._calMonth) {
@@ -12819,9 +12839,9 @@ function renderCalendario() {
     const today     = new Date().toISOString().split('T')[0];
     const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-    // Map date string → sessions
+    // Map date string → sesiones y eventos
     const byDate = {};
-    sessions.forEach(s => {
+    todosItems.forEach(s => {
       if (!byDate[s.date]) byDate[s.date] = [];
       byDate[s.date].push(s);
     });
@@ -12838,7 +12858,7 @@ function renderCalendario() {
       const isToday = iso === today;
       const hasSession = daySessions.length > 0;
       const dots = daySessions.slice(0, 3).map(s =>
-        `<span style="width:7px;height:7px;border-radius:50%;background:${s.dot};display:inline-block;flex-shrink:0" title="${s.nivel} — ${s.label}"></span>`
+        `<span style="width:7px;height:7px;border-radius:${s.esEvento?'2px':'50%'};background:${s.dot};display:inline-block;flex-shrink:0" title="${s.esEvento?'':(s.nivel+' — ')}${s.esEvento?s.nivel:s.label}"></span>`
       ).join('');
       const extraCount = daySessions.length > 3 ? `<span style="font-size:8px;color:var(--text3)">+${daySessions.length-3}</span>` : '';
       cells += `
@@ -12869,11 +12889,11 @@ function renderCalendario() {
   }
 
   function buildTimeline() {
-    if (!sessions.length) return `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">Sin sesiones programadas. Configura las fechas en la sección inferior.</div>`;
+    if (!todosItems.length) return `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">Sin sesiones ni eventos. Configura las fechas en la sección inferior, o pulsa un día del calendario para añadir un evento.</div>`;
     const today = new Date().toISOString().split('T')[0];
     let html = '';
     let lastDate = '';
-    sessions.forEach(s => {
+    todosItems.forEach(s => {
       const dateLabel = s.date ? new Date(s.date + 'T12:00:00').toLocaleDateString('es-ES', {weekday:'long',day:'numeric',month:'long'}) : '—';
       const isPast    = s.date < today;
       const isToday   = s.date === today;
@@ -12889,15 +12909,16 @@ function renderCalendario() {
           border-left:4px solid ${s.dot};border-radius:8px;margin-bottom:6px;
           opacity:${isPast?'0.65':'1'};">
           <div>
-            <div style="font-size:12px;font-weight:700;color:var(--text)">${s.nivel}</div>
-            <div style="font-size:11px;color:var(--text2)">${s.label}</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text)">${s.esEvento?_calEsc(s.nivel):s.nivel}</div>
+            <div style="font-size:11px;color:var(--text2)">${s.label}${s.esEvento&&s.nota?' · '+_calEsc(s.nota):''}</div>
           </div>
           <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
             ${isPast ? `<span style="font-size:10px;color:var(--text3);background:var(--surface2);border-radius:4px;padding:2px 6px">Pasada</span>` : 
               isToday ? `<span style="font-size:10px;color:var(--green);background:rgba(45,212,160,0.12);border-radius:4px;padding:2px 6px;font-weight:700">Hoy</span>` : ''}
             <span style="font-size:10px;color:var(--text3)">${s.date?new Date(s.date+'T12:00:00').toLocaleDateString('es-ES'):'—'}</span>
-            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px"
-              onclick="selectNivel('${s.nivel.replace(/'/g,"\\'")}');renderAll();">Ver grupo</button>
+            ${s.esEvento
+              ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="_calEliminarEvento('${s.evId}')">Eliminar</button>`
+              : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="selectNivel('${s.nivel.replace(/'/g,"\\'")}');renderAll();">Ver grupo</button>`}
           </div>
         </div>`;
     });
@@ -12931,8 +12952,8 @@ function renderCalendario() {
     <div class="main dash-wrap" style="padding-bottom:40px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px;">📅 Calendario de Evaluaciones</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${sessions.length} sesiones programadas · curso 2025-26</div>
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px;">📅 Calendario</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${sessions.length} sesión${sessions.length===1?'':'es'} de evaluación · ${calEventos.length} evento${calEventos.length===1?'':'s'} · pulsa un día para añadir</div>
         </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost btn-sm${viewMode==='calendar'?' ':''}" style="${viewMode==='calendar'?'border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,0.08)':''}" onclick="_calSetView('calendar')">📆 Mes</button>
@@ -12948,7 +12969,13 @@ function renderCalendario() {
             <span style="width:10px;height:10px;border-radius:50%;background:${t.dot};flex-shrink:0"></span>
             ${t.label}
           </div>`).join('')}
-        <div style="margin-left:auto;font-size:11px;color:var(--text3)">Haz clic en un día para ver los detalles</div>
+        <span style="width:1px;background:var(--border);align-self:stretch"></span>
+        ${CAL_EV_TIPOS.map(t=>`
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);">
+            <span style="width:10px;height:10px;border-radius:2px;background:${t.color};flex-shrink:0"></span>
+            ${t.label}
+          </div>`).join('')}
+        <div style="margin-left:auto;font-size:11px;color:var(--text3)">Pulsa un día para ver o añadir</div>
       </div>
 
       <!-- MAIN VIEW -->
@@ -12997,15 +13024,16 @@ function renderCalendario() {
     renderCalendario();
   };
   window._calDayClick = function(iso) {
-    const daySessions = sessions.filter(s => s.date === iso);
     const detail = document.getElementById('calDayDetail');
     if (!detail) return;
-    if (!daySessions.length) { detail.style.display = 'none'; return; }
+    window._calDiaAbierto = iso;
+    const dayEvals = sessions.filter(s => s.date === iso);
+    const dayEvs = calEventos.filter(e => e.fecha === iso);
     const dateLabel = new Date(iso+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     detail.style.display = 'block';
     detail.innerHTML = `
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📅 ${dateLabel.charAt(0).toUpperCase()+dateLabel.slice(1)}</div>
-      ${daySessions.map(s=>`
+      ${dayEvals.map(s=>`
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${s.dot};border-radius:8px;margin-bottom:6px;">
           <div style="width:10px;height:10px;border-radius:50%;background:${s.dot};flex-shrink:0"></div>
           <div>
@@ -13014,8 +13042,51 @@ function renderCalendario() {
           </div>
           <button class="btn btn-primary btn-sm" style="margin-left:auto;font-size:11px"
             onclick="selectNivel('${s.nivel.replace(/'/g,"\\'")}');renderAll();">Ir al nivel →</button>
-        </div>`).join('')}`;
+        </div>`).join('')}
+      ${dayEvs.map(e=>{ const info=calEvTipoInfo(e.tipo); return `
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${info.color};border-radius:8px;margin-bottom:6px;">
+          <div style="width:10px;height:10px;border-radius:2px;background:${info.color};flex-shrink:0"></div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${_calEsc(e.titulo||'(sin título)')}</div>
+            <div style="font-size:11px;color:var(--text2)">${info.label}${e.nota?' · '+_calEsc(e.nota):''}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:11px" onclick="_calEliminarEvento('${e.id}')">Eliminar</button>
+        </div>`; }).join('')}
+      ${(!dayEvals.length && !dayEvs.length) ? `<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Sin sesiones ni eventos este día.</div>` : ''}
+      <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Añadir evento</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="calEvTitulo" placeholder="Título del evento" style="flex:2;min-width:160px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:inherit;font-size:12px;">
+          <select id="calEvTipo" style="flex:1;min-width:130px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:inherit;font-size:12px;">
+            ${CAL_EV_TIPOS.map(t=>`<option value="${t.id}">${t.label}</option>`).join('')}
+          </select>
+          <input id="calEvNota" placeholder="Nota (opcional)" style="flex:2;min-width:140px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-family:inherit;font-size:12px;">
+          <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="_calAnadirEvento('${iso}')">+ Añadir</button>
+        </div>
+      </div>`;
     detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+  window._calAnadirEvento = function(iso) {
+    const t = document.getElementById('calEvTitulo');
+    const tipo = document.getElementById('calEvTipo');
+    const nota = document.getElementById('calEvNota');
+    const titulo = (t.value||'').trim();
+    if (!titulo) { alert('Escribe un título para el evento.'); return; }
+    calEventos.push({ id: 'ev'+Math.random().toString(36).slice(2,9), fecha: iso, titulo, tipo: tipo.value, nota: (nota.value||'').trim() });
+    markDirty();
+    renderCalendario();
+    setTimeout(() => { if (window._calDayClick) window._calDayClick(iso); }, 0);
+  };
+  window._calEliminarEvento = function(id) {
+    const ev = calEventos.find(e => e.id === id);
+    if (!ev) return;
+    if (!confirm('¿Eliminar el evento "' + (ev.titulo||'') + '"?')) return;
+    const iso = ev.fecha;
+    const i = calEventos.indexOf(ev);
+    calEventos.splice(i, 1);
+    markDirty();
+    renderCalendario();
+    setTimeout(() => { if (window._calDayClick) window._calDayClick(iso); }, 0);
   };
   window._calUpdateDate = function(nivel, campo, valor) {
     if (!evalDates[nivel]) evalDates[nivel] = { eval1: '', eval2: '', eval3: '' };
@@ -14858,6 +14929,7 @@ function buildState(includeImages = true, includeActas = true) {
     NIVELES,
     tutores,
     evalDates,
+    calEventos,
     materiasCustom: _materiasCustom || {},
     obsGrupoData: window._obsGrupoData || {},
     asistenciaData: window._asistenciaData || {},
@@ -14987,6 +15059,7 @@ function loadFromLocalStorage() {
       if (saved.data) Object.keys(saved.data).forEach(n => { data[n] = saved.data[n]; });
       if (saved.tutores) Object.assign(tutores, saved.tutores);
       if (saved.evalDates) Object.assign(evalDates, saved.evalDates);
+      if (Array.isArray(saved.calEventos)) { calEventos.length = 0; saved.calEventos.forEach(e => calEventos.push(e)); }
       if (saved.vacantesCfg) { _vacMergeCfg(saved.vacantesCfg); }
       if (saved.convivenciaData) { if (!window._convivenciaData) window._convivenciaData = {}; Object.assign(window._convivenciaData, saved.convivenciaData); }
       // Restaurar el resto del estado (antes se perdía al pulsar "Continuar")
