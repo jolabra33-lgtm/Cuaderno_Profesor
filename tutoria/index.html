@@ -2654,6 +2654,19 @@ if ('serviceWorker' in navigator) {
   }
   .mat-add-input:focus { outline: none; border-color: var(--accent); }
   col.col-hidden { display: none; }
+
+  /* Plano del grupo */
+  .tplano-grid{ display:grid; gap:6px }
+  .tplano-mesa{
+    aspect-ratio:1; border:2px dashed var(--border); border-radius:9px;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:10.5px; line-height:1.15; padding:3px; cursor:pointer;
+    background:var(--surface); color:var(--text); user-select:none; overflow:hidden;
+  }
+  .tplano-mesa.ocupada{ border-style:solid; border-color:var(--accent); background:var(--accent); color:#fff; font-weight:600 }
+  .tplano-mesa.sel{ outline:3px solid var(--green); outline-offset:1px }
+  .tplano-chip{ padding:6px 9px; border-radius:7px; border:1px solid var(--border); cursor:pointer; font-size:12px; background:var(--surface); color:var(--text) }
+  .tplano-chip.sel{ outline:3px solid var(--green); background:var(--surface2) }
   th.col-hidden { display: none !important; }
   td.col-hidden { display: none !important; }
   /* ===== IMPORT CENTRO MODAL ===== */
@@ -2823,7 +2836,7 @@ if ('serviceWorker' in navigator) {
 
     <div class="ws-hero-content">
       <div class="ws-logo-mark">IE</div>
-      <div class="ws-hero-label">Jefatura de Estudios · IES</div>
+      <div class="ws-hero-label">Gestor de Tutoría</div>
       <div class="ws-hero-title">Control de<br><span>Evaluaciones</span></div>
       <div class="ws-hero-desc">
         Gestiona evaluaciones, decisiones de promoción y estadísticas de todos tus grupos desde un único archivo.
@@ -2909,7 +2922,7 @@ if ('serviceWorker' in navigator) {
       <div class="header-title">EvalIES</div>
       <input class="header-ies-name" id="headerIesName" type="text"
         placeholder="Nombre del centro educativo…"
-        value="Jefatura de Estudios · Educación Secundaria"
+        value="Gestor de Tutoría"
         oninput="saveIesName(this.value)" />
     </div>
     <div class="header-divider"></div>
@@ -3393,6 +3406,9 @@ function generateSampleData(nivel, grupo) {
       recuperadasAnteriores: [],
       noRecuperadasAnteriores: [],
       historial: [],
+      // Seguimientos con familia: registros fechados, uno por cada vez que se
+      // recoge lo que ha dicho el equipo docente para una reunión con la familia.
+      seguimientos: [],
       // Convivencia y faltas por evaluación
       faltasJust1: 0, faltasInjust1: 0, ac1: 0, partes1: 0, expedientes1: 0,
       faltasJust2: 0, faltasInjust2: 0, ac2: 0, partes2: 0, expedientes2: 0,
@@ -3426,6 +3442,7 @@ function renderAll() {
   if (currentNivel === '__calendario__') { renderCalendario(); return; }
   if (currentNivel === '__convivencia__') { renderConvivencia(); return; }
   if (currentNivel === '__informe__') { renderInformeAcademico(); return; }
+  if (currentNivel === '__segfam__') { renderSegFamiliaListado(); return; }
   renderMain();
   syncDateInputs();
 }
@@ -3435,11 +3452,12 @@ function renderNivelTabs() {
   const homeTab = `<div class="nivel-tab ${currentNivel === '__home__' ? 'active' : ''}" onclick="selectNivel('__home__')">🏠 Inicio</div>`;
   const calendarioTab = `<div class="nivel-tab ${currentNivel === '__calendario__' ? 'active' : ''}" onclick="selectNivel('__calendario__')" style="color:var(--accent)">📅 Calendario</div>`;
   const informeTab = `<div class="nivel-tab ${currentNivel === '__informe__' ? 'active' : ''}" onclick="selectNivel('__informe__')" style="color:#22d3ee">🎓 Informe Académico</div>`;
+  const segFamTab = `<div class="nivel-tab ${currentNivel === '__segfam__' ? 'active' : ''}" onclick="selectNivel('__segfam__')" style="color:#f76ea0">📞 Seguimientos</div>`;
   const convivenciaTab = `<div class="nivel-tab ${currentNivel === '__convivencia__' ? 'active' : ''}" onclick="selectNivel('__convivencia__')" style="color:var(--orange)">🤝 Informe Convivencia</div>`;
   const vacantesTab = `<div class="nivel-tab ${currentNivel === '__vacantes__' ? 'active' : ''}" onclick="selectNivel('__vacantes__')" style="color:var(--accent2)">🏗️ Unidades Vacantes</div>`;
   const materiasTab = `<div class="nivel-tab ${currentNivel === '__materias__' ? 'active' : ''}" onclick="selectNivel('__materias__')" style="color:var(--yellow)">⚙ Materias</div>`;
   const addNivelTab = `<div class="nivel-tab nivel-tab-add" onclick="openAddNivelModal()" title="Crear un nuevo nivel" style="color:var(--green);font-weight:700;">＋ Nivel</div>`;
-  c.innerHTML = homeTab + calendarioTab + informeTab + convivenciaTab + NIVELES.map(n => {
+  c.innerHTML = homeTab + calendarioTab + informeTab + segFamTab + convivenciaTab + NIVELES.map(n => {
     // Count pending decisions for this nivel
     const grupos = GRUPOS_POR_NIVEL[n]||[];
     let totalAl = 0, pendAl = 0;
@@ -3673,8 +3691,10 @@ function renderGrupoContent(mc, grupoBlock, nivel, grupo, alumnos) {
         <button class="btn btn-sm" style="background:rgba(124,92,252,0.15);color:var(--purple);border:1px solid var(--purple);" onclick="openInforme('${nivel}','${grupo}',3)">📄 Acta Evaluación Final</button>
         <button class="btn btn-sm" style="background:rgba(220,38,38,0.12);color:#f87171;border:1px solid rgba(220,38,38,0.4);" onclick="openActaOficialMenu('${nivel}','${grupo}')">📋 Acta Oficial</button>
         <button class="btn btn-sm" style="background:rgba(167,139,250,0.15);color:var(--purple);border:1px solid var(--purple);" onclick="openFotoGaleria('${nivel}','${grupo}')">🖼️ Fotos del grupo</button>
+        <button class="btn btn-sm" style="background:rgba(45,212,160,0.15);color:var(--green);border:1px solid var(--green);" onclick="openPlanoGrupo('${nivel}','${grupo}')">🪑 Plano del grupo</button>
         <button class="btn btn-sm" style="background:rgba(45,212,160,0.15);color:var(--green);border:1px solid var(--green);" onclick="openHorarioGrupo('${nivel}','${grupo}')">🗓️ Horario del grupo</button>
         <button class="btn btn-sm" style="background:rgba(247,157,79,0.15);color:var(--orange);border:1px solid var(--orange);" onclick="openAsistencia('${nivel}','${grupo}')">👥 Asistencia sesión${_getAsistenciaIndicator('${nivel}','${grupo}')}</button>
+        <button class="btn btn-sm" style="background:rgba(79,142,247,0.15);color:var(--accent);border:1px solid var(--accent);" onclick="openEquipoDocente('${nivel}','${grupo}')">👨‍🏫 Equipo docente</button>
         <button class="btn btn-sm" style="background:rgba(79,142,247,0.15);color:var(--accent);border:1px solid var(--accent);" onclick="openObservacionesGrupo('${nivel}','${grupo}')">📝 Observaciones del grupo${(window._obsGrupoData||{})[`${nivel}-${grupo}`] ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);vertical-align:middle;margin-left:2px;"></span>' : ''}</button>
       </div>
     </div>
@@ -3927,27 +3947,29 @@ function getColDefs(nivel, evalTab) {
   const baseNames = ['Lengua Base','CEIP Origen','Curso','Grupo','Repetidor','Alumno / a','F. Nacimiento','Edad Actual','NESE','Recurso NESE','Compensatoria','Cód. Comp.','Pend. Ant.'];
   const baseRequired = baseNames.map(n => n === 'Alumno / a');
   const baseShared = baseNames.map(() => true);
-  const tailNames = ['📝',''];
-  const tailRequired = [false, true];
-  const tailShared = [true, true];
+  // Nota: hasta hace poco había aquí dos columnas más ('📝' y una vacía) que
+  // ya no correspondían a ninguna celda real — el botón de observaciones
+  // (📝) vive dentro de la propia celda "Alumno / a" desde hace tiempo, no
+  // como columna aparte. Se han retirado porque desajustaban en dos
+  // posiciones la cabecera respecto a las filas de datos.
 
   let names, required, shared;
   if (tab === 'eval1') {
-    names = [...baseNames, 'I Eval.','I Pend.','I Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes', ...tailNames];
-    required = [...baseRequired, false,false,false,false,false,false,false,false, ...tailRequired];
-    shared = [...baseShared, false,false,false,false,false,false,false,false, ...tailShared];
+    names = [...baseNames, 'I Eval.','I Pend.','I Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes'];
+    required = [...baseRequired, false,false,false,false,false,false,false,false];
+    shared = [...baseShared, false,false,false,false,false,false,false,false];
   } else if (tab === 'eval2') {
-    names = [...baseNames, 'II Eval.','II Pend.','II Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes', ...tailNames];
-    required = [...baseRequired, false,false,false,false,false,false,false,false, ...tailRequired];
-    shared = [...baseShared, false,false,false,false,false,false,false,false, ...tailShared];
+    names = [...baseNames, 'II Eval.','II Pend.','II Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes'];
+    required = [...baseRequired, false,false,false,false,false,false,false,false];
+    shared = [...baseShared, false,false,false,false,false,false,false,false];
   } else { // eval3
     const pendLabel = bach ? 'Pend. III Ev.' : 'Pend. Próx. Curso';
     const extrNames = bach ? ['Eval. Extr.','Pend. Extr.'] : [];
     const extrRequired = bach ? [false,false] : [];
     const extrShared = bach ? [false,false] : [];
-    names = [...baseNames, 'Recuperadas', 'III Eval.', pendLabel, ...extrNames, 'Promociona', 'F. Just.','F. Injust.','AC','Partes','Expedientes', ...tailNames];
-    required = [...baseRequired, false, false, false, ...extrRequired, true, false,false,false,false,false, ...tailRequired];
-    shared = [...baseShared, false, false, false, ...extrShared, false, false,false,false,false,false, ...tailShared];
+    names = [...baseNames, 'Recuperadas', 'III Eval.', pendLabel, ...extrNames, 'Promociona', 'F. Just.','F. Injust.','AC','Partes','Expedientes'];
+    required = [...baseRequired, false, false, false, ...extrRequired, true, false,false,false,false,false];
+    shared = [...baseShared, false, false, false, ...extrShared, false, false,false,false,false,false];
   }
   return names.map((label, i) => [label, required[i], shared[i]]);
 }
@@ -4244,14 +4266,15 @@ function applyColVisibility(key, nivel, evalTab) {
     const show = !cs.deleted[i] && cs.visible[i];
     col.classList.toggle('col-hidden', !show);
   });
-  // Apply to thead th (skip cb-col)
-  tbl.querySelectorAll('thead th:not(.cb-col)').forEach((th, i) => {
+  // Apply to thead th (skip cb-col y las columnas de acciones del final, que
+  // no forman parte de la configuración de columnas visibles/ocultas)
+  tbl.querySelectorAll('thead th:not(.cb-col):not(.accion-col)').forEach((th, i) => {
     const show = !cs.deleted[i] && cs.visible[i];
     th.classList.toggle('col-hidden', !show);
   });
-  // Apply to tbody tr td (skip cb-col)
+  // Apply to tbody tr td (skip cb-col y columnas de acciones)
   tbl.querySelectorAll('tbody tr').forEach(row => {
-    row.querySelectorAll('td:not(.cb-col)').forEach((td, i) => {
+    row.querySelectorAll('td:not(.cb-col):not(.accion-col)').forEach((td, i) => {
       const show = !cs.deleted[i] && cs.visible[i];
       td.classList.toggle('col-hidden', !show);
     });
@@ -4304,26 +4327,25 @@ function updateTable(nivel, grupo) {
   const baseNames = ['Lengua Base','CEIP Origen','Curso','Grupo','Repetidor','Alumno / a','F. Nacimiento','Edad Actual','NESE','Recurso NESE','Compensatoria','Cód. Comp.','Pend. Ant.'];
   const baseClasses = ['','','','','','','','','','','','comp-code-th',''];
   const baseSorts = [null,null,null,null,null,'nombre','fecha',null,'nese',null,null,null,null];
-  const tailNames = ['📝',''];
-  const tailClasses = ['',''];
-  const tailSorts = [null,null];
+  // (ver nota en getColDefs: aquí había dos columnas más, '📝' y una vacía,
+  // sin celda real correspondiente — retiradas por el mismo motivo.)
 
   if (evalTab === 'eval1') {
-    colNames  = [...baseNames, 'I Eval.','I Pend.','I Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes', ...tailNames];
-    thClasses = [...baseClasses,'group-eval1','group-eval1','group-eval1','group-conv','group-conv','group-conv','group-conv','group-conv', ...tailClasses];
-    sortCols  = [...baseSorts, 'eval1',null,null,null,null,null,null,null, ...tailSorts];
+    colNames  = [...baseNames, 'I Eval.','I Pend.','I Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes'];
+    thClasses = [...baseClasses,'group-eval1','group-eval1','group-eval1','group-conv','group-conv','group-conv','group-conv','group-conv'];
+    sortCols  = [...baseSorts, 'eval1',null,null,null,null,null,null,null];
   } else if (evalTab === 'eval2') {
-    colNames  = [...baseNames, 'II Eval.','II Pend.','II Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes', ...tailNames];
-    thClasses = [...baseClasses,'group-eval2','group-eval2','group-eval2','group-conv','group-conv','group-conv','group-conv','group-conv', ...tailClasses];
-    sortCols  = [...baseSorts, 'eval2',null,null,null,null,null,null,null, ...tailSorts];
+    colNames  = [...baseNames, 'II Eval.','II Pend.','II Prop.','F. Just.','F. Injust.','AC','Partes','Expedientes'];
+    thClasses = [...baseClasses,'group-eval2','group-eval2','group-eval2','group-conv','group-conv','group-conv','group-conv','group-conv'];
+    sortCols  = [...baseSorts, 'eval2',null,null,null,null,null,null,null];
   } else { // eval3
     const pendLabel = bach ? 'Pend. III Ev.' : 'Pend. Próx. Curso';
     const extrCols = bach ? ['Eval. Extr.','Pend. Extr.'] : [];
     const extrClasses = bach ? ['group-eval3','group-eval3'] : [];
     const extrSorts = bach ? [null,null] : [];
-    colNames  = [...baseNames, 'Recuperadas', 'III Eval.', pendLabel, ...extrCols, 'Promociona', 'F. Just.','F. Injust.','AC','Partes','Expedientes', ...tailNames];
-    thClasses = [...baseClasses,'group-rec','group-eval3','group-eval3',...extrClasses,'','group-conv','group-conv','group-conv','group-conv','group-conv', ...tailClasses];
-    sortCols  = [...baseSorts, null,'eval3',null,...extrSorts,'propuesta',null,null,null,null,null, ...tailSorts];
+    colNames  = [...baseNames, 'Recuperadas', 'III Eval.', pendLabel, ...extrCols, 'Promociona', 'F. Just.','F. Injust.','AC','Partes','Expedientes'];
+    thClasses = [...baseClasses,'group-rec','group-eval3','group-eval3',...extrClasses,'','group-conv','group-conv','group-conv','group-conv','group-conv'];
+    sortCols  = [...baseSorts, null,'eval3',null,...extrSorts,'propuesta',null,null,null,null,null];
   }
 
   const defaults = colNames.map(() => 120);
@@ -4335,7 +4357,7 @@ function updateTable(nivel, grupo) {
 
   const ss = _sortState[key] || {};
 
-  const colgroup = '<colgroup><col class="cb-col" style="width:36px">' + cols.map((w,i)=>`<col data-col="${i}" style="width:${w}px">`).join('') + '</colgroup>';
+  const colgroup = '<colgroup><col class="cb-col" style="width:36px">' + cols.map((w,i)=>`<col data-col="${i}" style="width:${w}px">`).join('') + '<col style="width:44px"><col style="width:44px"><col style="width:44px"><col style="width:44px"><col style="width:48px"></colgroup>';
 
   function makeResizer(colIdx) {
     return `<div class="col-resizer" data-col="${colIdx}" onmousedown="startResize(event,'${nivel}','${grupo}',${colIdx})"></div>`;
@@ -4355,12 +4377,21 @@ function updateTable(nivel, grupo) {
   }).join('');
 
   const cbTh = `<th class="cb-col"><input type="checkbox" class="all-cb" title="Seleccionar todos" onchange="bulkToggleAll('${nivel}','${grupo}',this.checked)"></th>`;
+  // Encabezados de las columnas de acciones: sin ellos, el navegador las
+  // comprimía al mínimo y los iconos se recortaban.
+  const tailHeaders = `
+    <th class="accion-col" style="width:44px;min-width:44px;text-align:center" title="Historial académico">📅</th>
+    <th class="accion-col" style="width:44px;min-width:44px;text-align:center" title="Informe de seguimiento">📋</th>
+    <th class="accion-col" style="width:44px;min-width:44px;text-align:center" title="Seguimiento con familia">📞</th>
+    <th class="accion-col" style="width:44px;min-width:44px;text-align:center" title="Mover de grupo">↗</th>
+    <th class="accion-col" style="width:48px;min-width:48px;text-align:center" title="Eliminar"></th>`;
+  const tailWidth = 44*4 + 48;
 
   let html = `
     <div class="table-scroll">
-    <table id="tbl-${key}" class="${window._compactMode?'tbl-compact':''}" style="width:${cols.reduce((a,b)=>a+b,0)+36}px;">
+    <table id="tbl-${key}" class="${window._compactMode?'tbl-compact':''}" style="width:${cols.reduce((a,b)=>a+b,0)+36+tailWidth}px;">
       ${colgroup}
-      <thead><tr>${cbTh}${headers}</tr></thead>
+      <thead><tr>${cbTh}${headers}${tailHeaders}</tr></thead>
       <tbody>
   `;
 
@@ -4485,14 +4516,23 @@ function updateTable(nivel, grupo) {
       </td>
       <td>${buildPendientesDisplay(a.pendientesAnteriores||[], nivel, grupo, i, 'ant')}</td>`;
 
-    // Tail cells (always at end)
+    // Tail cells (always at end) — cada acción en su propia celda con ancho
+    // propio: amontonadas en una sola, la columna se comprimía y los iconos
+    // se recortaban mostrando puntos suspensivos.
     const tailCells = `
-      <td style="text-align:center">
+      <td class="accion-col" style="text-align:center;width:44px;min-width:44px">
         <button class="hist-btn${(a.historial&&a.historial.length)?' has-hist':''}" title="Historial académico" onclick="openHistorial('${nivel}','${grupo}',${i})">📅</button>
+      </td>
+      <td class="accion-col" style="text-align:center;width:44px;min-width:44px">
         <button class="move-btn" title="Informe de seguimiento" onclick="printSeguimientoAlumno('${nivel}','${grupo}',${i})" style="color:var(--green)">📋</button>
+      </td>
+      <td class="accion-col" style="text-align:center;width:44px;min-width:44px">
+        <button class="move-btn" title="Seguimiento con familia (reuniones a petición de los padres)" onclick="openSegFamilia('${nivel}','${grupo}',${i})" style="color:#f76ea0">📞</button>
+      </td>
+      <td class="accion-col" style="text-align:center;width:44px;min-width:44px">
         <button class="move-btn" title="Mover a otro grupo/nivel" onclick="openMovePanel(event,'${nivel}','${grupo}',${i})">↗</button>
       </td>
-      <td><button class="btn btn-danger" onclick="if(confirm('¿Eliminar a ${a.nombre.replace(/'/g,"\\'")}?')){withUndo('${nivel}','${grupo}',()=>deleteAlumnoNoConfirm('${nivel}','${grupo}',${i}))}">✕</button></td>`;
+      <td class="accion-col" style="text-align:center;width:48px;min-width:48px"><button class="btn btn-danger" onclick="if(confirm('¿Eliminar a ${a.nombre.replace(/'/g,"\\'")}?')){withUndo('${nivel}','${grupo}',()=>deleteAlumnoNoConfirm('${nivel}','${grupo}',${i}))}">✕</button></td>`;
 
     // Eval-specific cells
     let evalCells = '';
@@ -4634,6 +4674,16 @@ function updateTable(nivel, grupo) {
     </div>`;
 
   tw.innerHTML = html;
+
+  // Forzar un repintado explícito: Safari (iPad) a veces no redibuja una
+  // tabla grande tras sustituir su contenido de golpe, sobre todo si
+  // combina columnas fijas ("sticky") y desplazamiento — hasta que algo
+  // fuerza un repintado (como cambiar de pestaña, que es justo lo que
+  // "arreglaba" el problema al salir y volver a entrar). Esto lo hace
+  // explícitamente, sin depender de que el usuario navegue.
+  tw.style.display = 'none';
+  void tw.offsetHeight; // fuerza el reflow síncrono
+  tw.style.display = '';
 
   // Apply td column-group classes for visual banding
   requestAnimationFrame(() => {
@@ -5982,6 +6032,7 @@ function addAlumno() {
     recuperadasAnteriores: [],
     noRecuperadasAnteriores: [],
     historial: [],
+    seguimientos: [],
     faltasJust1: 0, faltasInjust1: 0, ac1: 0, partes1: 0, expedientes1: 0,
     faltasJust2: 0, faltasInjust2: 0, ac2: 0, partes2: 0, expedientes2: 0,
     faltasJust3: 0, faltasInjust3: 0, ac3: 0, partes3: 0, expedientes3: 0,
@@ -5993,6 +6044,16 @@ function addAlumno() {
   updateStats2(nivel, grupo);
   updateCharts(nivel, grupo);
   renderNivelTabs();
+  // Si se ha añadido al grupo que está a la vista, basta con refrescar su tabla
+  // (más rápido y conserva scroll/estado); si es otro grupo, se redibuja todo.
+  if (nivel === currentNivel && grupo === currentGrupos[currentNivel]) {
+    _searchQuery = '';
+    const sb = document.getElementById('searchBox');
+    if (sb) sb.value = '';
+    updateTable(nivel, grupo);
+  } else {
+    renderMain();
+  }
   showToast(`✅ Alumno/a ${nombre} añadido/a`);
 }
 
@@ -14462,27 +14523,33 @@ function openGuide() {
       <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto;">
         <div class="modal-title">📖 Guía rápida — EvalIES</div>
         <div style="font-size:13px;color:var(--text2);line-height:1.8;">
-          <p style="margin-bottom:12px">Aplicación de seguimiento de evaluaciones para centros de secundaria de la Comunitat Valenciana.</p>
+          <p style="margin-bottom:12px">Gestor de Tutoría: seguimiento de evaluaciones, promoción y tutoría para centros de secundaria de la Comunitat Valenciana. Es una aplicación <strong>independiente</strong>, con sus propios datos y su propio archivo <code>.evalies</code> — no comparte alumnado ni notas con las demás herramientas de la suite.</p>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">🏠 Pestañas principales</div>
           <ul style="margin:0 0 12px 16px">
             <li><strong>Inicio</strong> — Resumen global con propuestas por nivel, FPB, PDC y Titulación</li>
-            <li><strong>📅 Calendario</strong> — Fechas de sesiones, línea de tiempo y configuración</li>
+            <li><strong>📅 Calendario</strong> — Fechas de las sesiones de evaluación (círculos de color) y <strong>tus propios eventos</strong> (cuadrados): pulsa cualquier día para añadir reunión, junta, entrega, actividad… Vista de mes o cronología</li>
             <li><strong>🎓 Informe Académico</strong> — Estadísticas de aprobados/suspensos por materia y nivel, con subpestañas para I Eval., II Eval., Evaluación Final y Extraordinaria; incluye el PDF Estadísticas</li>
+            <li><strong>📞 Seguimientos</strong> — Listado por grupo de todos los registros de "Seguimiento con familia", para consultarlos o imprimirlos juntos (por ejemplo, si inspección los pide)</li>
             <li><strong>🤝 Informe Convivencia</strong> — Amonestaciones, partes, expedientes y faltas de asistencia, calculados a partir de las tablas de cada evaluación</li>
             <li><strong>⚙ Materias</strong> — Personaliza las materias disponibles por nivel</li>
           </ul>
-          <div style="font-weight:700;color:var(--text);margin-bottom:4px">👤 Por alumno (botones en cada fila)</div>
+          <div style="font-weight:700;color:var(--text);margin-bottom:4px">👤 Por alumno (una columna por botón, al final de su fila)</div>
           <ul style="margin:0 0 12px 16px">
             <li><strong>📅</strong> Historial académico de cursos anteriores</li>
-            <li><strong>📋</strong> Informe de seguimiento individual (PDF)</li>
+            <li><strong>📋</strong> Informe de seguimiento individual (PDF), generado automáticamente con sus datos</li>
+            <li><strong>📞</strong> <strong>Seguimiento con familia</strong> — para cuando los padres piden reunión: anota, materia por materia, lo que te ha dicho cada profesor/a (Trabajo, Exámenes, Comportamiento). Quita las materias que no correspondan y añade las que hagan falta. Cada vez que guardas se crea un registro nuevo fechado, así que puedes repetirlo tantas veces al año como haga falta; cada uno se imprime por separado</li>
             <li><strong>↗</strong> Mover alumno a otro grupo o nivel</li>
-            <li><strong>📝</strong> Notas del tutor/a</li>
           </ul>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">📋 Por grupo (cabecera de grupo)</div>
           <ul style="margin:0 0 12px 16px">
-            <li><strong>Acta Oficial</strong> — Genera el acta de sesión para I, II o Evaluación Final</li>
             <li><strong>Acta I/II/Final</strong> — Actas de sesión de evaluación, editables y guardables</li>
-            <li><strong>👥 Asistencia</strong> — Registra la asistencia del equipo docente</li>
+            <li><strong>Acta Oficial</strong> — Genera el acta de sesión para I, II o Evaluación Final</li>
+            <li><strong>🖼️ Fotos del grupo</strong> — Galería de fotos del alumnado</li>
+            <li><strong>🪑 Plano del grupo</strong> — Distribución de mesas: toca un alumno/a (de la lista o de una mesa) y luego una mesa; si está libre se sienta ahí, si está ocupada se intercambian. Tamaño de cuadrícula ajustable e imprimible</li>
+            <li><strong>🕐 Horario del grupo</strong> — Horario semanal del grupo</li>
+            <li><strong>👥 Asistencia sesión</strong> — Pasa lista al equipo docente en cada junta de evaluación</li>
+            <li><strong>👨‍🏫 Equipo docente</strong> — Nombre, materia y correo corporativo de cada profesor/a del grupo. Es la lista que usa "Asistencia sesión" para pasar lista, y desde aquí puedes enviar un correo a una persona, a varias seleccionadas o a todo el equipo (se abre tu propio Outlook con los destinatarios puestos)</li>
+            <li><strong>📝 Observaciones del grupo</strong> — Notas generales del grupo</li>
           </ul>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">💾 Guardar datos</div>
           <ul style="margin:0 0 12px 16px">
@@ -14933,6 +15000,7 @@ function buildState(includeImages = true, includeActas = true) {
     materiasCustom: _materiasCustom || {},
     obsGrupoData: window._obsGrupoData || {},
     asistenciaData: window._asistenciaData || {},
+    planosGrupo: window._planosGrupo || {},
     convivenciaData: window._convivenciaData || {},
     actasData: includeActas ? (window._actasData || {}) : {},
     vacantesCfg: _vacantesCfg
@@ -15066,6 +15134,7 @@ function loadFromLocalStorage() {
       if (saved.materiasCustom) { Object.assign(_materiasCustom, saved.materiasCustom); }
       if (saved.obsGrupoData)   { if (!window._obsGrupoData)   window._obsGrupoData   = {}; Object.assign(window._obsGrupoData,   saved.obsGrupoData); }
       if (saved.asistenciaData) { if (!window._asistenciaData) window._asistenciaData = {}; Object.assign(window._asistenciaData, saved.asistenciaData); }
+      if (saved.planosGrupo) { if (!window._planosGrupo) window._planosGrupo = {}; Object.assign(window._planosGrupo, saved.planosGrupo); }
       if (saved.actasData)      { if (!window._actasData)      window._actasData      = {}; Object.assign(window._actasData,      saved.actasData); }
       if (saved.fotoData)       { if (!window._fotoData)       window._fotoData       = {}; Object.assign(window._fotoData,       saved.fotoData); }
       if (saved.horarioData)    { if (!window._horarioData)    window._horarioData    = {}; Object.assign(window._horarioData,    saved.horarioData); }
@@ -16998,6 +17067,717 @@ function saveHistorial() {
   </div>
 </div>
 
+<div id="eqDocenteOverlay" class="asist-overlay">
+  <div class="asist-modal">
+    <div class="asist-header">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)">👨‍🏫 Equipo docente</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px" id="eqDocenteSubtitle"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeEquipoDocente()">✕ Cerrar</button>
+    </div>
+    <div class="asist-body" id="eqDocenteBody"></div>
+    <div class="asist-footer">
+      <button class="btn btn-ghost" onclick="closeEquipoDocente()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="segFamOverlay" class="asist-overlay">
+  <div class="asist-modal">
+    <div class="asist-header">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)">📞 Seguimiento con familia</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px" id="segFamSubtitle"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeSegFamilia()">✕ Cerrar</button>
+    </div>
+    <div class="asist-body" id="segFamBody"></div>
+    <div class="asist-footer">
+      <button class="btn btn-ghost" onclick="closeSegFamilia()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="planoGrupoOverlay" class="asist-overlay">
+  <div class="asist-modal">
+    <div class="asist-header">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)">🪑 Plano del grupo</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:3px" id="planoGrupoSubtitle"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closePlanoGrupo()">✕ Cerrar</button>
+    </div>
+    <div class="asist-body" id="planoGrupoBody"></div>
+    <div class="asist-footer">
+      <button class="btn btn-ghost" onclick="printPlanoGrupo()">🖨 Imprimir</button>
+      <button class="btn btn-ghost" onclick="closePlanoGrupo()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────
+   Plano del grupo — misma mecánica que en Evaluación por
+   Competencias (tocar alumno + tocar mesa, sin arrastrar,
+   para que funcione bien en iPad), pero con los datos
+   propios de Tutoría.
+   ───────────────────────────────────────────────────────── */
+if (!window._planoCtx) window._planoCtx = { nivel: '', grupo: '', seleccionado: null };
+if (!window._planosGrupo) window._planosGrupo = {};
+
+document.getElementById('planoGrupoOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('planoGrupoOverlay')) closePlanoGrupo();
+});
+
+function _planoDatos(nivel, grupo) {
+  const key = `${nivel}-${grupo}`;
+  if (!window._planosGrupo[key]) window._planosGrupo[key] = { filas: 5, columnas: 6, posiciones: {} };
+  const p = window._planosGrupo[key];
+  if (typeof p.filas !== 'number') p.filas = 5;
+  if (typeof p.columnas !== 'number') p.columnas = 6;
+  if (!p.posiciones || typeof p.posiciones !== 'object') p.posiciones = {};
+  return p;
+}
+function _planoOcupante(plano, fila, col) {
+  return Object.keys(plano.posiciones).find(n => {
+    const p = plano.posiciones[n];
+    return p.fila === fila && p.col === col;
+  }) || null;
+}
+function _planoEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+window.openPlanoGrupo = function(nivel, grupo) {
+  _planoCtx = { nivel, grupo, seleccionado: null };
+  renderPlanoGrupoBody();
+  document.getElementById('planoGrupoOverlay').classList.add('open');
+};
+window.closePlanoGrupo = function() {
+  document.getElementById('planoGrupoOverlay').classList.remove('open');
+};
+
+function renderPlanoGrupoBody() {
+  const { nivel, grupo, seleccionado } = _planoCtx;
+  const plano = _planoDatos(nivel, grupo);
+  const alumnos = (data[nivel]?.[grupo] || []).filter(a => a.nombre && a.nombre.trim());
+  const colocados = new Set(Object.keys(plano.posiciones));
+  const sinColocar = alumnos.filter(a => !colocados.has(a.nombre));
+
+  const sub = document.getElementById('planoGrupoSubtitle');
+  if (sub) sub.textContent = `${nivel} — Grupo ${grupo} · ${colocados.size} de ${alumnos.length} colocados`;
+
+  let celdas = '';
+  for (let f = 0; f < plano.filas; f++) {
+    for (let c = 0; c < plano.columnas; c++) {
+      const nombre = _planoOcupante(plano, f, c);
+      const esSel = seleccionado === nombre && !!nombre;
+      const corto = nombre ? _planoEsc(nombre.split(',')[0]) : '';
+      celdas += `<div class="tplano-mesa ${nombre?'ocupada':''} ${esSel?'sel':''}" onclick="_planoTocarMesa(${f},${c})" title="${nombre?_planoEsc(nombre):'Mesa libre'}">${nombre?corto:'+'}</div>`;
+    }
+  }
+
+  document.getElementById('planoGrupoBody').innerHTML = `
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;background:var(--surface2);border-radius:8px;padding:10px 14px;border:1px solid var(--border)">
+      🪑 Toca un alumno/a (de la lista o de una mesa) y luego una mesa: si está libre, se sienta ahí; si ya tiene a alguien, se intercambian.
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <label style="font-size:11px;color:var(--text3);font-weight:700">Filas
+        <input type="number" id="tplanoFilas" min="1" max="15" value="${plano.filas}" style="width:56px;margin-left:5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px;color:var(--text);font-family:inherit;font-size:12px">
+      </label>
+      <label style="font-size:11px;color:var(--text3);font-weight:700">Columnas
+        <input type="number" id="tplanoColumnas" min="1" max="15" value="${plano.columnas}" style="width:56px;margin-left:5px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px;color:var(--text);font-family:inherit;font-size:12px">
+      </label>
+      <button class="btn btn-ghost btn-sm" onclick="_planoAplicarTamano()">Aplicar tamaño</button>
+      <button class="btn btn-ghost btn-sm" onclick="_planoVaciar()">Vaciar plano</button>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:2;min-width:280px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-bottom:6px">Mesas — vista desde la pizarra</div>
+        <div class="tplano-grid" style="grid-template-columns:repeat(${plano.columnas},1fr)">${celdas}</div>
+      </div>
+      <div style="width:200px;flex-shrink:0">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-bottom:6px">Sin colocar (${sinColocar.length})</div>
+        <div style="display:flex;flex-direction:column;gap:5px;max-height:400px;overflow-y:auto">
+          ${sinColocar.length ? sinColocar.map(a=>`<div class="tplano-chip ${seleccionado===a.nombre?'sel':''}" onclick="_planoSeleccionar('${_planoEsc(a.nombre).replace(/'/g,"\\'")}')">${_planoEsc(a.nombre)}</div>`).join('') : '<div style="font-size:12px;color:var(--text3)">Todos colocados.</div>'}
+        </div>
+        ${seleccionado && colocados.has(seleccionado) ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="_planoQuitar()">🗑 Quitar de su mesa</button>` : ''}
+      </div>
+    </div>`;
+}
+
+window._planoSeleccionar = function(nombre) {
+  _planoCtx.seleccionado = (_planoCtx.seleccionado === nombre) ? null : nombre;
+  renderPlanoGrupoBody();
+};
+window._planoTocarMesa = function(fila, col) {
+  const { nivel, grupo, seleccionado } = _planoCtx;
+  const plano = _planoDatos(nivel, grupo);
+  const ocupante = _planoOcupante(plano, fila, col);
+  if (!seleccionado) {
+    if (ocupante) { _planoCtx.seleccionado = ocupante; renderPlanoGrupoBody(); }
+    return;
+  }
+  if (ocupante === seleccionado) { _planoCtx.seleccionado = null; renderPlanoGrupoBody(); return; }
+  const posAnterior = plano.posiciones[seleccionado];
+  if (ocupante) {
+    if (posAnterior) plano.posiciones[ocupante] = posAnterior;
+    else delete plano.posiciones[ocupante];
+  }
+  plano.posiciones[seleccionado] = { fila, col };
+  _planoCtx.seleccionado = null;
+  markDirty();
+  renderPlanoGrupoBody();
+};
+window._planoQuitar = function() {
+  const { nivel, grupo, seleccionado } = _planoCtx;
+  const plano = _planoDatos(nivel, grupo);
+  delete plano.posiciones[seleccionado];
+  _planoCtx.seleccionado = null;
+  markDirty();
+  renderPlanoGrupoBody();
+};
+window._planoVaciar = function() {
+  if (!confirm('¿Vaciar el plano? Todo el alumnado volverá a la lista de sin colocar.')) return;
+  const { nivel, grupo } = _planoCtx;
+  const plano = _planoDatos(nivel, grupo);
+  plano.posiciones = {};
+  _planoCtx.seleccionado = null;
+  markDirty();
+  renderPlanoGrupoBody();
+};
+window._planoAplicarTamano = function() {
+  const { nivel, grupo } = _planoCtx;
+  const plano = _planoDatos(nivel, grupo);
+  const filas = Math.max(1, Math.min(15, parseInt(document.getElementById('tplanoFilas').value) || 5));
+  const columnas = Math.max(1, Math.min(15, parseInt(document.getElementById('tplanoColumnas').value) || 6));
+  plano.filas = filas; plano.columnas = columnas;
+  Object.keys(plano.posiciones).forEach(n => {
+    const p = plano.posiciones[n];
+    if (p.fila >= filas || p.col >= columnas) delete plano.posiciones[n];
+  });
+  markDirty();
+  renderPlanoGrupoBody();
+};
+window.printPlanoGrupo = function() {
+  const { nivel, grupo } = _planoCtx;
+  const plano = _planoDatos(nivel, grupo);
+  const iesName = document.getElementById('headerIesName')?.value || '';
+  let filasHTML = '';
+  for (let f = 0; f < plano.filas; f++) {
+    let cols = '';
+    for (let c = 0; c < plano.columnas; c++) {
+      const nombre = _planoOcupante(plano, f, c);
+      cols += `<td style="border:1.5px solid #999;padding:8px;text-align:center;vertical-align:middle;height:54px;font-size:12px;width:${(100/plano.columnas).toFixed(2)}%">${nombre?_planoEsc(nombre):''}</td>`;
+    }
+    filasHTML += `<tr>${cols}</tr>`;
+  }
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Plano — ${_planoEsc(nivel)} ${_planoEsc(grupo)}</title>
+    <style>
+      body{font-family:'Segoe UI',Arial,sans-serif;padding:0;margin:0;color:#222}
+      .page{max-width:900px;margin:0 auto;padding:30px}
+      .toolbar{position:sticky;top:0;background:#1a1d27;padding:9px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .toolbar span{font-size:13px;font-weight:600;color:#e8eaf2}
+      .tbtn{padding:6px 14px;border-radius:7px;border:none;cursor:pointer;font-family:Arial;font-size:12px;font-weight:600}
+      .tbtn-print{background:#2563eb;color:#fff}
+      .tbtn-close{background:transparent;color:#8891b4;border:1px solid #2e3350}
+      @media print{ .no-print{display:none !important} }
+    </style></head><body>
+    <div class="toolbar no-print">
+      <span>🪑 Plano del grupo — ${_planoEsc(nivel)} ${_planoEsc(grupo)}</span>
+      <div style="display:flex;gap:8px">
+        <button class="tbtn tbtn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button class="tbtn tbtn-close" onclick="window.close()">✕ Cerrar</button>
+      </div>
+    </div>
+    <div class="page">
+      <h1 style="font-size:20px;margin:0 0 4px">Plano del grupo — ${_planoEsc(nivel)} ${_planoEsc(grupo)}</h1>
+      <p style="color:#666;font-size:12px;margin:0 0 18px">${_planoEsc(iesName)} · Vista desde la pizarra</p>
+      <table style="width:100%;border-collapse:separate;border-spacing:4px">${filasHTML}</table>
+    </div>
+    </body></html>`);
+  win.document.close();
+};
+</script>
+
+<script>
+if (!window._segCtx) window._segCtx = { nivel: '', grupo: '', idx: -1, draft: null };
+
+document.getElementById('segFamOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('segFamOverlay')) closeSegFamilia();
+});
+
+function _segNuevoBorrador(nivel, grupo) {
+  const materias = getMateriasParaNivel(nivel, grupo) || [];
+  return {
+    fecha: new Date().toISOString().slice(0, 10),
+    materias: materias.map(m => ({ nombre: m, trabajo: '', examenes: '', comportamiento: '' })),
+    observaciones: ''
+  };
+}
+
+window.openSegFamilia = function(nivel, grupo, idx) {
+  const alumno = data[nivel]?.[grupo]?.[idx];
+  if (!alumno) return;
+  if (!Array.isArray(alumno.seguimientos)) alumno.seguimientos = [];
+  _segCtx = { nivel, grupo, idx, draft: _segNuevoBorrador(nivel, grupo) };
+  renderSegFamiliaBody();
+  document.getElementById('segFamOverlay').classList.add('open');
+};
+window.closeSegFamilia = function() {
+  document.getElementById('segFamOverlay').classList.remove('open');
+};
+
+function _segEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderSegFamiliaBody() {
+  const { nivel, grupo, idx, draft } = _segCtx;
+  const alumno = data[nivel]?.[grupo]?.[idx];
+  if (!alumno) return;
+  const sub = document.getElementById('segFamSubtitle');
+  if (sub) sub.textContent = `${_segEsc(alumno.nombre)} — ${nivel} · Grupo ${grupo}`;
+
+  const filasMaterias = draft.materias.map((m, i) => `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+        <input style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-family:inherit;font-size:14px;font-weight:700"
+          placeholder="Materia" value="${_segEsc(m.nombre)}" oninput="_segUpdateMateria(${i},'nombre',this.value)">
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(247,110,110,0.3);flex-shrink:0" onclick="_segDelMateria(${i})" title="Quitar esta materia">🗑 Quitar</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Trabajo
+          <textarea style="width:100%;min-height:60px;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical"
+            placeholder="Lo que ha comentado el profesor/a…" oninput="_segUpdateMateria(${i},'trabajo',this.value)">${_segEsc(m.trabajo)}</textarea>
+        </label>
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Exámenes
+          <textarea style="width:100%;min-height:60px;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical"
+            placeholder="Lo que ha comentado el profesor/a…" oninput="_segUpdateMateria(${i},'examenes',this.value)">${_segEsc(m.examenes)}</textarea>
+        </label>
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Comportamiento
+          <textarea style="width:100%;min-height:60px;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical"
+            placeholder="Lo que ha comentado el profesor/a…" oninput="_segUpdateMateria(${i},'comportamiento',this.value)">${_segEsc(m.comportamiento)}</textarea>
+        </label>
+      </div>
+    </div>`).join('');
+
+  const historial = (alumno.seguimientos || []).slice().sort((a,b) => (b.fecha||'').localeCompare(a.fecha||'')).map(reg => `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:12.5px;color:var(--text3);min-width:90px">${_segEsc(reg.fecha)}</div>
+      <div style="flex:1;font-size:12.5px;color:var(--text2)">${(reg.materias||[]).length} materia${(reg.materias||[]).length===1?'':'s'}${reg.observaciones?' · con observaciones':''}</div>
+      <button class="btn btn-ghost btn-sm" onclick="printSegFamiliaRegistro('${nivel}','${grupo}',${idx},'${reg.id}')">🖨 Imprimir</button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(247,110,110,0.3)" onclick="_segEliminarRegistro('${reg.id}')">🗑</button>
+    </div>`).join('');
+
+  document.getElementById('segFamBody').innerHTML = `
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;background:var(--surface2);border-radius:8px;padding:10px 14px;border:1px solid var(--border)">
+      📞 Recoge aquí lo que te haya dicho cada profesor/a por correo antes de la reunión con la familia. Quita las materias que no correspondan (optativas, quien no haya contestado) y añade las que hagan falta.
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:14px">
+      <label style="font-size:12px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:0.4px">Fecha
+        <input type="date" style="display:block;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:13px"
+          value="${_segEsc(draft.fecha)}" onchange="_segSetFecha(this.value)">
+      </label>
+    </div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-bottom:6px">Materias</div>
+    <div id="segMateriasList">${filasMaterias || '<div style="font-size:12.5px;color:var(--text3);padding:8px 0">Sin materias — añade alguna con el botón de abajo.</div>'}</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="_segAddMateria()">＋ Añadir materia</button>
+
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin:18px 0 6px">Observaciones generales</div>
+    <textarea style="width:100%;min-height:130px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical"
+      placeholder="Cualquier otra cosa comentada o acordada con la familia…" onchange="_segSetObservaciones(this.value)">${_segEsc(draft.observaciones)}</textarea>
+
+    <div style="margin-top:14px">
+      <button class="btn btn-primary btn-sm" onclick="_segGuardar()">💾 Guardar este registro</button>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:14px">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-bottom:8px">Historial de este alumno/a (${(alumno.seguimientos||[]).length})</div>
+      ${historial || '<div style="font-size:12.5px;color:var(--text3);padding:8px 0">Todavía no hay ningún registro guardado.</div>'}
+    </div>
+  `;
+}
+
+window._segUpdateMateria = function(i, field, val) { _segCtx.draft.materias[i][field] = val; };
+window._segAddMateria = function() { _segCtx.draft.materias.push({ nombre: '', trabajo: '', examenes: '', comportamiento: '' }); renderSegFamiliaBody(); };
+window._segDelMateria = function(i) { _segCtx.draft.materias.splice(i, 1); renderSegFamiliaBody(); };
+window._segSetFecha = function(v) { _segCtx.draft.fecha = v; };
+window._segSetObservaciones = function(v) { _segCtx.draft.observaciones = v; };
+
+window._segGuardar = function() {
+  const { nivel, grupo, idx, draft } = _segCtx;
+  const alumno = data[nivel]?.[grupo]?.[idx];
+  if (!alumno) return;
+  if (!Array.isArray(alumno.seguimientos)) alumno.seguimientos = [];
+  const materiasFinal = draft.materias.filter(m => (m.nombre||'').trim());
+  alumno.seguimientos.push({
+    id: 'seg' + Date.now() + Math.random().toString(36).slice(2,6),
+    fecha: draft.fecha,
+    materias: materiasFinal.map(m => ({ nombre: m.nombre, trabajo: m.trabajo, examenes: m.examenes, comportamiento: m.comportamiento })),
+    observaciones: draft.observaciones
+  });
+  markDirty();
+  showToast('✅ Registro de seguimiento guardado');
+  _segCtx.draft = _segNuevoBorrador(nivel, grupo);
+  renderSegFamiliaBody();
+};
+
+window._segEliminarRegistro = function(segId) {
+  const { nivel, grupo, idx } = _segCtx;
+  const alumno = data[nivel]?.[grupo]?.[idx];
+  if (!alumno || !Array.isArray(alumno.seguimientos)) return;
+  if (!confirm('¿Eliminar este registro de seguimiento? No se puede deshacer.')) return;
+  alumno.seguimientos = alumno.seguimientos.filter(r => r.id !== segId);
+  markDirty();
+  renderSegFamiliaBody();
+};
+
+function _segPortadaHTML(iesName, alumnoNombre, nivel, grupo) {
+  return `
+    <div style="background:linear-gradient(135deg,#152a44,#25456b);color:#fff;padding:18px 24px;border-radius:10px;margin-bottom:18px">
+      <div style="font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${_segEsc(iesName)}</div>
+      <div style="margin-top:8px;font-size:1.3rem;font-weight:700">Seguimiento con familia</div>
+      <div style="font-size:.85rem;color:rgba(255,255,255,.85);margin-top:2px">${_segEsc(alumnoNombre)} — ${_segEsc(nivel)} · Grupo ${_segEsc(grupo)}</div>
+    </div>`;
+}
+function _segRegistroHTML(reg) {
+  const filas = (reg.materias||[]).map(m => {
+    // Compatibilidad: registros guardados antes de tener los tres campos
+    // separados solo tenían "texto" — se muestra igualmente, sin perderlo.
+    const esFormatoAntiguo = m.trabajo===undefined && m.examenes===undefined && m.comportamiento===undefined && m.texto;
+    if (esFormatoAntiguo) {
+      return `<tr><td style="width:170px;font-weight:700;padding:8px 10px 8px 0;vertical-align:top;border-bottom:1px solid #ddd">${_segEsc(m.nombre)}</td><td colspan="3" style="padding:8px 0;vertical-align:top;border-bottom:1px solid #ddd">${_segEsc(m.texto)}</td></tr>`;
+    }
+    const celda = (v) => v ? _segEsc(v) : '<span style="color:#aaa">—</span>';
+    return `<tr>
+      <td style="font-weight:700;padding:8px 10px 8px 0;vertical-align:top;border-bottom:1px solid #ddd">${_segEsc(m.nombre)}</td>
+      <td style="padding:8px 8px;vertical-align:top;border-bottom:1px solid #ddd;width:26%">${celda(m.trabajo)}</td>
+      <td style="padding:8px 8px;vertical-align:top;border-bottom:1px solid #ddd;width:26%">${celda(m.examenes)}</td>
+      <td style="padding:8px 8px;vertical-align:top;border-bottom:1px solid #ddd;width:26%">${celda(m.comportamiento)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <p style="font-size:13px;color:#666;margin:0 0 14px">Fecha: <strong>${_segEsc(reg.fecha)}</strong></p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="text-align:left;font-size:10.5px;color:#777;text-transform:uppercase">
+        <th style="padding:0 10px 6px 0">Materia</th><th style="padding:0 8px 6px">Trabajo</th><th style="padding:0 8px 6px">Exámenes</th><th style="padding:0 8px 6px">Comportamiento</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    ${reg.observaciones ? `<div style="margin-top:16px"><strong style="font-size:13px">Observaciones generales:</strong><p style="font-size:13px;margin:6px 0 0;white-space:pre-wrap">${_segEsc(reg.observaciones)}</p></div>` : ''}
+  `;
+}
+
+window.printSegFamiliaRegistro = function(nivel, grupo, idx, segId) {
+  const alumno = data[nivel]?.[grupo]?.[idx];
+  if (!alumno) return;
+  const reg = (alumno.seguimientos||[]).find(r => r.id === segId);
+  if (!reg) return;
+  const iesName = document.getElementById('headerIesName')?.value || 'IES —';
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Seguimiento — ${_segEsc(alumno.nombre)}</title>
+    <style>
+      body{font-family:'Segoe UI',Arial,sans-serif;padding:0;margin:0;color:#222}
+      .page{max-width:800px;margin:0 auto;padding:30px}
+      .toolbar{position:sticky;top:0;background:#1a1d27;padding:9px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .toolbar span{font-size:13px;font-weight:600;color:#e8eaf2}
+      .tbtn{padding:6px 14px;border-radius:7px;border:none;cursor:pointer;font-family:Arial;font-size:12px;font-weight:600}
+      .tbtn-print{background:#2563eb;color:#fff}
+      .tbtn-close{background:transparent;color:#8891b4;border:1px solid #2e3350}
+      @media print{ .no-print{display:none !important} }
+    </style></head><body>
+    <div class="toolbar no-print">
+      <span>📞 Seguimiento con familia — ${_segEsc(alumno.nombre)}</span>
+      <div style="display:flex;gap:8px">
+        <button class="tbtn tbtn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button class="tbtn tbtn-close" onclick="window.close()">✕ Cerrar</button>
+      </div>
+    </div>
+    <div class="page">
+    ${_segPortadaHTML(iesName, alumno.nombre, nivel, grupo)}
+    ${_segRegistroHTML(reg)}
+    <div style="margin-top:50px;text-align:right;font-size:13px;color:#444">
+      <div style="display:inline-block;border-top:1px solid #999;padding-top:6px;min-width:220px">Fdo.: el tutor/a</div>
+    </div>
+    </div>
+    </body></html>`);
+  win.document.close();
+};
+
+/* ─────────────────────────────────────────────────────────
+   Vista "📞 Seguimientos" — listado por grupo de todos los
+   registros de seguimiento con familia, para consulta e
+   impresión conjunta (por ejemplo, si inspección los pide).
+   ───────────────────────────────────────────────────────── */
+if (!window._segListState) window._segListState = { nivel: '', grupo: '', seleccionados: new Set() };
+
+function _segTodosDelGrupo(nivel, grupo) {
+  const alumnos = (data[nivel]?.[grupo] || []).filter(a => a.nombre && a.nombre.trim());
+  const registros = [];
+  alumnos.forEach((a, idx) => {
+    (a.seguimientos || []).forEach(reg => {
+      registros.push({ reg, alumno: a, idx });
+    });
+  });
+  registros.sort((x, y) => (y.reg.fecha||'').localeCompare(x.reg.fecha||''));
+  return registros;
+}
+
+function renderSegFamiliaListado() {
+  const mc = document.getElementById('mainContent');
+  if (!_segListState.nivel && NIVELES.length) {
+    _segListState.nivel = NIVELES[0];
+    _segListState.grupo = (GRUPOS_POR_NIVEL[NIVELES[0]] || [])[0] || '';
+  }
+  const { nivel, grupo } = _segListState;
+  const gruposDisponibles = GRUPOS_POR_NIVEL[nivel] || [];
+  const registros = nivel && grupo ? _segTodosDelGrupo(nivel, grupo) : [];
+  const nSel = _segListState.seleccionados.size;
+
+  const filas = registros.map(({ reg, alumno, idx }) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <input type="checkbox" style="width:16px;height:16px;flex-shrink:0" ${_segListState.seleccionados.has(reg.id) ? 'checked' : ''}
+        onchange="_segListToggleSel('${reg.id}',this.checked)">
+      <div style="width:90px;font-size:12.5px;color:var(--text3)">${_segEsc(reg.fecha)}</div>
+      <div style="flex:1;font-size:13px;font-weight:600;color:var(--text)">${_segEsc(alumno.nombre)}</div>
+      <div style="font-size:12px;color:var(--text2);min-width:140px">${(reg.materias||[]).length} materia${(reg.materias||[]).length===1?'':'s'}${reg.observaciones?' · obs.':''}</div>
+      <button class="btn btn-ghost btn-sm" onclick="printSegFamiliaRegistro('${nivel}','${grupo}',${idx},'${reg.id}')">🖨 Imprimir</button>
+    </div>`).join('');
+
+  mc.innerHTML = `
+    <div style="max-width:980px;margin:0 auto;padding:24px 20px">
+      <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px;margin-bottom:4px">📞 Seguimientos con familia</div>
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:18px">Todos los registros de "Seguimiento con familia" del grupo, para consulta o para imprimir juntos (por ejemplo, si inspección los pide).</div>
+
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+        <select id="segListNivel" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:13px" onchange="_segListSetNivel(this.value)">
+          ${NIVELES.map(n => `<option value="${_segEsc(n)}" ${n===nivel?'selected':''}>${_segEsc(n)}</option>`).join('')}
+        </select>
+        <select id="segListGrupo" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:13px" onchange="_segListSetGrupo(this.value)">
+          ${gruposDisponibles.map(g => `<option value="${_segEsc(g)}" ${g===grupo?'selected':''}>Grupo ${_segEsc(g)}</option>`).join('')}
+        </select>
+        <span style="flex:1"></span>
+        <button class="btn btn-ghost btn-sm" ${nSel?'':'disabled style="opacity:.4"'} onclick="printSegFamiliaVarios([..._segListState.seleccionados])">🖨 Imprimir seleccionados (${nSel})</button>
+        <button class="btn btn-primary btn-sm" ${registros.length?'':'disabled style="opacity:.4"'} onclick="printSegFamiliaVarios(_segTodosDelGrupo('${nivel}','${grupo}').map(r=>r.reg.id))">🖨 Imprimir todos (${registros.length})</button>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 16px">
+        ${filas || `<div style="text-align:center;padding:32px;color:var(--text3)">
+          <div style="font-size:28px;margin-bottom:10px">📞</div>
+          <div style="font-size:13px">Sin registros de seguimiento todavía en este grupo.</div>
+        </div>`}
+      </div>
+    </div>`;
+}
+
+window._segListSetNivel = function(n) {
+  _segListState.nivel = n;
+  _segListState.grupo = (GRUPOS_POR_NIVEL[n] || [])[0] || '';
+  _segListState.seleccionados = new Set();
+  renderSegFamiliaListado();
+};
+window._segListSetGrupo = function(g) {
+  _segListState.grupo = g;
+  _segListState.seleccionados = new Set();
+  renderSegFamiliaListado();
+};
+window._segListToggleSel = function(id, checked) {
+  if (checked) _segListState.seleccionados.add(id); else _segListState.seleccionados.delete(id);
+  renderSegFamiliaListado();
+};
+
+window.printSegFamiliaVarios = function(ids) {
+  const { nivel, grupo } = _segListState;
+  const todos = _segTodosDelGrupo(nivel, grupo).filter(r => ids.includes(r.reg.id));
+  if (!todos.length) return;
+  const iesName = document.getElementById('headerIesName')?.value || 'IES —';
+  const secciones = todos.map(({ reg, alumno }, i) => `
+    <div style="${i>0?'page-break-before:always;':''}padding-top:${i>0?'20px':'0'}">
+      ${_segPortadaHTML(iesName, alumno.nombre, nivel, grupo)}
+      ${_segRegistroHTML(reg)}
+      <div style="margin-top:50px;text-align:right;font-size:13px;color:#444">
+        <div style="display:inline-block;border-top:1px solid #999;padding-top:6px;min-width:220px">Fdo.: el tutor/a</div>
+      </div>
+    </div>`).join('');
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Seguimientos con familia — ${_segEsc(nivel)} ${_segEsc(grupo)}</title>
+    <style>
+      body{font-family:'Segoe UI',Arial,sans-serif;padding:0;margin:0;color:#222}
+      .page{max-width:800px;margin:0 auto;padding:30px}
+      .toolbar{position:sticky;top:0;background:#1a1d27;padding:9px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .toolbar span{font-size:13px;font-weight:600;color:#e8eaf2}
+      .tbtn{padding:6px 14px;border-radius:7px;border:none;cursor:pointer;font-family:Arial;font-size:12px;font-weight:600}
+      .tbtn-print{background:#2563eb;color:#fff}
+      .tbtn-close{background:transparent;color:#8891b4;border:1px solid #2e3350}
+      @media print{ .no-print{display:none !important} }
+    </style></head><body>
+    <div class="toolbar no-print">
+      <span>📞 Seguimientos con familia — ${_segEsc(nivel)} · Grupo ${_segEsc(grupo)} (${todos.length})</span>
+      <div style="display:flex;gap:8px">
+        <button class="tbtn tbtn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button class="tbtn tbtn-close" onclick="window.close()">✕ Cerrar</button>
+      </div>
+    </div>
+    <div class="page">
+    ${secciones}
+    </div>
+    </body></html>`);
+  win.document.close();
+};
+</script>
+
+<script>
+if (!window._eqCtx) window._eqCtx = { nivel: '', grupo: '', seleccionados: new Set() };
+
+document.getElementById('eqDocenteOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('eqDocenteOverlay')) closeEquipoDocente();
+});
+
+window.openEquipoDocente = function(nivel, grupo) {
+  _eqCtx = { nivel, grupo, seleccionados: new Set() };
+  renderEquipoDocenteBody();
+  document.getElementById('eqDocenteOverlay').classList.add('open');
+};
+window.closeEquipoDocente = function() {
+  document.getElementById('eqDocenteOverlay').classList.remove('open');
+};
+
+function _eqRefrescarSubtitulo(d, nivel, grupo) {
+  const sub = document.getElementById('eqDocenteSubtitle');
+  if (sub) sub.textContent = `${nivel} — Grupo ${grupo} · ${d.profesores.length} profesor${d.profesores.length !== 1 ? 'es' : ''} registrado${d.profesores.length !== 1 ? 's' : ''}`;
+}
+
+function renderEquipoDocenteBody() {
+  const { nivel, grupo } = _eqCtx;
+  const d = _getAsistenciaData(nivel, grupo);
+  _eqRefrescarSubtitulo(d, nivel, grupo);
+
+  const conCorreo = d.profesores.filter(p => (p.correo || '').trim());
+  const nSel = _eqCtx.seleccionados.size;
+
+  const rows = d.profesores.map(p => {
+    const marcado = _eqCtx.seleccionados.has(p.id);
+    return `
+    <div class="asist-prof-row" style="align-items:center;gap:10px;padding:10px 0;">
+      <input type="checkbox" style="width:16px;height:16px;flex-shrink:0" ${marcado ? 'checked' : ''}
+        onchange="_eqToggleSeleccion('${p.id}',this.checked)" title="Seleccionar para enviar correo conjunto">
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Nombre y apellidos</label>
+        <input style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:13px;font-weight:600;"
+          placeholder="Nombre y apellidos" value="${(p.nombre||'').replace(/"/g,'&quot;')}"
+          oninput="_eqUpdateProf('${p.id}','nombre',this.value)">
+      </div>
+      <div style="width:170px;display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Materia</label>
+        <input style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:13px;"
+          placeholder="Materia" value="${(p.materia||'').replace(/"/g,'&quot;')}"
+          oninput="_eqUpdateProf('${p.id}','materia',this.value)">
+      </div>
+      <div style="width:220px;display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Correo corporativo</label>
+        <input type="email" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:13px;"
+          placeholder="nombre@gva.es" value="${(p.correo||'').replace(/"/g,'&quot;')}"
+          oninput="_eqUpdateProf('${p.id}','correo',this.value)">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-top:16px;">
+        <button class="btn btn-ghost btn-sm" onclick="_eqEnviarA(['${p.id}'])" title="Enviar correo a esta persona">✉</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-top:16px;">
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(247,110,110,0.3)" onclick="_eqDelProf('${p.id}')" title="Eliminar">🗑</button>
+      </div>
+    </div>
+    <div style="height:1px;background:var(--border);opacity:0.5"></div>`;
+  }).join('');
+
+  document.getElementById('eqDocenteBody').innerHTML = `
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;background:var(--surface2);border-radius:8px;padding:10px 14px;border:1px solid var(--border)">
+      📋 Equipo docente de <strong>${nivel} ${grupo}</strong>. Se usa aquí y en "👥 Asistencia sesión" para pasar lista en las juntas de evaluación.
+    </div>
+    <div id="eqDocenteList">${rows || `
+      <div style="text-align:center;padding:28px;color:var(--text3);font-size:13px">
+        <div style="font-size:28px;margin-bottom:8px">👥</div>
+        Sin profesores registrados. Añade el equipo docente.
+      </div>`}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="_eqAddProf()">＋ Añadir profesor/a</button>
+      <button class="btn btn-ghost btn-sm" onclick="_eqImportTutor()">📋 Añadir tutor/a del grupo</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-ghost btn-sm" ${nSel?'':'disabled style="opacity:.4"'} onclick="_eqEnviarA([..._eqCtx.seleccionados])">
+        ✉ Enviar a seleccionados (${nSel})
+      </button>
+      <button class="btn btn-ghost btn-sm" ${conCorreo.length?'':'disabled style="opacity:.4"'} onclick="_eqEnviarATodos()">
+        ✉ Enviar a todo el equipo (${conCorreo.length})
+      </button>
+    </div>
+  `;
+}
+
+window._eqEnviarA = function(ids) {
+  const { nivel, grupo } = _eqCtx;
+  const d = _getAsistenciaData(nivel, grupo);
+  const correos = d.profesores.filter(p => ids.includes(p.id)).map(p => (p.correo||'').trim()).filter(Boolean);
+  if (!correos.length) { showToast('ℹ No hay correo registrado para esta selección'); return; }
+  window.location.href = 'mailto:' + correos.map(encodeURIComponent).join(',');
+};
+window._eqEnviarATodos = function() {
+  const { nivel, grupo } = _eqCtx;
+  const d = _getAsistenciaData(nivel, grupo);
+  _eqEnviarA(d.profesores.map(p => p.id));
+};
+
+window._eqToggleSeleccion = function(id, marcado) {
+  if (marcado) _eqCtx.seleccionados.add(id); else _eqCtx.seleccionados.delete(id);
+  renderEquipoDocenteBody();
+};
+window._eqUpdateProf = function(id, field, val) {
+  const { nivel, grupo } = _eqCtx;
+  const d = _getAsistenciaData(nivel, grupo);
+  const p = d.profesores.find(x => x.id === id);
+  if (p) p[field] = val;
+  markDirty();
+  _eqRefrescarSubtitulo(d, nivel, grupo);
+};
+window._eqAddProf = function() {
+  const { nivel, grupo } = _eqCtx;
+  const d = _getAsistenciaData(nivel, grupo);
+  d.profesores.push({ id: 'prof' + Math.random().toString(36).slice(2, 9), nombre: '', materia: '', correo: '' });
+  ['eval1','eval2','eval3'].forEach(k => {
+    if (!d.sesiones[k]) d.sesiones[k] = [];
+    d.sesiones[k].push({ asistio: null, justificacion: '' });
+  });
+  markDirty();
+  renderEquipoDocenteBody();
+};
+window._eqDelProf = function(id) {
+  const { nivel, grupo } = _eqCtx;
+  const d = _getAsistenciaData(nivel, grupo);
+  const idx = d.profesores.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  d.profesores.splice(idx, 1);
+  ['eval1','eval2','eval3'].forEach(k => {
+    if (d.sesiones[k]) d.sesiones[k].splice(idx, 1);
+  });
+  _eqCtx.seleccionados.delete(id);
+  markDirty();
+  renderEquipoDocenteBody();
+};
+window._eqImportTutor = function() {
+  const { nivel, grupo } = _eqCtx;
+  const t = tutores[`${nivel}-${grupo}`];
+  if (!t) { showToast('ℹ No hay tutor/a asignado/a a este grupo'); return; }
+  const d = _getAsistenciaData(nivel, grupo);
+  if (d.profesores.some(p => p.nombre === t)) { showToast('ℹ El tutor/a ya está en la lista'); return; }
+  d.profesores.push({ id: 'prof' + Math.random().toString(36).slice(2, 9), nombre: t, materia: 'Tutoría', correo: '' });
+  ['eval1','eval2','eval3'].forEach(k => {
+    if (!d.sesiones[k]) d.sesiones[k] = [];
+    d.sesiones[k].push({ asistio: null, justificacion: '' });
+  });
+  markDirty();
+  renderEquipoDocenteBody();
+  showToast(`✅ ${t} añadido/a al equipo docente`);
+};
+</script>
+
 <script>
 if (!window._asistenciaData) window._asistenciaData = {};
 // Structure: _asistenciaData['nivel-grupo'] = {
@@ -17017,6 +17797,15 @@ function _getAsistenciaData(nivel, grupo) {
     _asistenciaData[key] = { profesores: [], sesiones: { eval1: [], eval2: [], eval3: [] } };
   }
   const d = _asistenciaData[key];
+  // Migración: cada profesor tiene un id propio y estable (no solo su posición
+  // en el array), y un campo de correo — para el nuevo botón "Equipo docente"
+  // y el envío de correos. No cambia cómo se enlaza con las sesiones de
+  // asistencia (eso sigue siendo por posición, ya sincronizado en las
+  // funciones que añaden/quitan profesores).
+  d.profesores.forEach(p => {
+    if (!p.id) p.id = 'prof' + Math.random().toString(36).slice(2, 9);
+    if (typeof p.correo !== 'string') p.correo = '';
+  });
   // Normaliza: cada evaluación debe tener exactamente una sesión por profesor
   // (mismo índice). Si faltan (datos antiguos, guardado parcial, etc.) se
   // rellenan en blanco en vez de dejar huecos que romperían _asistToggle y
@@ -17076,46 +17865,29 @@ function renderAsistBody() {
   const body = document.getElementById('asistBody');
 
   if (evalKey === '__profs__') {
-    // Professor management
-    const rows = d.profesores.map((p, i) => `
-      <div class="asist-prof-row" style="align-items:center;gap:10px;padding:10px 0;">
-        <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
-          <label style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Nombre</label>
-          <input style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:13px;font-weight:600;transition:border-color 0.2s;"
-            placeholder="Nombre del profesor/a"
-            value="${(p.nombre||'').replace(/"/g,'&quot;')}"
-            oninput="_asistUpdateProf(${i},'nombre',this.value)"
-            onfocus="this.style.borderColor='var(--accent)'"
-            onblur="this.style.borderColor='var(--border)'">
-        </div>
-        <div style="width:200px;display:flex;flex-direction:column;gap:3px;">
-          <label style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Materia</label>
-          <input style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:13px;transition:border-color 0.2s;"
-            placeholder="Materia"
-            value="${(p.materia||'').replace(/"/g,'&quot;')}"
-            oninput="_asistUpdateProf(${i},'materia',this.value)"
-            onfocus="this.style.borderColor='var(--accent)'"
-            onblur="this.style.borderColor='var(--border)'">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:3px;padding-top:16px;">
-          <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(247,110,110,0.3)" onclick="_asistDelProf(${i})" title="Eliminar">🗑</button>
-        </div>
+    // Solo lectura: el equipo docente ahora se gestiona desde su propio botón
+    // "👨‍🏫 Equipo docente" (fuera de este modal). Aquí solo se muestra un
+    // resumen y un acceso directo, para no duplicar la edición en dos sitios.
+    const rows = d.profesores.map(p => `
+      <div class="asist-prof-row" style="align-items:center;gap:10px;padding:8px 0;">
+        <div style="flex:1;font-size:13px;font-weight:600;color:var(--text)">${(p.nombre||'—').replace(/</g,'&lt;')}</div>
+        <div style="width:160px;font-size:12.5px;color:var(--text2)">${(p.materia||'—').replace(/</g,'&lt;')}</div>
+        <div style="width:220px;font-size:12.5px;color:var(--text2)">${(p.correo||'—').replace(/</g,'&lt;')}</div>
       </div>
       <div style="height:1px;background:var(--border);opacity:0.5"></div>`).join('');
 
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;background:var(--surface2);border-radius:8px;padding:10px 14px;border:1px solid var(--border)">
-        📋 Configura el equipo docente de <strong>${nivel} ${grupo}</strong>. Edita directamente los campos — los cambios se guardan al pulsar <strong>💾 Guardar</strong>.
+        📋 El equipo docente de <strong>${nivel} ${grupo}</strong> se gestiona ahora desde su propio botón, fuera de este modal — aquí solo se muestra para consulta.
       </div>
       <div id="asistProfList">${rows || `
         <div style="text-align:center;padding:28px;color:var(--text3);font-size:13px">
           <div style="font-size:28px;margin-bottom:8px">👥</div>
-          Sin profesores registrados. Añade el equipo docente.
+          Sin profesores registrados todavía.
         </div>`}
       </div>
       <div style="display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-        <button class="btn btn-primary btn-sm" onclick="_asistAddProf()">＋ Añadir profesor/a</button>
-        <button class="btn btn-ghost btn-sm" onclick="_asistImportTutor()">📋 Añadir tutor/a del grupo</button>
+        <button class="btn btn-primary btn-sm" onclick="closeAsistencia();openEquipoDocente('${nivel}','${grupo}')">👨‍🏫 Gestionar equipo docente</button>
       </div>
     `;
     return;
@@ -17134,8 +17906,8 @@ function renderAsistBody() {
       <div style="text-align:center;padding:32px;color:var(--text3)">
         <div style="font-size:28px;margin-bottom:10px">👥</div>
         <div style="font-size:13px;font-weight:600;margin-bottom:6px">Sin equipo docente configurado</div>
-        <div style="font-size:12px;margin-bottom:16px">Ve a la pestaña "⚙ Equipo docente" para añadir los profesores</div>
-        <button class="btn btn-primary btn-sm" onclick="_asistSetTab('__profs__')">⚙ Configurar equipo docente</button>
+        <div style="font-size:12px;margin-bottom:16px">Añade el equipo docente desde su propio botón, fuera de este modal</div>
+        <button class="btn btn-primary btn-sm" onclick="closeAsistencia();openEquipoDocente('${nivel}','${grupo}')">👨‍🏫 Gestionar equipo docente</button>
       </div>`;
     return;
   }
@@ -17247,7 +18019,7 @@ window._asistSetAll = function(state) {
 window._asistAddProf = function() {
   const { nivel, grupo } = _asistCtx;
   const d = _getAsistenciaData(nivel, grupo);
-  d.profesores.push({ nombre: '', materia: '' });
+  d.profesores.push({ id: 'prof' + Math.random().toString(36).slice(2, 9), nombre: '', materia: '', correo: '' });
   ['eval1','eval2','eval3'].forEach(k => {
     if (!d.sesiones[k]) d.sesiones[k] = [];
     d.sesiones[k].push({ asistio: null, justificacion: '' });
@@ -17283,7 +18055,7 @@ window._asistImportTutor = function() {
   if (!t) { showToast('ℹ No hay tutor/a asignado/a a este grupo'); return; }
   const d = _getAsistenciaData(nivel, grupo);
   if (d.profesores.some(p => p.nombre === t)) { showToast('ℹ El tutor/a ya está en la lista'); return; }
-  d.profesores.push({ nombre: t, materia: 'Tutoría' });
+  d.profesores.push({ id: 'prof' + Math.random().toString(36).slice(2, 9), nombre: t, materia: 'Tutoría', correo: '' });
   ['eval1','eval2','eval3'].forEach(k => {
     if (!d.sesiones[k]) d.sesiones[k] = [];
     d.sesiones[k].push({ asistio: null, justificacion: '' });

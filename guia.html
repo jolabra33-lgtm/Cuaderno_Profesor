@@ -90,10 +90,12 @@
 <h2 id="vision">1. Qué es esta suite y cómo se organiza</h2>
 <p>Al abrir la aplicación aparece la pantalla de <strong>Inicio</strong>, con nueve tarjetas agrupadas en tres bloques — todas comparten los mismos grupos, alumnado y notas, salvo Gestor de Tutoría, que es independiente:</p>
 <ul>
-  <li><strong>Evaluación y corrección</strong>: 📊 Evaluación por Competencias (alumnado, actividades, calificación por criterios LOMLOE, competencias específicas y clave, informes por trimestre), 📘 Programación de Aula (el plan de Situaciones de Aprendizaje del curso, reutilizable año a año) y 🖊️ Corrector de Exámenes (corrige pregunta a pregunta con rúbrica; la nota se guarda sola en Competencias).</li>
+  <li><strong>Evaluación y corrección</strong>: 📊 Evaluación por Competencias (alumnado, plano de aula, actividades, calificación por criterios LOMLOE, competencias específicas y clave, informes por trimestre), 📘 Programación de Aula (el plan de Situaciones de Aprendizaje del curso, reutilizable año a año) y 🖊️ Corrector de Exámenes (corrige pregunta a pregunta con rúbrica; la nota se guarda sola en Competencias).</li>
   <li><strong>Seguimiento y apoyo al alumnado</strong>: 📈 Plan de Refuerzo, 🔁 Plan de Repetición y 🧩 Alumnos NESE.</li>
   <li><strong>Organización</strong>: 🗂️ Reuniones (actas con familias, alumnado y equipo directivo), 📄 Memoria de curso (todos tus grupos juntos, por evaluación o curso completo) y 👥 Gestor de Tutoría (control de sesiones de evaluación, promoción y estadísticas de grupos — <strong>sus propios datos</strong>, no comparte nada con las demás).</li>
 </ul>
+<p>Si en los últimos 30 días hay algo digno de atención en cualquiera de tus grupos (faltas no justificadas, incidencias de convivencia), justo debajo de la cabecera aparece una tarjeta <strong>"⚠️ Últimos 30 días, todos los grupos"</strong> con las cifras de un vistazo — pulsando en cualquiera de ellas vas directo a revisarlo. Si no hay nada que destacar, la tarjeta ni siquiera aparece.</p>
+<p>En cualquier pantalla de la aplicación tienes, abajo a la derecha, un <strong>⏱️ cronómetro flotante</strong> — duraciones rápidas (1 a 45 min) o un tiempo a medida, con aviso sonoro y parpadeo al acabar. Sigue corriendo aunque cierres su panel o cambies de sección; no se guarda entre sesiones, como un cronómetro físico.</p>
 <p>En la propia cabecera de Inicio hay cuatro campos que se rellenan una sola vez y valen para toda la aplicación: <strong>curso escolar</strong> (se autorrellena con el actual), <strong>profesor/a</strong>, <strong>nombre del centro</strong> y <strong>código de centro</strong>. Aparecen en las portadas de todos los documentos imprimibles. Cada Programación de Aula puede llevar su propio curso escolar y profesor/a si lo necesitas (por ejemplo, una compartida con otro compañero); si los deja en blanco, usa estos de aquí.</p>
 <p>Cada uno de esos tres bloques, y el de Calendario/Horario, tiene una cabecera con una flechita (▾/▸): pulsándola se pliega o despliega esa sección sin afectar a las demás — útil si solo usas unas pocas herramientas a diario y quieres una pantalla de Inicio más corta.</p>
 <p>Debajo de las tarjetas, la sección <strong>📅 Calendario</strong> / <strong>🗓️ Mi horario</strong> (una pestaña a la vez, para no saturar la pantalla) y, al final de todo, <strong>Ayuda</strong> — con la misma cabecera plegable que el resto de secciones, pero alineada a la derecha — que abre esta guía y la nota sobre Tutoría sin ocupar espacio cuando no lo necesitas.</p>
@@ -114,11 +116,20 @@
 
 
 <h2 id="competencial">3. Evaluación por Competencias</h2>
+<h3>Si no impartes Geografía e Historia: importar tu propia materia</h3>
+<p>Al crear un grupo nuevo, si tu materia no está entre las que trae la aplicación por defecto, en "Importar una materia nueva" (justo encima de "Crear grupo nuevo") puedes dar de alta la tuya — sin tocar nada de código.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> "⬇ Descargar plantilla en blanco (.txt)" — ábrela con cualquier editor de texto y sustituye lo que está entre corchetes por los datos de tu materia y curso: nombre, bloques de calificación, competencias específicas con sus competencias clave, y sus criterios de evaluación.</div>
+  <div class="step"><b>2.</b> <strong>Opcional pero importante si vas a usar Programación de Aula</strong>: debajo de los criterios de cualquier competencia específica, puedes añadir una línea <code>SABERES:</code> seguida de una línea <code>- texto</code> por cada saber básico de esa competencia. Sin esto, tu materia importada funciona igual en Evaluación por Competencias, pero al crear una Programación de Aula el selector de saberes básicos aparecería vacío — con esto, se precarga igual que con las materias oficiales.</div>
+  <div class="step"><b>3.</b> Vuelve a la aplicación, carga el archivo (o pega el texto) y pulsa "Validar e importar". Si hay algo mal, te dice exactamente qué línea revisar.</div>
+  <div class="step"><b>4.</b> A partir de aquí, tu materia aparece junto a las demás en "Crear grupo nuevo" <strong>y también</strong> al crear una Programación de Aula — no hace falta ningún paso adicional en ningún otro sitio.</div>
+</div>
 <h3>Las secciones del grupo</h3>
 <p>Un único desplegable, arriba a la derecha de cada grupo, con este orden:</p>
 <table>
   <tr><th>Sección</th><th>Qué se hace ahí</th></tr>
   <tr><td><strong>Alumnado</strong></td><td>Altas, bajas, NESE, observaciones internas y la papelera de alumnado.</td></tr>
+  <tr><td><strong>Plano de aula</strong></td><td>Distribución de mesas: toca un alumno/a (de la lista de "sin colocar" o ya sentado) y luego toca una mesa — si está libre, se sienta ahí; si ya tiene a alguien, se intercambian. Sin arrastrar, para que funcione bien también en iPad. Tamaño de la cuadrícula ajustable, e imprimible en formato "vista desde la pizarra".</td></tr>
   <tr><td><strong>Actividades</strong></td><td>Si el grupo tiene una Programación de Aula vinculada: eliges la Situación de Aprendizaje y luego la actividad ya planificada, y se copia aquí con sus criterios y pesos. Si no la tiene: creación libre de siempre (tarea, trabajo, exposición, examen…, asignada a un bloque de calificación, con sus criterios y pesos).</td></tr>
   <tr><td><strong>Calificar</strong></td><td>Poner nota a una actividad para todo el grupo de una vez.</td></tr>
   <tr><td><strong>Resultados</strong></td><td>Lo primero que ves es <strong>Toda la clase</strong>: una tabla con la nota de cada alumno/a (de un vistazo) y los botones de exportación de grupo. Toca cualquier alumno/a para desplegar debajo su informe completo — nota, desglose de actividades editable, competencias, comentarios—; vuelve a tocarlo (o pulsa "← Ver toda la clase") para plegarlo.</td></tr>
@@ -240,6 +251,19 @@
   <li><strong>Tus propios eventos</strong>: pulsa cualquier día y, abajo del detalle, escribe un título, elige el tipo (Reunión, Junta de evaluación, Entrega/plazo, Actividad, Otro) y una nota opcional. Se pintan como <strong>cuadrados</strong>, para distinguirlos de las evaluaciones de un vistazo, y aparecen también en la vista "📋 Cronología". Se eliminan desde el detalle del día o desde la cronología.</li>
 </ul>
 <div class="tip">Estos eventos son <strong>de Tutoría</strong>, con sus propios datos: no se mezclan con el calendario de Inicio ni aparecen allí (y al revés). Es coherente con que el Gestor de Tutoría sea una aplicación aparte.</div>
+<p>En la barra de cada grupo, junto a "Fotos del grupo", el botón <strong>"🪑 Plano del grupo"</strong> permite montar la distribución de mesas de ese grupo, con la misma mecánica que el plano de Evaluación por Competencias (tocar alumno, tocar mesa) e igualmente imprimible.</p>
+<p>En esa misma barra, el botón <strong>"👨‍🏫 Equipo docente"</strong> abre la lista de profesores de ese grupo — nombre y apellidos, materia y correo electrónico corporativo. Es la misma lista que usa "👥 Asistencia sesión" para pasar lista en las juntas de evaluación (esa pestaña ahora solo la consulta, no la edita).</p>
+<p>Desde ahí puedes enviar un correo con el botón ✉ de cada fila (a esa persona), marcando varias con la casilla y "Enviar a seleccionados", o con "Enviar a todo el equipo". En los tres casos se abre tu propio gestor de correo (Outlook, si es el que tienes configurado) con los destinatarios ya puestos — la aplicación nunca envía nada por sí misma, solo te deja el correo listo para que lo mandes tú.</p>
+
+<h3>👪 Seguimiento con familia</h3>
+<p>Pensado para cuando una familia pide una reunión para que le cuentes cómo va su hijo/a en todas las materias: tú preguntas a cada compañero por correo (con el botón ✉ de "Equipo docente" de arriba) y aquí vas anotando lo que te responde cada uno, para imprimirlo o entregarlo antes de la reunión.</p>
+<div class="flow">
+  <div class="step"><b>1.</b> Junto a cada alumno/a, el botón <strong>"📞"</strong> (distinto del "📋 Informe de seguimiento" que ya tenías — ese es un informe automático de notas; este es para anotar a mano lo que te cuentan tus compañeros) abre la ficha de seguimiento con familia.</div>
+  <div class="step"><b>2.</b> Cada vez que la abres, empieza con la fecha de hoy (editable) y <strong>todas las materias del grupo ya precargadas</strong>, cada una como su propia tarjeta. Quita con "🗑 Quitar" las que no correspondan a este alumno/a (optativas, o quien no te haya contestado esta vez) y añade con "+ Añadir materia" cualquier otra que haga falta.</div>
+  <div class="step"><b>3.</b> Cada materia tiene <strong>tres campos separados</strong> — Trabajo, Exámenes y Comportamiento — para anotar lo que te haya dicho ese profesor/a en cada aspecto. Añade observaciones generales si hace falta, y pulsa "💾 Guardar este registro". Se guarda como un registro <strong>nuevo</strong> — puedes repetir esto tantas veces al año como te pidan la reunión, sin perder los anteriores.</div>
+  <div class="step"><b>4.</b> Debajo, el historial de ese alumno/a con todos los registros guardados — cada uno con su propio "🖨 Imprimir" (documento con portada, listo para entregar en mano) y opción de eliminar.</div>
+</div>
+<p>Para verlos todos juntos (por ejemplo, si inspección te los pide), la pestaña <strong>"👪 Seguimientos"</strong> de arriba lista, por grupo, todos los registros de todos sus alumnos — con casillas para elegir cuáles, o "Imprimir todos", generando un único documento con cada registro en su propia página.</p>
 
 <h2 id="calendario">6b. Calendario de Inicio</h2>
 <p>En la pantalla de Inicio, debajo de las tarjetas, hay un calendario para exámenes, entregas, reuniones y cualquier otra cosa que quieras anotar. (El Gestor de Tutoría tiene el suyo propio, aparte — ver el <a href="#tutoria">apartado 6</a>.)</p>
@@ -263,7 +287,7 @@
   <div class="step"><b>3.</b> "Marcar como cerrada" cuando la reunión ya está terminada y revisada (por defecto queda como Borrador).</div>
   <div class="step"><b>4.</b> "🖨️ Imprimir acta" abre una vista lista para imprimir o guardar como PDF, con todo lo anterior maquetado como un acta formal.</div>
 </div>
-<p>En la lista puedes buscar por título y filtrar por tipo. Desde el propio evento del calendario (si la reunión tiene fecha) hay un acceso directo "Ver reunión →", y viceversa: si editas el título o la fecha en el detalle, el evento del calendario se actualiza solo.</p>
+<p>En la lista puedes buscar por título, filtrar por tipo y acotar por un rango de fechas (Desde / Hasta, con un botón para quitarlas). Desde el propio evento del calendario (si la reunión tiene fecha) hay un acceso directo "Ver reunión →", y viceversa: si editas el título o la fecha en el detalle, el evento del calendario se actualiza solo.</p>
 <div class="tip">Al crear una reunión puedes partir de una <strong>plantilla de orden del día</strong> (unas cuantas ya vienen incluidas, y puedes guardar las tuyas con "💾 Guardar orden del día como plantilla" desde el detalle).</div>
 <p>El botón <strong>"⬇ Exportar a Excel"</strong> de la lista descarga un resumen (título, tipo, fecha, grupo, alumno, estado, nº de asistentes/temas/acuerdos) en un archivo <code>.csv</code> que abre directamente Excel o Google Sheets. Respeta el filtro/búsqueda que tengas activo.</p>
 <div class="tip">Igual que exámenes y eventos, las reuniones viajan dentro de Exportar/Importar copia sin ningún paso aparte.</div>
