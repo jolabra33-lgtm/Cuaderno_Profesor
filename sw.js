@@ -17,7 +17,7 @@
 // cambiando el número de CACHE_NAME (v1 -> v2, etc.) para que se descargue la
 // versión nueva en vez de seguir sirviendo la antigua desde caché.
 
-const CACHE_NAME = 'geohist-suite-v68';
+const CACHE_NAME = 'geohist-suite-v69';
 
 // El "esqueleto" de las dos apps: HTML, manifest e iconos.
 const APP_SHELL = [
@@ -49,20 +49,13 @@ const OPTIONAL_ASSETS = [
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-
-    // El esqueleto de la app: si esto falla (p. ej. se movió un archivo),
-    // preferimos que falle la instalación y se note el problema.
     await cache.addAll(APP_SHELL);
-
-    // Recursos opcionales: se intentan uno a uno SIN romper la instalación
-    // si alguno no existe (p. ej. si todavía no has seguido el LEEME.txt).
     await Promise.all(OPTIONAL_ASSETS.map(async url => {
       try {
         const resp = await fetch(url);
         if (resp && resp.status === 200) await cache.put(url, resp);
       } catch (e) { /* no está descargado; no pasa nada */ }
     }));
-
     self.skipWaiting();
   })());
 });
@@ -77,21 +70,16 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     const cached = await cache.match(event.request);
-
-    // Siempre se intenta también la red en segundo plano, para tener la
-    // versión más reciente guardada de cara a la próxima vez.
     const networkFetch = fetch(event.request).then(resp => {
       if (resp && (resp.status === 200 || resp.type === 'opaque')) {
         cache.put(event.request, resp.clone());
       }
       return resp;
     }).catch(() => null);
-
-    if (cached) return cached;           // sin esperar a la red: rápido y funciona offline
+    if (cached) return cached;
     const fromNetwork = await networkFetch;
     if (fromNetwork) return fromNetwork;
     return new Response('Sin conexión y todavía no hay una copia guardada de este archivo.', {

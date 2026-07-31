@@ -147,6 +147,13 @@ if ('serviceWorker' in navigator) {
   tbody tr{transition:background .1s}
   tbody tr:hover{background:var(--surface)}
   .scroll{max-height:360px;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-right:4px}
+
+  /* Tabla de Alumnado: cabecera fija, columnas redimensionables y ordenables */
+  #tablaAlumnos{table-layout:fixed}
+  #tablaAlumnos thead th{position:sticky;top:0;z-index:3;background:var(--card);box-shadow:0 1px 0 var(--border-soft)}
+  #tablaAlumnos th .alum-col-resizer{position:absolute;right:0;top:0;bottom:0;width:6px;cursor:col-resize;background:transparent;transition:background .15s;z-index:2}
+  #tablaAlumnos th .alum-col-resizer:hover{background:var(--accent);opacity:.7}
+  #tablaAlumnos td{overflow:hidden}
   .grouptabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 20px;max-width:var(--content-max,1100px);margin:0 auto;border-bottom:none;background:transparent}
   .gpill{display:flex;align-items:center;gap:2px;padding:5px 5px 5px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13.5px;font-weight:700;color:var(--ink);box-shadow:var(--shadow-sm);transition:.15s}
   .gpill:hover{border-color:var(--muted-border);box-shadow:var(--shadow-md)}
@@ -1085,7 +1092,7 @@ function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:
   rfTab:"lista", rfId:"", rfModalNueva:false, rfFiltroEstado:"", rfBusqueda:"",
   neTab:"lista", neId:"", neModalCrear:null, prepNuevoModal:null, horModalCelda:null,
   rpTab:"lista", rpId:"", rpModalNueva:false, rpFiltroEstado:"", rpBusqueda:"", prepModal:null,
-  grupoId:null, tab:"alumnos", trim:0, calAct:"", calViewMode:"cards", resAl:"", alumAbierto:null, alumPendAbierto:null, fichaAlumnoId:"", alumColumnasOcultas:[], memoriaPeriodo:"curso",
+  grupoId:null, tab:"alumnos", trim:0, calAct:"", calViewMode:"cards", resAl:"", alumAbierto:null, alumPendAbierto:null, fichaAlumnoId:"", alumColumnasOcultas:[], alumColAnchos:{}, alumSortCol:"", alumSortDir:"asc", memoriaPeriodo:"curso",
   form:{editId:null,nombre:"",tipo:TIPOS[0],esExamen:false,bloqueId:"",pesoBloque:"",links:[],sda:""},
   nuevoGrupo:{nombre:"",catalogoKey:ORDEN_CATALOGOS[0]}, catImportTexto:"" } }; }
 
@@ -1156,15 +1163,88 @@ function calcularEdad(fechaNacimiento){
   return edad>=0 && edad<130 ? edad : null;
 }
 const ALUM_COLUMNAS_OPCIONALES=[
-  {id:"nese",label:"NESE"},
+  {id:"nese",label:"NESE",sortKey:"nese"},
   {id:"nivelNese",label:"Nivel NESE"},
-  {id:"plan",label:"Plan"},
-  {id:"repite",label:"Repite"},
+  {id:"plan",label:"Plan",sortKey:"plan"},
+  {id:"repite",label:"Repite",sortKey:"repite"},
   {id:"pendientes",label:"Pendientes"},
-  {id:"nacimiento",label:"Nacimiento"},
+  {id:"nacimiento",label:"Nacimiento",sortKey:"nacimiento"},
   {id:"edad",label:"Edad"},
 ];
 function alumColVisible(colId){ return !(state.ui.alumColumnasOcultas||[]).includes(colId); }
+
+// Anchos por defecto de cada columna (px) — el usuario puede redimensionar
+// arrastrando el borde derecho de cualquier cabecera; lo elegido se recuerda.
+const ALUM_COL_ANCHO_DEFECTO={
+  apellidos:170, nombre:130, nese:55, nivelNese:115, plan:110,
+  repite:65, pendientes:105, nacimiento:130, edad:65
+};
+function alumColAncho(colId){
+  const guardado=(state.ui.alumColAnchos||{})[colId];
+  return guardado || ALUM_COL_ANCHO_DEFECTO[colId] || 100;
+}
+window.alumStartResize=(e,colId)=>{
+  e.preventDefault(); e.stopPropagation();
+  const startX=e.clientX;
+  const anchoInicial=alumColAncho(colId);
+  const overlay=document.createElement("div");
+  overlay.style.cssText="position:fixed;inset:0;cursor:col-resize;z-index:9999";
+  document.body.appendChild(overlay);
+  function onMove(ev){
+    const nuevo=Math.max(40, anchoInicial+(ev.clientX-startX));
+    if(!state.ui.alumColAnchos) state.ui.alumColAnchos={};
+    state.ui.alumColAnchos[colId]=nuevo;
+    const tabla=document.getElementById("tablaAlumnos");
+    if(tabla){
+      const col=tabla.querySelector(`col[data-alumcol="${colId}"]`);
+      if(col) col.style.width=nuevo+"px";
+      const colsVisiblesIds=["apellidos","nombre",...ALUM_COLUMNAS_OPCIONALES.filter(c=>alumColVisible(c.id)).map(c=>c.id)];
+      const anchoTotal=colsVisiblesIds.reduce((s,id)=>s+alumColAncho(id),0)+66+74+78;
+      tabla.style.width=anchoTotal+"px";
+    }
+  }
+  function onUp(){
+    document.body.removeChild(overlay);
+    overlay.removeEventListener("mousemove",onMove);
+    overlay.removeEventListener("mouseup",onUp);
+    save();
+  }
+  overlay.addEventListener("mousemove",onMove);
+  overlay.addEventListener("mouseup",onUp);
+};
+
+// Ordenación: se recuerda una sola preferencia para toda la aplicación,
+// igual que ya pasa con qué columnas se ocultan.
+window.alumSetSort=(col)=>{
+  if(state.ui.alumSortCol===col) state.ui.alumSortDir=state.ui.alumSortDir==="asc"?"desc":"asc";
+  else { state.ui.alumSortCol=col; state.ui.alumSortDir="asc"; }
+  save(); render();
+};
+function alumSortearAlumnos(alumnos){
+  const col=state.ui.alumSortCol;
+  if(!col) return alumnos;
+  const dir=state.ui.alumSortDir==="desc"?-1:1;
+  const arr=[...alumnos];
+  arr.sort((a,b)=>{
+    let va,vb;
+    if(col==="apellidos"){ va=(a.apellidos||"")+" "+(a.nombreP||""); vb=(b.apellidos||"")+" "+(b.nombreP||""); return dir*va.localeCompare(vb,"es"); }
+    if(col==="nese"){ va=a.nese?1:0; vb=b.nese?1:0; return dir*(va-vb); }
+    if(col==="plan"){ va=a.plan||""; vb=b.plan||""; return dir*va.localeCompare(vb,"es"); }
+    if(col==="repite"){ va=a.repetidor?1:0; vb=b.repetidor?1:0; return dir*(va-vb); }
+    if(col==="nacimiento"){ va=a.fechaNacimiento||""; vb=b.fechaNacimiento||""; return dir*va.localeCompare(vb); }
+    return 0;
+  });
+  return arr;
+}
+function alumThHTML(colId,label,opts){
+  opts=opts||{};
+  const ancho=alumColAncho(colId);
+  const sk=opts.sortKey;
+  const activo=sk && state.ui.alumSortCol===sk;
+  const indicador=sk?`<span style="font-size:9px;margin-left:3px;opacity:${activo?1:0.4};color:${activo?"var(--accent-2)":"inherit"}">${activo?(state.ui.alumSortDir==="asc"?"▲":"▼"):"⇅"}</span>`:"";
+  const clickAttr=sk?` onclick="alumSetSort('${sk}')"`:"";
+  return `<th style="overflow:hidden;white-space:nowrap;font-size:${opts.small?"11.5px":"12.5px"};${sk?"cursor:pointer;user-select:none;":""}"${clickAttr}>${esc(label)}${indicador}<div class="alum-col-resizer" onmousedown="alumStartResize(event,'${colId}')"></div></th>`;
+}
 window.toggleColumnasAlumnoPanel=()=>{ alumColumnasPanelAbierto=!alumColumnasPanelAbierto; render(); };
 window.toggleColumnaAlumno=(colId,visible)=>{
   if(!Array.isArray(state.ui.alumColumnasOcultas)) state.ui.alumColumnasOcultas=[];
@@ -1331,6 +1411,9 @@ if(state.ui.famFiltroMedio===undefined) state.ui.famFiltroMedio="";
 if(state.ui.alumPendAbierto===undefined) state.ui.alumPendAbierto=null;
 if(state.ui.fichaAlumnoId===undefined) state.ui.fichaAlumnoId="";
 if(!Array.isArray(state.ui.alumColumnasOcultas)) state.ui.alumColumnasOcultas=[];
+if(!state.ui.alumColAnchos || typeof state.ui.alumColAnchos!=="object") state.ui.alumColAnchos={};
+if(state.ui.alumSortCol===undefined) state.ui.alumSortCol="";
+if(state.ui.alumSortDir===undefined) state.ui.alumSortDir="asc";
 if(state.ui.memoriaPeriodo===undefined) state.ui.memoriaPeriodo="curso";
 if(state.centroNombre===undefined) state.centroNombre="";
 if(state.centroCodigo===undefined) state.centroCodigo="";
@@ -5003,34 +5086,51 @@ function renderAlumnos(grupo){
         </div>`:""}
       </div>
     </div>
-    <div class="scroll">
-    <table id="tablaAlumnos">
+    <div class="scroll" style="max-height:520px">
+    ${(()=>{
+      const colsVisiblesIds=["apellidos","nombre",...ALUM_COLUMNAS_OPCIONALES.filter(c=>alumColVisible(c.id)).map(c=>c.id)];
+      const anchoTotal=colsVisiblesIds.reduce((s,id)=>s+alumColAncho(id),0)+66+74+78;
+      return `<table id="tablaAlumnos" style="width:${anchoTotal}px">`;
+    })()}
+      <colgroup>
+        <col data-alumcol="apellidos" style="width:${alumColAncho("apellidos")}px">
+        <col data-alumcol="nombre" style="width:${alumColAncho("nombre")}px">
+        ${alumColVisible("nese")?`<col data-alumcol="nese" style="width:${alumColAncho("nese")}px">`:""}
+        ${alumColVisible("nivelNese")?`<col data-alumcol="nivelNese" style="width:${alumColAncho("nivelNese")}px">`:""}
+        ${alumColVisible("plan")?`<col data-alumcol="plan" style="width:${alumColAncho("plan")}px">`:""}
+        ${alumColVisible("repite")?`<col data-alumcol="repite" style="width:${alumColAncho("repite")}px">`:""}
+        ${alumColVisible("pendientes")?`<col data-alumcol="pendientes" style="width:${alumColAncho("pendientes")}px">`:""}
+        ${alumColVisible("nacimiento")?`<col data-alumcol="nacimiento" style="width:${alumColAncho("nacimiento")}px">`:""}
+        ${alumColVisible("edad")?`<col data-alumcol="edad" style="width:${alumColAncho("edad")}px">`:""}
+        <col style="width:66px"><col style="width:74px"><col style="width:78px">
+      </colgroup>
       <thead><tr>
-        <th>Apellidos</th><th>Nombre</th>
-        ${alumColVisible("nese")?`<th style="font-size:11.5px">NESE</th>`:""}
-        ${alumColVisible("nivelNese")?`<th style="font-size:11.5px">Nivel NESE</th>`:""}
-        ${alumColVisible("plan")?`<th style="font-size:11.5px">Plan</th>`:""}
-        ${alumColVisible("repite")?`<th style="font-size:11.5px">Repite</th>`:""}
-        ${alumColVisible("pendientes")?`<th style="font-size:11.5px">Pendientes</th>`:""}
-        ${alumColVisible("nacimiento")?`<th style="font-size:11.5px">Nacimiento</th>`:""}
-        ${alumColVisible("edad")?`<th style="font-size:11.5px">Edad</th>`:""}
+        ${alumThHTML("apellidos","Apellidos",{sortKey:"apellidos"})}
+        ${alumThHTML("nombre","Nombre")}
+        ${alumColVisible("nese")?alumThHTML("nese","NESE",{small:true,sortKey:"nese"}):""}
+        ${alumColVisible("nivelNese")?alumThHTML("nivelNese","Nivel NESE",{small:true}):""}
+        ${alumColVisible("plan")?alumThHTML("plan","Plan",{small:true,sortKey:"plan"}):""}
+        ${alumColVisible("repite")?alumThHTML("repite","Repite",{small:true,sortKey:"repite"}):""}
+        ${alumColVisible("pendientes")?alumThHTML("pendientes","Pendientes",{small:true}):""}
+        ${alumColVisible("nacimiento")?alumThHTML("nacimiento","Nacimiento",{small:true,sortKey:"nacimiento"}):""}
+        ${alumColVisible("edad")?alumThHTML("edad","Edad",{small:true}):""}
         <th></th><th></th><th></th>
       </tr></thead>
       <tbody>
-      ${grupo.alumnos.length? grupo.alumnos.map(a=>{ const edad=calcularEdad(a.fechaNacimiento); const colspanTotal=5+ALUM_COLUMNAS_OPCIONALES.filter(c=>alumColVisible(c.id)).length; return `
+      ${grupo.alumnos.length? alumSortearAlumnos(grupo.alumnos).map(a=>{ const edad=calcularEdad(a.fechaNacimiento); const colspanTotal=5+ALUM_COLUMNAS_OPCIONALES.filter(c=>alumColVisible(c.id)).length; return `
         <tr data-id="${a.id}" data-buscar="${esc(normalizarTexto(a.apellidos+" "+a.nombreP))}">
-          <td><input class="in" style="width:100%;min-width:270px;border-color:transparent;background:transparent" value="${esc(a.apellidos||"")}" onchange="renombrarApellidos('${a.id}',this.value)"></td>
-          <td><input class="in" style="width:100%;min-width:150px;border-color:transparent;background:transparent" value="${esc(a.nombreP||"")}" onchange="renombrarNombreP('${a.id}',this.value)"></td>
+          <td><input class="in" style="width:100%;border-color:transparent;background:transparent" value="${esc(a.apellidos||"")}" onchange="renombrarApellidos('${a.id}',this.value)"></td>
+          <td><input class="in" style="width:100%;border-color:transparent;background:transparent" value="${esc(a.nombreP||"")}" onchange="renombrarNombreP('${a.id}',this.value)"></td>
           ${alumColVisible("nese")?`<td style="text-align:center"><input type="checkbox" ${a.nese?"checked":""} onchange="toggleNese('${a.id}',this.checked)"></td>`:""}
           ${alumColVisible("nivelNese")?`<td style="font-size:12.5px">${a.nese?neseNivelHTML(a):'<span style="color:var(--mut);font-size:12.5px">—</span>'}</td>`:""}
-          ${alumColVisible("plan")?`<td><select class="in" style="min-width:108px;font-size:12.5px;padding:6px 8px" onchange="setAlumnoPlan('${a.id}',this.value)">
+          ${alumColVisible("plan")?`<td><select class="in" style="width:100%;font-size:12.5px;padding:6px 8px" onchange="setAlumnoPlan('${a.id}',this.value)">
             <option value="" ${!a.plan?"selected":""}>— Ninguno —</option>
             <option value="refuerzo" ${a.plan==="refuerzo"?"selected":""}>Refuerzo</option>
             <option value="repeticion" ${a.plan==="repeticion"?"selected":""}>Repetición</option>
           </select></td>`:""}
           ${alumColVisible("repite")?`<td style="text-align:center"><input type="checkbox" ${a.repetidor?"checked":""} onchange="toggleRepetidor('${a.id}',this.checked)"></td>`:""}
-          ${alumColVisible("pendientes")?`<td><button class="ghost" style="font-size:11.5px;padding:5px 8px" onclick="togglePendientesRow('${a.id}')">${a.pendientes.length?esc(a.pendientes.map(n=>n+"º").join(", ")):"— Ninguna —"}</button></td>`:""}
-          ${alumColVisible("nacimiento")?`<td><input type="date" class="in" style="min-width:132px;font-size:12.5px;padding:6px 8px" value="${esc(a.fechaNacimiento||"")}" onchange="setFechaNacimiento('${a.id}',this.value)"></td>`:""}
+          ${alumColVisible("pendientes")?`<td><button class="ghost" style="font-size:11.5px;padding:5px 8px;width:100%;overflow:hidden;text-overflow:ellipsis" onclick="togglePendientesRow('${a.id}')">${a.pendientes.length?esc(a.pendientes.map(n=>n+"º").join(", ")):"— Ninguna —"}</button></td>`:""}
+          ${alumColVisible("nacimiento")?`<td><input type="date" class="in" style="width:100%;font-size:12.5px;padding:6px 8px" value="${esc(a.fechaNacimiento||"")}" onchange="setFechaNacimiento('${a.id}',this.value)"></td>`:""}
           ${alumColVisible("edad")?`<td style="text-align:center;font-size:12.5px;color:${edad==null?"var(--mut)":"var(--ink)"}">${edad==null?"—":edad+" años"}</td>`:""}
           <td><button class="ghost" onclick="abrirFichaAlumno('${a.id}')">Editar</button></td>
           <td><button class="ghost" onclick="toggleObservacion('${a.id}')">${abierto===a.id?"Ocultar obs.":(a.observaciones?"Ver obs.":"+ Obs.")}</button></td>
@@ -7137,7 +7237,8 @@ function progActividadCardHTML(idx,a,p){
     ${abierta?`<div class="scroll" style="margin-top:8px;max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px">
       ${idx.cat.ces.map(ce=>`
         <div style="margin-bottom:10px">
-          <div style="font-size:12px;font-weight:700;color:var(--mut)">${ce.id}</div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--ink)">${ce.id}</div>
+          <div style="font-size:11.5px;color:var(--mut);margin:1px 0 6px;line-height:1.35">${esc(ce.titulo||"")}</div>
           ${ce.criterios.map(cr=>{
             const link=(a.criterios||[]).find(c=>c.critId===cr.id);
             return `<div style="display:flex;align-items:flex-start;gap:6px;padding:2px 4px;font-size:12.5px">
@@ -7212,7 +7313,8 @@ function progDetalleHTML(root){
             const lista=progSaberesDelCatalogo(p.catalogoKey)[ce.id]||[];
             if(!lista.length) return "";
             return `<div style="margin-bottom:10px">
-              <div style="font-size:12px;font-weight:700;color:var(--mut)">${ce.id}</div>
+              <div style="font-size:12.5px;font-weight:700;color:var(--ink)">${ce.id}</div>
+              <div style="font-size:11.5px;color:var(--mut);margin:1px 0 6px;line-height:1.35">${esc(ce.titulo||"")}</div>
               ${lista.map((texto,i)=>{
                 const sid=`${ce.id}#${i}`;
                 return `<label style="display:flex;align-items:flex-start;gap:6px;font-size:12.5px;cursor:pointer;padding:2px 4px">
