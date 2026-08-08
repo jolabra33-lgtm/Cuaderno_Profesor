@@ -1864,13 +1864,14 @@ if ('serviceWorker' in navigator) {
   }
   table.inf-table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
   table.inf-table th { background: #dce8f5; font-weight: bold; padding: 6px 8px; border: 1px solid #9ab5d4; text-align: left; }
-  table.inf-table td { padding: 5px 8px; border: 1px solid #c0d0e0; vertical-align: top; min-height: 22px; color: #111 !important; }
+  table.inf-table td { padding: 5px 8px; border: 1px solid #c0d0e0; vertical-align: top; min-height: 22px; color: #111 !important; background: #fff; }
   table.inf-table td[contenteditable] { background: #fafcff; color: #111 !important; }
   table.inf-table td[contenteditable]:focus { background: #eef5ff; outline: 1px solid #4f8ef7; }
   table.inf-table tr:nth-child(even) td { background: #f5f9ff; color: #111 !important; }
   table.inf-table tr:nth-child(even) td[contenteditable]:focus { background: #eef5ff; }
   table.inf-table td[style*="font-weight:bold"], table.inf-table td b, table.inf-table td strong { color: #111 !important; }
   .inf-empty-row td { height: 26px; }
+  .acta-addrow-row button:hover { background: #dbe9ff !important; }
   .inf-sign { margin-top: 28px; display: flex; justify-content: space-between; font-size: 10.5pt; flex-wrap: wrap; gap: 16px; }
   .inf-sign-block { display: flex; flex-direction: column; gap: 4px; }
   .inf-sign-line { border-bottom: 1px solid #444; width: 220px; height: 22px; }
@@ -7817,6 +7818,46 @@ function _actaOcultarAviso() {
   if (bar) bar.style.display = 'none';
 }
 
+// ── Filas ampliables en las actas ──────────────────────────────────────────
+// Genera la fila con el botón "+ Añadir fila" que se coloca al final de cada
+// bloque de tabla. cols = nº de celdas editables que tendrá la fila nueva.
+// rowspanTargetId (opcional) = id de la celda con rowspan del bloque (para las
+// tablas agrupadas de la Sección 1), a la que hay que sumarle 1 al insertar.
+function _actaAddRowBtnRow(cols, rowspanTargetId) {
+  return `<tr class="no-print acta-addrow-row">
+    <td colspan="${cols}" style="text-align:center;padding:4px;background:#f7fafd;border:1px dashed #9ab5d4;">
+      <button type="button" onclick="actaAddRow(this, ${cols}${rowspanTargetId ? `, '${rowspanTargetId}'` : ''})" style="padding:3px 12px;border-radius:5px;border:1px solid #4f8ef7;background:#eaf2ff;color:#2f6fb3;cursor:pointer;font-family:inherit;font-size:9.5pt;font-weight:600;">+ Añadir fila</button>
+    </td>
+  </tr>`;
+}
+
+// Inserta una fila nueva (con `cols` celdas editables) justo encima de la fila
+// del botón que la ha generado, para que el botón se quede siempre al final.
+// Si el bloque tiene una celda con rowspan (Sección 1), se le suma 1 para que
+// siga cubriendo todas las filas del grupo, incluida la nueva.
+function actaAddRow(btn, cols, rowspanTargetId) {
+  const row = btn.closest('tr');
+  if (!row || !row.parentNode) return;
+  const tr = document.createElement('tr');
+  tr.className = 'inf-empty-row';
+  for (let i = 0; i < cols; i++) {
+    const td = document.createElement('td');
+    td.setAttribute('contenteditable', 'true');
+    td.innerHTML = '&nbsp;';
+    tr.appendChild(td);
+  }
+  row.parentNode.insertBefore(tr, row);
+  if (rowspanTargetId) {
+    const cell = document.getElementById(rowspanTargetId);
+    if (cell) {
+      const cur = parseInt(cell.getAttribute('rowspan') || '1', 10);
+      cell.setAttribute('rowspan', String(cur + 1));
+    }
+  }
+  const firstTd = tr.querySelector('td[contenteditable]');
+  if (firstTd) firstTd.focus();
+}
+
 function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
   // Bach niveles have their own report
   if (isBach(nivel)) { openInformeBach(nivel, grupo, evalNum, forzarRegenerar); return; }
@@ -7882,12 +7923,13 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
 
   // Alumnos repetidores
   const repAlumnos = alumnos.filter(a => a.repetidor === 'Sí');
-  const repRows = repAlumnos.length > 0
+  const REP_ROWS_BASE = 6;
+  const repRows = (repAlumnos.length > 0
     ? repAlumnos.map(a => `<tr>
         <td>${a.nombre||''}</td>
         <td contenteditable="true">&nbsp;</td>
-      </tr>`).join('') + emptyRows(Math.max(0, 4-repAlumnos.length), 2)
-    : emptyRows(4, 2);
+      </tr>`).join('') + emptyRows(Math.max(0, REP_ROWS_BASE-repAlumnos.length), 2)
+    : emptyRows(REP_ROWS_BASE, 2)) + _actaAddRowBtnRow(2);
 
   // Alumnos NESE para pre-rellenar sección 1
   const neseAlumnos = alumnos.filter(a => a.nese === 'Sí');
@@ -7903,7 +7945,7 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
   // Alumnos con propuesta de repetición (según la evaluación: I, II o III)
   const propField = evalNum === 1 ? 'propuesta1' : evalNum === 2 ? 'propuesta2' : 'propuesta3';
   const repPropAlumnos = alumnos.filter(a => getPropObj(a[propField]).tipo === 'Repetición');
-  const repPropRows = repPropAlumnos.length > 0
+  const repPropRows = (repPropAlumnos.length > 0
     ? repPropAlumnos.map(a => {
         const ev = evalNum === 1 ? (a.eval1||0) : evalNum === 2 ? (a.eval2||0) : (a.eval3||0);
         return `<tr>
@@ -7912,16 +7954,16 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
           <td contenteditable="true">&nbsp;</td>
         </tr>`;
       }).join('') + emptyRows(Math.max(0, 5-repPropAlumnos.length), 3)
-    : emptyRows(5, 3);
+    : emptyRows(5, 3)) + _actaAddRowBtnRow(3);
 
   // Alumnos que promocionan con suspensos (eval final)
   const promoConSusp = alumnos.filter(a => getPromocionaTipo(a) === 'Promoción' && (a.eval3||0) > 0);
-  const promoSuspRows = promoConSusp.length > 0
+  const promoSuspRows = (promoConSusp.length > 0
     ? promoConSusp.map(a => `<tr>
         <td>${a.nombre||''}</td>
         <td contenteditable="true">${(a.eval3||0)} mat. no superadas</td>
       </tr>`).join('') + emptyRows(Math.max(0, 5-promoConSusp.length), 2)
-    : emptyRows(5, 2);
+    : emptyRows(5, 2)) + _actaAddRowBtnRow(2);
 
   // Build reports
   const tituloActaPorEval = {1: 'ACTA I EVALUACIÓN', 2: 'ACTA II EVALUACIÓN', 3: 'ACTA EVALUACIÓN FINAL'};
@@ -8009,20 +8051,23 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
           <th>Medidas a tomar</th>
         </tr>
         <tr>
-          <td rowspan="8" style="font-weight:bold;vertical-align:top;background:#dce8f5;">Comportamiento / Convivencia</td>
+          <td rowspan="8" id="s1LabelComport" style="font-weight:bold;vertical-align:top;background:#dce8f5;">Comportamiento / Convivencia</td>
           ${Array(4).fill('<td contenteditable="true">&nbsp;</td>').join('')}
         </tr>
         ${emptyRows(7, 4)}
+        ${_actaAddRowBtnRow(4, `s1LabelComport`)}
         <tr>
-          <td rowspan="4" style="font-weight:bold;vertical-align:top;background:#dce8f5;">Asistencia / Retrasos</td>
+          <td rowspan="4" id="s1LabelAsist" style="font-weight:bold;vertical-align:top;background:#dce8f5;">Asistencia / Retrasos</td>
           ${Array(4).fill('<td contenteditable="true">&nbsp;</td>').join('')}
         </tr>
         ${emptyRows(3, 4)}
+        ${_actaAddRowBtnRow(4, `s1LabelAsist`)}
         <tr>
-          <td rowspan="${1 + Math.max(8, neseAlumnos.length)}" style="font-weight:bold;vertical-align:top;background:#dce8f5;">Atención a la diversidad e inclusión educativa — NESE<br/><small style="font-weight:normal">(dificultades de aprendizaje, incorporación tardía, altas capacidades, NEE…)</small></td>
+          <td rowspan="${1 + Math.max(8, neseAlumnos.length)}" id="s1LabelNese" style="font-weight:bold;vertical-align:top;background:#dce8f5;">Atención a la diversidad e inclusión educativa — NESE<br/><small style="font-weight:normal">(dificultades de aprendizaje, incorporación tardía, altas capacidades, NEE…)</small></td>
           ${Array(4).fill('<td contenteditable="true">&nbsp;</td>').join('')}
         </tr>
         ${nesePreRows}
+        ${_actaAddRowBtnRow(4, `s1LabelNese`)}
       </table>
     </div>`;
 
@@ -8043,10 +8088,10 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
       const p = getPropObj(a[propField]);
       return p.tipo === 'Promoción' && p.destino === 'FPB';
     });
-    const fpbRows = fpbAlumnos.length > 0
+    const fpbRows = (fpbAlumnos.length > 0
       ? fpbAlumnos.map(a=>`<tr><td>${a.nombre}</td><td contenteditable="true">&nbsp;</td><td contenteditable="true">&nbsp;</td></tr>`).join('')
         + emptyRows(Math.max(0,3-fpbAlumnos.length),3)
-      : emptyRows(3,3);
+      : emptyRows(3,3)) + _actaAddRowBtnRow(3);
 
     html += `
       <div class="inf-section">
@@ -8058,6 +8103,7 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
             <th style="width:34%">Diversificación 4º</th>
           </tr>
           ${emptyRows(5, 3)}
+          ${_actaAddRowBtnRow(3)}
         </table>
         <div style="margin-top:10px;">
           <div class="inf-section-title" style="border-radius:4px;font-size:10.5pt;">Propuesta de alumnado para FPB</div>
@@ -8121,6 +8167,7 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
         <table class="inf-table">
           <tr><th style="width:35%">Nombre y Apellidos</th><th style="width:35%">Materias no superadas</th><th style="width:30%">Observaciones</th></tr>
           ${emptyRows(8, 3)}
+          ${_actaAddRowBtnRow(3)}
         </table>
       </div>`;
   }
@@ -8160,6 +8207,7 @@ function openInforme(nivel, grupo, evalNum, forzarRegenerar) {
       <table class="inf-table">
         <tr><th style="width:55%">Nombre del profesor/a</th><th>Materia que imparte</th></tr>
         ${emptyRows(20, 2)}
+        ${_actaAddRowBtnRow(2)}
       </table>
     </div>
     <div class="inf-sign" style="margin-top:32px;">
@@ -8191,7 +8239,12 @@ function closeInforme() {
 }
 
 function printInforme() {
-  const content = document.getElementById('informeContent').innerHTML;
+  const _srcEl = document.getElementById('informeContent');
+  const _clone = _srcEl.cloneNode(true);
+  // Los botones "+ Añadir fila" son solo para rellenar el acta en pantalla;
+  // se eliminan de la copia que se envía a imprimir/PDF.
+  _clone.querySelectorAll('.acta-addrow-row').forEach(el => el.remove());
+  const content = _clone.innerHTML;
 
   const css = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11685,10 +11738,10 @@ function openInformeBach(nivel, grupo, evalNum, forzarRegenerar) {
 
   // For final: alumnos with evalExtr
   const extrAlumnos = evalNum === 3 ? alumnos.filter(a => (+a.evalExtr||0) > 0) : [];
-  const extrRows = extrAlumnos.length
+  const extrRows = (extrAlumnos.length
     ? extrAlumnos.map(a=>`<tr><td>${a.nombre}</td><td style="text-align:center;font-weight:700">${a.evalExtr}</td><td contenteditable="true">&nbsp;</td></tr>`).join('')
       + emptyRows(Math.max(0,4-extrAlumnos.length),3)
-    : emptyRows(4,3);
+    : emptyRows(4,3)) + _actaAddRowBtnRow(3);
 
   const tituloActaPorEval = {1: 'ACTA I EVALUACIÓN', 2: 'ACTA II EVALUACIÓN', 3: 'ACTA EVALUACIÓN FINAL'};
 
@@ -11815,6 +11868,7 @@ function openInformeBach(nivel, grupo, evalNum, forzarRegenerar) {
       <table class="inf-table">
         <tr><th style="width:35%">Alumno/a</th><th style="width:25%">Tipo de necesidad</th><th>Medidas adoptadas</th></tr>
         ${alumnos.filter(a=>a.nese==='Sí').map(a=>`<tr><td>${a.nombre}</td><td contenteditable="true">${_getNeseCodes(a.recursoNese).join('/') || '&nbsp;'}</td><td contenteditable="true">&nbsp;</td></tr>`).join('') || emptyRows(3,3)}
+        ${_actaAddRowBtnRow(3)}
       </table>
     </div>`;
 
@@ -11842,6 +11896,7 @@ function openInformeBach(nivel, grupo, evalNum, forzarRegenerar) {
       <table class="inf-table">
         <tr><th style="width:55%">Nombre del profesor/a</th><th>Materia que imparte</th></tr>
         ${emptyRows(20,2)}
+        ${_actaAddRowBtnRow(2)}
       </table>
     </div>
     <div class="inf-sign" style="margin-top:32px">
