@@ -6807,7 +6807,7 @@ window.famImprimirHistorial=()=>{
 /* =================================================================
    DIARIO DE CLASE — un registro por grupo de qué se ha dado cada día,
    para saber siempre por dónde va cada grupo. Una entrada por fecha
-   (guardadas en grupo.diario, un objeto {fecha:{nota,unidadId}}), editable
+   (guardadas en grupo.diario, un objeto {fecha:{nota,incidencias,unidadId}}), editable
    e imprimible. Cada entrada puede enlazarse opcionalmente a una Situación
    de Aprendizaje de la Programación de Aula vinculada a este grupo, para
    que el seguimiento (pestaña Programación) se calcule solo.
@@ -6815,7 +6815,7 @@ window.famImprimirHistorial=()=>{
 function renderDiario(grupo){
   const c=document.getElementById("tabContent");
   const fechaSel=state.ui.diarioFecha||agHoyStr();
-  const entradaActual=grupo.diario[fechaSel]||{nota:"",unidadId:""};
+  const entradaActual=grupo.diario[fechaSel]||{nota:"",incidencias:"",unidadId:""};
   const entradas=Object.entries(grupo.diario||{}).sort((a,b)=>b[0].localeCompare(a[0]));
   const prog=progDeGrupo(grupo);
   const sdas=prog?prog.sdas:[];
@@ -6834,12 +6834,18 @@ function renderDiario(grupo){
           ${sdas.map(s=>`<option value="${s.id}" ${entradaActual.unidadId===s.id?"selected":""}>${TRIMESTRES[s.trimestre]} · ${esc(s.titulo||"(sin título)")}</option>`).join("")}
         </select>
       </label>`:`<p class="sub" style="margin:0">${prog?"La Programación vinculada todavía no tiene Situaciones de Aprendizaje.":"Este grupo no tiene una Programación de Aula vinculada (ver Ajustes) — puedes seguir usando el Diario con normalidad."}</p>`}
-      <label style="font-size:12.5px;color:var(--mut);font-weight:500">Qué se ha dado
-        <textarea class="in" style="width:100%;margin-top:4px;min-height:120px;resize:vertical" id="diarioNotaInput" placeholder="Ej. Tema 3, apartado 2: causas de la Revolución Industrial. Actividad de comentario de gráficos.">${esc(entradaActual.nota||"")}</textarea>
-      </label>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500">¿Qué se ha dado?
+          <textarea class="in" style="width:100%;margin-top:4px;min-height:120px;resize:vertical" id="diarioNotaInput" placeholder="Ej. Tema 3, apartado 2: causas de la Revolución Industrial. Actividad de comentario de gráficos.">${esc(entradaActual.nota||"")}</textarea>
+        </label>
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Incidencias
+          <textarea class="in" style="width:100%;margin-top:4px;min-height:120px;resize:vertical" id="diarioIncidenciasInput" placeholder="Ej. Dos alumnos sin material. Interrupción de la clase por una conducta disruptiva.">${esc(entradaActual.incidencias||"")}</textarea>
+        </label>
+      </div>
+      <style>@media(max-width:700px){#diarioNotaInput,#diarioIncidenciasInput{min-height:100px} .grid[style*="repeat(2,minmax(0,1fr))"]{grid-template-columns:1fr!important}}</style>
       <div class="flex">
         <button class="btn" onclick="diarioGuardarEntrada()">Guardar</button>
-        ${entradaActual.nota?`<button class="ghost danger" onclick="diarioBorrarEntrada()">Eliminar esta entrada</button>`:""}
+        ${(entradaActual.nota||entradaActual.incidencias)?`<button class="ghost danger" onclick="diarioBorrarEntrada()">Eliminar esta entrada</button>`:""}
       </div>
     </div>
   </div>
@@ -6855,7 +6861,8 @@ function renderDiario(grupo){
             <strong style="font-size:13px">${fmt2(fecha)}</strong>
             ${e.unidadId&&nombreSda(e.unidadId)?`<span class="badge" style="font-size:10px">${esc(nombreSda(e.unidadId))}</span>`:""}
           </div>
-          <div style="font-size:13.5px;color:var(--mut);white-space:pre-wrap">${esc(e.nota||"")}</div>
+          ${e.nota?`<div style="font-size:13.5px;color:var(--mut);white-space:pre-wrap"><strong>¿Qué se ha dado?</strong><br>${esc(e.nota)}</div>`:""}
+          ${e.incidencias?`<div style="font-size:13.5px;color:var(--mut);white-space:pre-wrap;margin-top:5px"><strong>Incidencias</strong><br>${esc(e.incidencias)}</div>`:""}
         </div>`).join(""):'<p class="sub" style="margin:0">Todavía no hay entradas. Añade la primera arriba.</p>'}
     </div>
   </div>`;
@@ -6865,14 +6872,16 @@ window.diarioGuardarEntrada=()=>{
   const grupo=grupoActual();
   const fecha=document.getElementById("diarioFechaInput").value;
   const nota=document.getElementById("diarioNotaInput").value.trim();
+  const incidenciasEl=document.getElementById("diarioIncidenciasInput");
+  const incidencias=incidenciasEl?incidenciasEl.value.trim():"";
   const unidadEl=document.getElementById("diarioUnidadInput");
   const unidadId=unidadEl?unidadEl.value:"";
   if(!fecha){ alert("Elige una fecha."); return; }
   if(!grupo.diario) grupo.diario={};
-  if(nota) grupo.diario[fecha]={nota,unidadId}; else delete grupo.diario[fecha];
+  if(nota||incidencias) grupo.diario[fecha]={nota,incidencias,unidadId}; else delete grupo.diario[fecha];
   state.ui.diarioFecha=fecha;
   save(); render();
-  if(nota) mostrarToast("✓ Entrada guardada — "+fmt2(fecha));
+  if(nota||incidencias) mostrarToast("✓ Entrada guardada — "+fmt2(fecha));
 };
 window.diarioBorrarEntrada=()=>{
   const grupo=grupoActual();
@@ -6888,11 +6897,11 @@ window.diarioImprimir=()=>{
   const sdas=prog?prog.sdas:[];
   const nombreSda=id=>{ const s=sdas.find(x=>x.id===id); return s?(s.titulo||"(sin título)"):""; };
   const entradas=Object.entries(grupo.diario||{}).sort((a,b)=>a[0].localeCompare(b[0]));
-  const filas=entradas.map(([fecha,e])=>`<tr><td style="white-space:nowrap;font-size:12px;color:#666">${fmt2(fecha)}</td><td style="font-size:12px;color:#666">${e.unidadId?esc(nombreSda(e.unidadId)):"—"}</td><td>${esc(e.nota||"")}</td></tr>`).join("");
+  const filas=entradas.map(([fecha,e])=>`<tr><td style="white-space:nowrap;font-size:12px;color:#666">${fmt2(fecha)}</td><td style="font-size:12px;color:#666">${e.unidadId?esc(nombreSda(e.unidadId)):"—"}</td><td style="white-space:pre-wrap">${esc(e.nota||"")}</td><td style="white-space:pre-wrap">${esc(e.incidencias||"")}</td></tr>`).join("");
   const body=`
     <h1>Diario de clase</h1>
     <div class="meta">${esc(grupo.nombre)} · ${esc(cat.materia)} · ${esc(cat.curso)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
-    <table><thead><tr><th style="width:110px">Fecha</th><th style="width:160px">Situación de Aprendizaje</th><th>Qué se ha dado</th></tr></thead><tbody>${filas}</tbody></table>
+    <table><thead><tr><th style="width:110px">Fecha</th><th style="width:160px">Situación de Aprendizaje</th><th>¿Qué se ha dado?</th><th>Incidencias</th></tr></thead><tbody>${filas}</tbody></table>
   `;
   abrirVentanaInforme(`Diario de clase — ${grupo.nombre}`, body);
 };
