@@ -8594,6 +8594,7 @@ function renderCorLista(grupo){
         <div class="flex">
           <button class="btn small" onclick="cxIrCorregir('${act.id}')">Corregir</button>
           <button class="ghost" style="border:1px solid var(--line)" onclick="cxIrEditor('${act.id}')">Rúbrica</button>
+          ${notas.length?`<button class="ghost" style="border:1px solid var(--line)" title="Imprimir juntas y ordenadas por alumno/a todas las rúbricas ya corregidas de este examen" onclick="cxImprimirRubricasTodos('${act.id}')">🖨️ Imprimir</button>`:""}
           <button class="ghost" style="border:1px solid var(--line)" onclick="cxExportarCSV('${act.id}')">CSV</button>
           <button class="ghost danger" onclick="delActividad('${act.id}')">Eliminar</button>
         </div>
@@ -8859,7 +8860,7 @@ function renderCorCorregir(grupo){
       <td>${esc(al.nombre)}${neseBadgeHTML(al)}</td>
       <td style="font-weight:600">${hecho?fmt(vc):"—"}</td>
       <td>${hecho?pillCuant(vc):'<span class="badge">Sin corregir</span>'}</td>
-      <td><button class="btn small" onclick="cxIrAlumno('${al.id}')">${hecho?"Revisar":"Corregir"}</button></td>
+      <td><button class="btn small" onclick="cxIrAlumno('${al.id}')">${hecho?"Revisar":"Corregir"}</button>${hecho?` <button class="ghost small" style="border:1px solid var(--line)" title="Imprimir la rúbrica de este alumno/a" onclick="cxImprimirRubrica('${al.id}','${act.id}')">🖨️</button>`:""}</td>
     </tr>`;
   }).join("");
   const notas=grupo.alumnos.map(al=>grupo.notasCuant?.[al.id]?.[act.id]).filter(v=>v!=null);
@@ -8875,6 +8876,7 @@ function renderCorCorregir(grupo){
       <div class="flex">
         <select class="in" id="cxExamSel">${exams.map(a=>`<option value="${a.id}" ${a.id===act.id?"selected":""}>${esc(a.nombre)}</option>`).join("")}</select>
         <button class="ghost" style="border:1px solid var(--line)" onclick="cxIrEditor('${act.id}')">✏️ Editar rúbrica</button>
+        ${notas.length?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxImprimirRubricasTodos('${act.id}')">🖨️ Imprimir rúbricas</button>`:""}
         <button class="ghost" style="border:1px solid var(--line)" onclick="cxExportarCSV('${act.id}')">⬇ CSV</button>
       </div>
     </div>
@@ -8925,6 +8927,7 @@ function renderCxGradingAlumno(grupo,act,al){
     <div class="flex" style="justify-content:space-between;flex-wrap:wrap">
       <div><h2>${esc(al.nombre)}${neseBadgeHTML(al)}</h2><p class="sub" style="margin:0">${esc(act.nombre)}</p></div>
       <div class="flex">
+        ${vc!=null?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxImprimirRubrica('${al.id}','${act.id}')">🖨️ Imprimir rúbrica</button>`:""}
         <button class="ghost" style="border:1px solid var(--line)" onclick="cxVolverLista()">← Lista</button>
         <button class="ghost" style="border:1px solid var(--line)" ${i<=0?"disabled":""} onclick="cxIrAlumno('${i>0?alumnos[i-1].id:al.id}')">← Anterior</button>
         <button class="ghost" style="border:1px solid var(--line)" ${i>=alumnos.length-1?"disabled":""} onclick="cxIrAlumno('${i<alumnos.length-1?alumnos[i+1].id:al.id}')">Siguiente →</button>
@@ -8976,6 +8979,115 @@ window.cxExportarCSV=actId=>{
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});
   const u=URL.createObjectURL(blob); const a=document.createElement("a");
   a.href=u; a.download="examen-"+act.nombre.replace(/[^a-z0-9]+/gi,"-").toLowerCase()+".csv"; a.click(); URL.revokeObjectURL(u);
+};
+
+/* ---------- Impresión de la rúbrica corregida (retroalimentación para alumnado/familias) ----------
+   Documento pensado para entregar en mano o enviar a casa: solo el enunciado de cada ítem de la
+   rúbrica, su descripción/criterios de logro y la puntuación obtenida. Deliberadamente NO incluye
+   los criterios de evaluación de la Programación de Aula a los que está vinculado cada ítem: esa
+   vinculación es información de gestión interna del profesorado, no retroalimentación para el
+   alumnado.
+   Lleva su propia hoja de estilos (cxRubricaPrintCSS), inyectada solo dentro de esta ventana de
+   impresión concreta: no toca la plantilla que usan el resto de informes de la aplicación. */
+function cxRubricaPrintCSS(){
+  return `<style>
+    @page{ margin:2.3cm 2cm; }
+    body{ margin:0; padding:46px 54px 70px; max-width:740px; line-height:1.55; }
+    .cx-letterhead{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#5b6b82; margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid #dde3ec; }
+    .cx-eyebrow{ font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#b3893a; margin:0 0 7px; }
+    .cx-alumno{ font-size:27px; font-weight:700; margin:0 0 9px; color:#141b28; letter-spacing:-.01em; }
+    .cx-portada-titulo{ font-size:23px; font-weight:700; margin:0 0 9px; color:#141b28; }
+    .cx-meta-line{ font-size:14px; color:#465064; margin:0 0 28px; }
+    .cx-meta-line b{ color:#141b28; font-weight:600; }
+    .cx-meta-line .sep{ color:#c7d1de; margin:0 8px; }
+    .cx-sub{ font-size:13.5px; color:#5b6b82; margin:0 0 16px; line-height:1.6; }
+    .cx-sec{ margin:0 0 24px; page-break-inside:avoid; }
+    .cx-sec h2{ font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:#5b6b82; border-bottom:1px solid #dde3ec; padding-bottom:7px; margin:0 0 4px; }
+    .cx-sec table{ border:1px solid #e6e9ef; }
+    .cx-sec td{ padding:11px 13px; }
+    .cx-item-label{ font-size:14px; font-weight:600; color:#141b28; }
+    .cx-item-desc{ font-size:12.5px; color:#5b6b82; margin-top:4px; line-height:1.6; }
+    .cx-item-score{ font-size:16px; font-weight:700; color:#141b28; }
+    .cx-item-score small{ font-weight:400; color:#8d97ab; font-size:12px; }
+    .cx-total-box{ display:flex; justify-content:space-between; align-items:center; gap:16px; margin:26px 0; padding:16px 20px; background:rgba(183,137,58,.12); border:1px solid rgba(183,137,58,.35); border-radius:10px; page-break-inside:avoid; }
+    .cx-total-label{ font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#8a6a2a; font-weight:700; }
+    .cx-total-value{ font-size:27px; font-weight:700; color:#1c1408; margin-top:2px; }
+    .cx-total-value small{ font-size:14px; font-weight:400; color:#8a6a2a; }
+    .cx-comentario{ margin-top:8px; padding:14px 17px; background:#f6f7f9; border-left:3px solid #b3893a; border-radius:0 8px 8px 0; page-break-inside:avoid; }
+    .cx-comentario h2{ font-size:12.5px; margin:0 0 6px; border:none; padding:0; color:#141b28; text-transform:none; letter-spacing:0; }
+    .cx-comentario p{ margin:0; font-size:13.5px; color:#333; }
+    .cx-portada-table td, .cx-portada-table th{ padding:10px 13px; }
+  </style>`;
+}
+function cxRubricaBodyHTML(grupo,act,al,opts){
+  opts=opts||{};
+  const cat=getCatalogo(grupo.catalogoKey);
+  const sc=grupo.rubricScores?.[al.id]?.[act.id]||{};
+  const vc=grupo.notasCuant?.[al.id]?.[act.id];
+  const maxTotal=cxMaxTotal(act.rubrica);
+  const comentario=(grupo.examComentarios?.[al.id]?.[act.id]||"").trim();
+  const fechaLarga=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
+  const seccionesHtml=(act.rubrica||[]).map(sec=>{
+    const filas=(sec.items||[]).map(it=>{
+      const val=sc[it.id];
+      const max=Number(it.max)||0;
+      const desc=(it.desc&&it.desc.length)?`<div class="cx-item-desc">${it.desc.map(d=>"• "+esc(d)).join("<br>")}</div>`:"";
+      return `<tr><td>
+          <div class="cx-item-label">${esc(it.label||"(sin enunciado)")}</div>
+          ${desc}
+        </td>
+        <td style="text-align:right;white-space:nowrap;vertical-align:top">
+          <span class="cx-item-score">${val==null?"—":fmt(Number(val))}</span>
+          <small> / ${fmt(max)}</small>
+        </td></tr>`;
+    }).join("");
+    return `<div class="cx-sec"><h2>${esc(sec.title||"Apartado")}</h2><table><tbody>${filas}</tbody></table></div>`;
+  }).join("");
+  return `
+    <div${opts.pageBreak?' style="page-break-before:always;break-before:page"':''}>
+    ${state.centroNombre?`<div class="cx-letterhead">${esc(state.centroNombre)}</div>`:""}
+    <div class="cx-eyebrow">Rúbrica de corrección</div>
+    <h1 class="cx-alumno">${esc(al.nombre)}</h1>
+    <div class="cx-meta-line">${esc(act.nombre)}<span class="sep">·</span>${esc(cat.materia)} ${esc(cat.curso)}<span class="sep">·</span>Grupo ${esc(grupo.nombre)}<span class="sep">·</span><b>${fechaLarga}</b></div>
+    ${seccionesHtml}
+    <div class="cx-total-box">
+      <div><div class="cx-total-label">Puntuación total</div><div class="cx-total-value">${vc==null?"—":fmt(vc)} <small>/ ${fmt(maxTotal)}</small></div></div>
+      <div>${pillCuant(vc)}</div>
+    </div>
+    ${comentario?`<div class="cx-comentario"><h2>Comentario del profesor/a</h2><p style="white-space:pre-wrap">${esc(comentario)}</p></div>`:""}
+    </div>`;
+}
+window.cxImprimirRubrica=(alId,actId)=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  const act=grupo.actividades.find(a=>a.id===actId); if(!act||!act.rubrica) return;
+  const al=grupo.alumnos.find(a=>a.id===alId); if(!al) return;
+  abrirVentanaInforme(`Rúbrica · ${al.nombre} · ${act.nombre}`, cxRubricaPrintCSS()+cxRubricaBodyHTML(grupo,act,al));
+};
+function cxRubricasPortadaHTML(grupo,act,alumnos){
+  const cat=getCatalogo(grupo.catalogoKey);
+  const fechaLarga=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
+  const filas=alumnos.map(al=>{
+    const vc=grupo.notasCuant?.[al.id]?.[act.id];
+    return `<tr><td>${esc(al.nombre)}</td><td style="text-align:right;font-weight:600;white-space:nowrap">${vc==null?"—":fmt(vc)}</td><td>${pillCuant(vc)}</td></tr>`;
+  }).join("");
+  return `
+    <div>
+    ${state.centroNombre?`<div class="cx-letterhead">${esc(state.centroNombre)}</div>`:""}
+    <div class="cx-eyebrow">Rúbricas de corrección</div>
+    <h1 class="cx-portada-titulo">${esc(act.nombre)}</h1>
+    <div class="cx-meta-line" style="margin-bottom:8px">${esc(cat.materia)} ${esc(cat.curso)}<span class="sep">·</span>Grupo ${esc(grupo.nombre)}<span class="sep">·</span><b>${fechaLarga}</b></div>
+    <p class="cx-sub">${alumnos.length} alumno${alumnos.length===1?"":"s"} corregido${alumnos.length===1?"":"s"}, ordenados alfabéticamente por apellidos. Cada uno ocupa su propia página a continuación de este índice.</p>
+    <table class="cx-portada-table"><thead><tr><th>Alumno/a</th><th style="width:70px;text-align:right">Nota</th><th style="width:150px">Calificación</th></tr></thead><tbody>${filas}</tbody></table>
+    </div>`;
+}
+window.cxImprimirRubricasTodos=actId=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  const act=grupo.actividades.find(a=>a.id===actId); if(!act||!act.rubrica) return;
+  const corregidos=grupo.alumnos.filter(al=>grupo.notasCuant?.[al.id]?.[act.id]!=null);
+  if(!corregidos.length){ alert("Todavía no hay ningún alumno o alumna corregido en este examen."); return; }
+  const portada=cxRubricasPortadaHTML(grupo,act,corregidos);
+  const partes=corregidos.map(al=>cxRubricaBodyHTML(grupo,act,al,{pageBreak:true}));
+  abrirVentanaInforme(`Rúbricas · ${act.nombre}`, cxRubricaPrintCSS()+portada+partes.join(""));
 };
 
 /* ---------- Vista de solo-lectura del examen dentro de "Calificar" (Evaluación Competencial) ---------- */
