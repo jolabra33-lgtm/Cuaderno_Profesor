@@ -195,6 +195,8 @@ if ('serviceWorker' in navigator) {
   }
   .modal-box{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(var(--glass-blur)) saturate(160%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(160%);color:var(--ink);border-radius:22px;max-width:540px;width:100%;max-height:82vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:22px 24px;box-shadow:var(--shadow-lg)}
   .modal-close{border:none;background:none;font-size:24px;line-height:1;padding:8px 10px;margin:-8px -10px 0 0;cursor:pointer;color:var(--mut);touch-action:manipulation;border-radius:8px}
+  .informe-modal-content .meta{color:var(--mut);font-size:13px;margin-bottom:16px}
+  .informe-modal-content .alert{background:var(--warning-soft);border:1px solid var(--warning);color:var(--warning-ink);padding:10px 14px;font-size:13px;border-radius:10px;margin:10px 0}
   .modal-close:hover{color:var(--ink);background:var(--surface-2)}
   .hero{background:linear-gradient(120deg,var(--brand-1) 0%,var(--brand-2) 55%,var(--brand-3) 100%);
     border-radius:26px;padding:32px 32px 26px;margin-bottom:4px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
@@ -1036,7 +1038,7 @@ function defGrupo(nombre,catalogoKey){
   const cat=getCatalogo(catalogoKey);
   return {
     id:uid(), nombre, catalogoKey,
-    alumnos:[], actividades:[], notas:{}, notasCuant:{}, rubricScores:{}, examComentarios:{},
+    alumnos:[], actividades:[], notas:{}, notasCuant:{}, rubricScores:{}, examComentarios:{}, entregasInforme:{},
     pesos:{crit:{},ceCc:{}}, pesosTrim:{},
     umbrales:{excelente:85,adecuado:65,enProceso:45},
     sdaPrevistas:[null,null,null],
@@ -1051,6 +1053,7 @@ function normalizarGrupo(g){
   if(!g.notasCuant || typeof g.notasCuant!=="object") g.notasCuant={};
   if(!g.rubricScores || typeof g.rubricScores!=="object") g.rubricScores={};
   if(!g.examComentarios || typeof g.examComentarios!=="object") g.examComentarios={};
+  if(!g.entregasInforme || typeof g.entregasInforme!=="object") g.entregasInforme={};
   if(!Array.isArray(g.sdaPrevistas)) g.sdaPrevistas=[null,null,null];
   if(!g.plano || typeof g.plano!=="object") g.plano={filas:5,columnas:6,posiciones:{}};
   if(typeof g.plano.filas!=="number") g.plano.filas=5;
@@ -1092,7 +1095,7 @@ function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:
   rfTab:"lista", rfId:"", rfModalNueva:false, rfFiltroEstado:"", rfBusqueda:"",
   neTab:"lista", neId:"", neModalCrear:null, prepNuevoModal:null, horModalCelda:null,
   rpTab:"lista", rpId:"", rpModalNueva:false, rpFiltroEstado:"", rpBusqueda:"", prepModal:null,
-  grupoId:null, tab:"alumnos", trim:0, calAct:"", calViewMode:"cards", resAl:"", alumAbierto:null, alumPendAbierto:null, fichaAlumnoId:"", alumColumnasOcultas:[], alumColAnchos:{}, alumSortCol:"", alumSortDir:"asc", memoriaPeriodo:"curso",
+  grupoId:null, tab:"alumnos", trim:0, calAct:"", calViewMode:"cards", resAl:"", evolModalAl:"", evolPeriodo:0, asistModalAl:"", convModalAl:"", cxVerEstadisticas:false, alumAbierto:null, alumPendAbierto:null, fichaAlumnoId:"", alumColumnasOcultas:[], alumColAnchos:{}, alumSortCol:"", alumSortDir:"asc", memoriaPeriodo:"curso",
   form:{editId:null,nombre:"",tipo:TIPOS[0],esExamen:false,bloqueId:"",pesoBloque:"",links:[],sda:""},
   nuevoGrupo:{nombre:"",catalogoKey:ORDEN_CATALOGOS[0]}, catImportTexto:"" } }; }
 
@@ -1410,6 +1413,11 @@ if(state.ui.famFiltroAlumno===undefined) state.ui.famFiltroAlumno="";
 if(state.ui.famFiltroMedio===undefined) state.ui.famFiltroMedio="";
 if(state.ui.alumPendAbierto===undefined) state.ui.alumPendAbierto=null;
 if(state.ui.fichaAlumnoId===undefined) state.ui.fichaAlumnoId="";
+if(state.ui.evolModalAl===undefined) state.ui.evolModalAl="";
+if(state.ui.evolPeriodo===undefined) state.ui.evolPeriodo=0;
+if(state.ui.asistModalAl===undefined) state.ui.asistModalAl="";
+if(state.ui.convModalAl===undefined) state.ui.convModalAl="";
+if(state.ui.cxVerEstadisticas===undefined) state.ui.cxVerEstadisticas=false;
 if(!Array.isArray(state.ui.alumColumnasOcultas)) state.ui.alumColumnasOcultas=[];
 if(!state.ui.alumColAnchos || typeof state.ui.alumColAnchos!=="object") state.ui.alumColAnchos={};
 if(state.ui.alumSortCol===undefined) state.ui.alumSortCol="";
@@ -5872,6 +5880,394 @@ function renderDistribucionHTML(grupo,trim){
     <p class="sub" style="margin:4px 0 0">${conNota} de ${total} alumno${total===1?"":"s"} con nota en ${TRIMESTRES[trim]}.</p>
   </div>`;
 }
+/* ---------- Modal "Evolución del alumno/a" (icono 👁️ en Resultados) ----------
+   Muestra el informe detallado de cálculo de la nota (ver informeDetalladoBodyHTML,
+   definido más abajo junto al resto de utilidades de cálculo). Permite elegir la
+   evaluación (o la nota final de curso) sin cerrar el modal, y el botón Imprimir
+   abre exactamente el mismo documento en la ventana de impresión ya existente
+   (abrirVentanaInforme), así que lo que se ve en pantalla y lo que se imprime
+   son siempre idénticos. */
+function evolucionModalHTML(grupo,al){
+  if(!al) return "";
+  const periodo=state.ui.evolPeriodo;
+  const periodoArg=periodo==="final"?"'final'":String(periodo);
+  const tabBtn=(val,label)=>{
+    const activo=periodo===val;
+    return `<button class="${activo?'btn':'ghost'} small" style="${activo?'':'border:1px solid var(--line)'}" onclick="cambiarEvolPeriodo(${val==='final'?"'final'":val})">${label}</button>`;
+  };
+  const entrega=grupoTieneEntrega(grupo,al.id,periodo);
+  const entregaBtn=entrega
+    ?`<button class="ghost small" style="border:1px solid #bcdac8;color:#1e5631;background:#eef7f1" title="Pulsa para desmarcar" onclick="marcarInformeEntregado('${al.id}',${periodoArg})">✓ Entregado el ${fmt2(entrega.fecha)}</button>`
+    :`<button class="ghost small" style="border:1px solid var(--line)" onclick="marcarInformeEntregado('${al.id}',${periodoArg})">Marcar como entregado</button>`;
+  return `<div class="modal-overlay" onclick="if(event.target===this) cerrarEvolucionAlumno()">
+    <div class="modal-box" style="max-width:80vw;width:80vw;height:80vh;max-height:80vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+      <div style="padding:14px 26px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div class="flex" style="justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:15px">👁️ ${esc(al.nombre)}</div>
+          <div class="flex" style="flex-shrink:0;flex-wrap:wrap">
+            ${entregaBtn}
+            <button class="ghost" style="border:1px solid var(--line)" onclick="exportarInformeDetallado('${al.id}',${periodoArg})">🖨️ Imprimir</button>
+            <button class="modal-close" onclick="cerrarEvolucionAlumno()" aria-label="Cerrar">×</button>
+          </div>
+        </div>
+        <div class="flex" style="gap:6px;flex-wrap:wrap;margin-top:10px">
+          ${tabBtn(0,TRIMESTRES[0])}${tabBtn(1,TRIMESTRES[1])}${tabBtn(2,TRIMESTRES[2])}${tabBtn('final',"Evaluación final")}
+        </div>
+      </div>
+      <div class="informe-modal-content" style="overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px 30px;flex:1">
+        ${dsgReportCSS()}${informeDetalladoBodyHTML(grupo,al,periodo)}
+      </div>
+    </div>
+  </div>`;
+}
+window.verEvolucionAlumno=alId=>{ state.ui.evolModalAl=alId; state.ui.evolPeriodo=state.ui.trim; save(); render(); };
+window.cerrarEvolucionAlumno=()=>{ state.ui.evolModalAl=""; save(); render(); };
+window.cambiarEvolPeriodo=periodo=>{ state.ui.evolPeriodo=periodo; save(); render(); };
+function grupoTieneEntrega(grupo,alId,periodo){
+  return grupo.entregasInforme?.[alId]?.[periodo]||null;
+}
+window.marcarInformeEntregado=(alId,periodo)=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  if(!grupo.entregasInforme) grupo.entregasInforme={};
+  if(!grupo.entregasInforme[alId]) grupo.entregasInforme[alId]={};
+  if(grupo.entregasInforme[alId][periodo]) delete grupo.entregasInforme[alId][periodo];
+  else grupo.entregasInforme[alId][periodo]={fecha:new Date().toISOString().slice(0,10)};
+  save(); render();
+};
+
+/* ==================================================================
+   Informe detallado de cálculo de la nota (modal 👁️ "Evolución" y su
+   versión imprimible). Muestra, con cifras, cómo se ha llegado tanto a
+   la nota cuantitativa (0-10) como a la cualitativa (adquisición de
+   competencias, en %): bloques → actividades → criterios/rúbrica, y
+   competencias clave → específicas → criterios → actividades. Pensado
+   para poder entregarse a una familia que pida explicaciones sobre
+   una nota, así que va siempre con cifras y pesos explícitos, nunca
+   solo con la nota final.
+   ================================================================== */
+function fmtPct(v){
+  if(v==null||isNaN(v)) return "—";
+  const r=Math.round(v*10)/10;
+  return (Number.isInteger(r)?String(r):r.toFixed(1).replace(".",","))+"%";
+}
+function pct1(v){ return v==null?"—":Math.round(v)+"%"; }
+function critLabelPlain(catalogoKey,critId){
+  const idx=catIndex(catalogoKey);
+  const l=idx.critMap[critId];
+  if(!l) return esc(critId);
+  const txt=l.texto||"";
+  const corto=txt.length>90?txt.slice(0,90)+"…":txt;
+  return `<strong>${esc(critId)}</strong><span class="dsg-crittexto">${esc(corto)}</span>`;
+}
+
+/* ---- Nota cuantitativa: desglose ---- */
+function desgloseNotaActividadHTML(grupo,al,a){
+  if(a.esExamen){
+    const vc=grupo.notasCuant?.[al.id]?.[a.id];
+    if(a.rubrica){
+      const sc=grupo.rubricScores?.[al.id]?.[a.id]||{};
+      const maxTotal=cxMaxTotal(a.rubrica);
+      const filas=(a.rubrica||[]).map(sec=>{
+        const itemsRows=(sec.items||[]).map(it=>{
+          const val=sc[it.id]; const max=Number(it.max)||0;
+          return `<tr><td style="padding-left:16px">${esc(it.label||"Ítem")}</td><td style="text-align:right;white-space:nowrap">${val==null?"—":fmt(Number(val))} / ${fmt(max)}</td></tr>`;
+        }).join("");
+        return `<tr><td colspan="2" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--mu);padding-top:7px">${esc(sec.title||"Apartado")}</td></tr>${itemsRows}`;
+      }).join("");
+      return `<table class="dsg-mini"><tbody>${filas}<tr><td style="font-weight:700">Total del examen (rúbrica)</td><td style="text-align:right;font-weight:700">${vc==null?"—":fmt(vc)} / ${fmt(maxTotal)}</td></tr></tbody></table>`;
+    }
+    return `<p class="dsg-note">Nota directa del examen (sin rúbrica): <strong>${vc==null?"—":fmt(vc)}</strong> / 10.</p>`;
+  }
+  const filas=(a.criterios||[]).map(l=>{
+    const n=grupo.notas?.[al.id]?.[a.id]?.[l.critId];
+    return `<tr><td>${critLabelPlain(grupo.catalogoKey,l.critId)}</td><td style="text-align:right;white-space:nowrap">${n==null||n===""?"—":Number(n).toFixed(1).replace(".",",")}</td><td style="text-align:right;white-space:nowrap">${fmtPct(Number(l.peso)||0)}</td></tr>`;
+  }).join("");
+  if(!filas) return `<p class="dsg-note">Sin criterios calificados en esta actividad.</p>`;
+  return `<table class="dsg-mini"><thead><tr><th>Criterio</th><th style="text-align:right">Nota</th><th style="text-align:right">Peso</th></tr></thead><tbody>${filas}</tbody></table>`;
+}
+function desgloseBloqueHTML(grupo,al,b,trim){
+  const acts=grupo.actividades.filter(a=>a.trimestre===trim && a.bloqueId===b.id);
+  const v=notaBloque(grupo,al.id,b.id,trim);
+  if(!acts.length){
+    return `<div class="dsg-bloque"><div class="dsg-bloque-head"><span>${esc(b.label)}</span><span class="dsg-muted">Sin actividades este periodo</span></div></div>`;
+  }
+  const filas=acts.map(a=>{
+    const va=notaActividad(grupo,al.id,a);
+    const w=pesoActividadEnBloque(grupo,a);
+    return `<tr>
+        <td>${esc(a.nombre)}<span class="dsg-tag">${esc(a.tipo)}</span></td>
+        <td style="text-align:right;white-space:nowrap">${va==null?"—":fmt(va)}</td>
+        <td style="text-align:right;white-space:nowrap">${fmtPct(w)}</td>
+      </tr>
+      <tr><td colspan="3" style="padding:0 14px 14px">${desgloseNotaActividadHTML(grupo,al,a)}</td></tr>`;
+  }).join("");
+  return `<div class="dsg-bloque">
+    <div class="dsg-bloque-head"><span>${esc(b.label)}</span><span>${v==null?"—":fmt(v)} <small>peso ${fmtPct(b.peso)} del trimestre</small></span></div>
+    <table class="dsg-tabla"><thead><tr><th>Actividad</th><th style="text-align:right">Nota</th><th style="text-align:right">Peso en el bloque</th></tr></thead><tbody>${filas}</tbody></table>
+  </div>`;
+}
+function desgloseTrimestreHTML(grupo,al,trim){
+  const v=notaTrimestre(grupo,al.id,trim);
+  const bloquesHtml=grupo.bloques.map(b=>desgloseBloqueHTML(grupo,al,b,trim)).join("");
+  return `<div class="dsg-formula">Nota = media ponderada de los bloques de calificación de ${esc(TRIMESTRES[trim].toLowerCase())}.</div>
+    ${bloquesHtml}
+    <div class="dsg-total"><span>Nota del periodo</span><span>${v==null?"—":fmt(v)} / 10</span></div>`;
+}
+function desgloseTrimResumenBloquesHTML(grupo,al,trim){
+  const filas=grupo.bloques.map(b=>{
+    const v=notaBloque(grupo,al.id,b.id,trim);
+    return `<tr><td>${esc(b.label)}</td><td style="text-align:right">${v==null?"—":fmt(v)}</td><td style="text-align:right">${fmtPct(b.peso)}</td></tr>`;
+  }).join("");
+  return `<table class="dsg-mini"><thead><tr><th>Bloque</th><th style="text-align:right">Nota</th><th style="text-align:right">Peso</th></tr></thead><tbody>${filas}</tbody></table>`;
+}
+function desgloseFinalHTML(grupo,al){
+  const disponibles=[0,1,2].filter(t=>notaTrimestre(grupo,al.id,t)!=null);
+  const nf=notaFinal(grupo,al.id);
+  const filasResumen=[0,1,2].map(t=>{
+    const v=notaTrimestre(grupo,al.id,t);
+    const w=v==null?null:pesoTrimestreEfectivo(grupo,t,disponibles);
+    return `<tr><td>${esc(TRIMESTRES[t])}</td><td style="text-align:right">${v==null?"—":fmt(v)}</td><td style="text-align:right">${w==null?"—":fmtPct(w)}</td></tr>`;
+  }).join("");
+  const detalle=disponibles.map(t=>`<div class="dsg-trim-block"><h3>${esc(TRIMESTRES[t])}</h3>${desgloseTrimResumenBloquesHTML(grupo,al,t)}</div>`).join("");
+  return `<div class="dsg-formula">Nota final = media ponderada de las evaluaciones con nota registrada.</div>
+    <table class="dsg-tabla"><thead><tr><th>Evaluación</th><th style="text-align:right">Nota</th><th style="text-align:right">Peso</th></tr></thead><tbody>${filasResumen}</tbody></table>
+    <div class="dsg-total"><span>Nota final de curso</span><span>${nf==null?"—":fmt(nf)} / 10</span></div>
+    ${detalle?`<div class="dsg-subtitle" style="margin-top:18px">Detalle de bloques por evaluación</div>${detalle}`:""}`;
+}
+
+/* ---- Nota cualitativa (competencias): desglose ---- */
+function desgloseCriterioHTML(grupo,al,cid,trim){
+  return conTrim(trim,()=>{
+    const acts=actsTrim(grupo).filter(a=>(a.criterios||[]).some(l=>l.critId===cid));
+    if(!acts.length) return `<p class="dsg-muted" style="margin:2px 0 8px">Sin actividades con este criterio en este periodo.</p>`;
+    const filas=acts.map(a=>{
+      const l=a.criterios.find(x=>x.critId===cid);
+      const n=grupo.notas?.[al.id]?.[a.id]?.[cid];
+      return `<tr><td>${esc(a.nombre)}</td><td style="text-align:right">${n==null||n===""?"—":Number(n).toFixed(1).replace(".",",")}</td><td style="text-align:right">${fmtPct(Number(l.peso)||0)}</td></tr>`;
+    }).join("");
+    return `<table class="dsg-mini"><thead><tr><th>Actividad</th><th style="text-align:right">Nota (0-10)</th><th style="text-align:right">Peso</th></tr></thead><tbody>${filas}</tbody></table>`;
+  });
+}
+function desgloseCEHTML(grupo,al,ce,periodo){
+  const p=periodo==="final"?scoreCEAnual(grupo,al.id,ce.id):conTrim(periodo,()=>scoreCE(grupo,al.id,ce.id));
+  if(p==null) return "";
+  let interior;
+  if(periodo==="final"){
+    const disponibles=[0,1,2].filter(t=>conTrim(t,()=>scoreCE(grupo,al.id,ce.id))!=null);
+    const filas=[0,1,2].map(t=>{
+      const v=conTrim(t,()=>scoreCE(grupo,al.id,ce.id));
+      const w=v==null?null:pesoTrimestreEfectivo(grupo,t,disponibles);
+      return `<tr><td>${esc(TRIMESTRES[t])}</td><td style="text-align:right">${v==null?"—":pct1(v)}</td><td style="text-align:right">${w==null?"—":fmtPct(w)}</td></tr>`;
+    }).join("");
+    interior=`<table class="dsg-mini"><thead><tr><th>Evaluación</th><th style="text-align:right">Adquisición</th><th style="text-align:right">Peso</th></tr></thead><tbody>${filas}</tbody></table>`;
+  }else{
+    interior=ce.criterios.map(c=>{
+      const cp=conTrim(periodo,()=>scoreCriterio(grupo,al.id,c.id));
+      if(cp==null) return "";
+      const w=pesoCriterio(grupo,c.id);
+      return `<div class="dsg-criterio">
+        <div class="dsg-criterio-head"><span>${critLabelPlain(grupo.catalogoKey,c.id)}</span><span>${pct1(cp)} <small>· peso ${fmtPct(w)}</small></span></div>
+        ${desgloseCriterioHTML(grupo,al,c.id,periodo)}
+      </div>`;
+    }).filter(Boolean).join("")||`<p class="dsg-muted">Sin criterios con nota en este periodo.</p>`;
+  }
+  return `<div class="dsg-ce">
+    <div class="dsg-ce-head"><span><strong>${esc(ce.id)}</strong> · ${esc(ce.titulo)}</span><span>${pillPlain(grupo,p)}</span></div>
+    ${interior}
+  </div>`;
+}
+function desgloseCCHTML(grupo,al,cc,periodo){
+  const idx=catIndex(grupo.catalogoKey);
+  const p=periodo==="final"?scoreCCAnual(grupo,al.id,cc):conTrim(periodo,()=>scoreCC(grupo,al.id,cc));
+  if(p==null) return "";
+  const cesFilas=idx.cat.ces.filter(ce=>ce.cc.includes(cc)).map(ce=>{
+    const cep=periodo==="final"?scoreCEAnual(grupo,al.id,ce.id):conTrim(periodo,()=>scoreCE(grupo,al.id,ce.id));
+    if(cep==null) return "";
+    const w=pesoCEenCC(grupo,ce.id,cc);
+    return `<tr><td>${esc(ce.id)} · ${esc(ce.titulo)}</td><td style="text-align:right">${pct1(cep)}</td><td style="text-align:right">${fmtPct(w)}</td></tr>`;
+  }).filter(Boolean).join("");
+  if(!cesFilas) return "";
+  return `<div class="dsg-ce">
+    <div class="dsg-ce-head"><span><strong>${esc(cc)}</strong> · ${esc(COMP_CLAVE[cc]||cc)}</span><span>${pillPlain(grupo,p)}</span></div>
+    <table class="dsg-mini"><thead><tr><th>Competencia específica</th><th style="text-align:right">Adquisición</th><th style="text-align:right">Peso en ${esc(cc)}</th></tr></thead><tbody>${cesFilas}</tbody></table>
+  </div>`;
+}
+/* ---- Gráficos (SVG en línea, sin librerías: se ven igual en pantalla y en el PDF impreso) ---- */
+function svgBarNotas(valores){
+  const w=640,h=168,padL=30,padB=26,padT=16,padR=10;
+  const chartW=w-padL-padR, chartH=h-padT-padB;
+  const n=valores.length, gap=16;
+  const barW=(chartW-gap*(n-1))/n;
+  const gridLines=[0,5,10].map(v=>{
+    const y=padT+chartH-(v/10)*chartH;
+    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#eef1f6" stroke-width="1"/><text x="${padL-6}" y="${y+3}" text-anchor="end" font-size="9" fill="#8d97ab">${v}</text>`;
+  }).join("");
+  const bars=valores.map((d,i)=>{
+    const x=padL+i*(barW+gap);
+    const val=d.value==null?0:d.value;
+    const bh=d.value==null?0:(val/10)*chartH;
+    const y=padT+chartH-bh;
+    const fill=d.value==null?"#eef1f6":(d.activo?"#b3893a":"#e4d9c0");
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="5" fill="${fill}"/>
+      <text x="${(x+barW/2).toFixed(1)}" y="${(y-7).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="#141b28">${d.value==null?"—":fmt(d.value)}</text>
+      <text x="${(x+barW/2).toFixed(1)}" y="${h-7}" text-anchor="middle" font-size="10.5" font-weight="${d.activo?700:400}" fill="${d.activo?'#141b28':'#5b6b82'}">${esc(d.label)}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block" role="img" aria-label="Evolución de la nota por evaluación">${gridLines}${bars}</svg>`;
+}
+function svgRadarCC(ejes){
+  const n=ejes.length;
+  if(n<3) return "";
+  const size=320, cx=size/2, cy=size/2-4, R=size/2-76;
+  const angle=i=>-Math.PI/2+i*(2*Math.PI/n);
+  const pt=(i,r)=>{ const a=angle(i); return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; };
+  const rings=[25,50,75,100].map(pctv=>{
+    const r=R*(pctv/100);
+    return `<polygon points="${ejes.map((_,i)=>pt(i,r).map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="none" stroke="#e6e9ef" stroke-width="1"/>`;
+  }).join("");
+  const axes=ejes.map((e,i)=>{ const [x,y]=pt(i,R); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e6e9ef" stroke-width="1"/>`; }).join("");
+  const dataPts=ejes.map((e,i)=>pt(i,R*((e.value==null?0:e.value)/100)).map(v=>v.toFixed(1)).join(",")).join(" ");
+  const labels=ejes.map((e,i)=>{
+    const [x,y]=pt(i,R+28);
+    const c=Math.cos(angle(i));
+    const anchor=Math.abs(c)<0.35?"middle":(c>0?"start":"end");
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-size="10.5" font-weight="700" fill="#141b28">${esc(e.label)}</text>
+      <text x="${x.toFixed(1)}" y="${(y+12).toFixed(1)}" text-anchor="${anchor}" font-size="9.5" fill="#5b6b82">${e.value==null?"—":Math.round(e.value)+"%"}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size-16}" style="width:100%;max-width:340px;height:auto;display:block;margin:0 auto" role="img" aria-label="Perfil de competencias clave">
+    ${rings}${axes}<polygon points="${dataPts}" fill="rgba(183,137,58,.28)" stroke="#b3893a" stroke-width="2"/>${labels}
+  </svg>`;
+}
+function graficoEvolucionNotaHTML(grupo,al,periodoActivo){
+  const etiquetas=["1ª ev.","2ª ev.","3ª ev."];
+  const valores=[0,1,2].map(t=>({label:etiquetas[t],value:notaTrimestre(grupo,al.id,t),activo:periodoActivo===t}));
+  valores.push({label:"Final",value:notaFinal(grupo,al.id),activo:periodoActivo==="final"});
+  return svgBarNotas(valores);
+}
+function graficoRadarCCHTML(grupo,al,periodo){
+  const idx=catIndex(grupo.catalogoKey);
+  const ccList=Object.keys(COMP_CLAVE).filter(cc=>idx.cat.ces.some(ce=>ce.cc.includes(cc)));
+  const ejes=ccList.map(cc=>({label:cc,value:periodo==="final"?scoreCCAnual(grupo,al.id,cc):conTrim(periodo,()=>scoreCC(grupo,al.id,cc))}));
+  if(ejes.filter(e=>e.value!=null).length<3) return "";
+  return svgRadarCC(ejes);
+}
+
+
+function desgloseCualitativoHTML(grupo,al,periodo){
+  const idx=catIndex(grupo.catalogoKey);
+  const ccList=Object.keys(COMP_CLAVE).filter(cc=>idx.cat.ces.some(ce=>ce.cc.includes(cc)));
+  const ccHtml=ccList.map(cc=>desgloseCCHTML(grupo,al,cc,periodo)).filter(Boolean).join("");
+  const ceHtml=idx.cat.ces.map(ce=>desgloseCEHTML(grupo,al,ce,periodo)).filter(Boolean).join("");
+  const radar=graficoRadarCCHTML(grupo,al,periodo);
+  return `${radar?`<div class="dsg-chart-box" style="margin-bottom:22px"><div class="dsg-subtitle" style="text-align:center">Perfil competencial</div>${radar}</div>`:""}
+    <div class="dsg-subtitle">Competencias clave</div>
+    ${ccHtml||'<p class="dsg-muted">Sin datos de competencias en este periodo.</p>'}
+    <div class="dsg-subtitle" style="margin-top:22px">Competencias específicas — detalle</div>
+    ${ceHtml||'<p class="dsg-muted">Sin datos de competencias en este periodo.</p>'}`;
+}
+
+/* ---- Documento completo + hoja de estilos propia (pantalla e impresión) ---- */
+function dsgReportCSS(){
+  return `<style>
+    .dsg-report{ --dk:#141b28; --mu:#5b6b82; --ln:#dde3ec; --ac:#b3893a; --acsoft:rgba(183,137,58,.14); --acbord:rgba(183,137,58,.4); --sf2:#f3f5f8; color:var(--dk); line-height:1.5; }
+    .dsg-report .dsg-letterhead{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mu); margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid var(--ln); }
+    .dsg-report .dsg-eyebrow{ font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ac); margin:0 0 7px; }
+    .dsg-report .dsg-alumno{ font-size:26px; font-weight:700; margin:0 0 9px; color:var(--dk); letter-spacing:-.01em; }
+    .dsg-report .dsg-meta{ font-size:14px; color:var(--mu); margin:0 0 20px; }
+    .dsg-report .dsg-meta b{ color:var(--dk); font-weight:600; }
+    .dsg-report .dsg-meta .sep{ color:#c7d1de; margin:0 8px; }
+    .dsg-report .dsg-resumen{ display:flex; justify-content:space-between; align-items:center; gap:16px; margin:0 0 28px; padding:16px 20px; background:var(--acsoft); border:1px solid var(--acbord); border-radius:12px; }
+    .dsg-report .dsg-resumen-label{ font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ac); font-weight:700; }
+    .dsg-report .dsg-resumen-valor{ font-size:26px; font-weight:700; color:#1c1408; margin-top:2px; }
+    .dsg-report .dsg-resumen-valor small{ font-size:13px; font-weight:400; color:var(--ac); }
+    .dsg-report .dsg-h2{ font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--dk); border-bottom:2px solid var(--ln); padding-bottom:8px; margin:0 0 14px; font-weight:800; }
+    .dsg-report .dsg-formula{ font-size:13px; color:var(--mu); font-style:italic; margin:0 0 12px; }
+    .dsg-report .dsg-subtitle{ font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--mu); font-weight:700; margin:0 0 10px; padding-top:4px; }
+    .dsg-report .dsg-muted{ color:var(--mu); font-size:13px; }
+    .dsg-report .dsg-note{ font-size:12.5px; color:var(--mu); margin:2px 0 10px; }
+    .dsg-report .dsg-bloque{ border:1px solid var(--ln); border-radius:10px; margin:0 0 14px; overflow:hidden; page-break-inside:avoid; }
+    .dsg-report .dsg-bloque-head{ display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--sf2); font-size:13.5px; font-weight:700; }
+    .dsg-report .dsg-bloque-head small{ font-weight:400; color:var(--mu); font-size:11.5px; }
+    .dsg-report .dsg-tabla{ width:100%; border-collapse:collapse; font-size:13px; }
+    .dsg-report .dsg-tabla th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--mu); padding:8px 14px; border-bottom:1px solid var(--ln); }
+    .dsg-report .dsg-tabla td{ padding:8px 14px; border-bottom:1px solid var(--ln); vertical-align:top; }
+    .dsg-report .dsg-tag{ display:inline-block; font-size:10px; color:var(--mu); border:1px solid var(--ln); border-radius:5px; padding:1px 6px; margin-left:6px; text-transform:uppercase; }
+    .dsg-report .dsg-mini{ width:100%; border-collapse:collapse; font-size:12px; margin:2px 0 10px; background:var(--sf2); border-radius:8px; overflow:hidden; }
+    .dsg-report .dsg-mini th{ text-align:left; font-size:10px; text-transform:uppercase; color:var(--mu); padding:6px 10px; }
+    .dsg-report .dsg-mini td{ padding:6px 10px; border-top:1px solid #e6e9ef; vertical-align:top; }
+    .dsg-report .dsg-crittexto{ display:block; color:var(--mu); font-weight:400; font-size:11.5px; margin-top:1px; }
+    .dsg-report .dsg-total{ display:flex; justify-content:space-between; font-size:15px; font-weight:800; padding:12px 14px; border-top:2px solid var(--dk); margin-top:6px; }
+    .dsg-report .dsg-trim-block{ margin:0 0 18px; page-break-inside:avoid; }
+    .dsg-report .dsg-trim-block h3{ font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ac); margin:0 0 8px; font-weight:800; }
+    .dsg-report .dsg-ce{ border:1px solid var(--ln); border-radius:10px; margin:0 0 14px; padding:12px 14px; page-break-inside:avoid; }
+    .dsg-report .dsg-ce-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; font-size:13.5px; }
+    .dsg-report .dsg-criterio{ margin:0 0 10px; }
+    .dsg-report .dsg-criterio-head{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; font-weight:600; margin-bottom:4px; }
+    .dsg-report .dsg-criterio-head small{ font-weight:400; color:var(--mu); }
+    .dsg-report .dsg-chart-box{ border:1px solid var(--ln); border-radius:12px; padding:16px 18px; background:#fff; page-break-inside:avoid; }
+    @page{ margin:2.3cm 2cm; }
+  </style>`;
+}
+function informeDetalladoBodyHTML(grupo,al,periodo,opts){
+  opts=opts||{};
+  const cat=getCatalogo(grupo.catalogoKey);
+  const periodoLabel=periodo==="final"?"Evaluación final (curso completo)":TRIMESTRES[periodo];
+  const notaC=periodo==="final"?notaFinal(grupo,al.id):notaTrimestre(grupo,al.id,periodo);
+  const fechaLarga=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
+  return `<div class="dsg-report"${opts.pageBreak?' style="page-break-before:always;break-before:page"':''}>
+    ${state.centroNombre?`<div class="dsg-letterhead">${esc(state.centroNombre)}</div>`:""}
+    <div class="dsg-eyebrow">Informe detallado de evaluación</div>
+    <h1 class="dsg-alumno">${esc(al.nombre)}</h1>
+    <div class="dsg-meta">${esc(cat.materia)} ${esc(cat.curso)}<span class="sep">·</span>Grupo ${esc(grupo.nombre)}<span class="sep">·</span><b>${esc(periodoLabel)}</b><span class="sep">·</span>${fechaLarga}</div>
+    <div class="dsg-resumen">
+      <div><div class="dsg-resumen-label">Nota cuantitativa</div><div class="dsg-resumen-valor">${notaC==null?"—":fmt(notaC)}<small> / 10</small></div></div>
+      <div>${pillCuant(notaC)}</div>
+    </div>
+    <div class="dsg-chart-box" style="margin-bottom:28px">
+      <div class="dsg-subtitle" style="text-align:center">Evolución de la nota cuantitativa</div>
+      ${graficoEvolucionNotaHTML(grupo,al,periodo)}
+    </div>
+    <h2 class="dsg-h2">Cómo se ha calculado la nota cuantitativa</h2>
+    ${periodo==="final"?desgloseFinalHTML(grupo,al):desgloseTrimestreHTML(grupo,al,periodo)}
+    <h2 class="dsg-h2" style="margin-top:30px">Cómo se ha calculado la nota cualitativa (competencias)</h2>
+    ${desgloseCualitativoHTML(grupo,al,periodo)}
+  </div>`;
+}
+window.exportarInformeDetallado=(alId,periodo)=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  const al=grupo.alumnos.find(a=>a.id===alId); if(!al) return;
+  const p=(periodo==="final")?"final":Number(periodo);
+  const periodoLabel=p==="final"?"final de curso":TRIMESTRES[p];
+  abrirVentanaInforme(`Informe detallado · ${al.nombre} · ${periodoLabel}`, dsgReportCSS()+informeDetalladoBodyHTML(grupo,al,p));
+};
+function informesDetalladosPortadaHTML(grupo,alumnos,periodo){
+  const cat=getCatalogo(grupo.catalogoKey);
+  const periodoLabel=periodo==="final"?"Evaluación final (curso completo)":TRIMESTRES[periodo];
+  const fechaLarga=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
+  const filas=alumnos.map(al=>{
+    const v=periodo==="final"?notaFinal(grupo,al.id):notaTrimestre(grupo,al.id,periodo);
+    return `<tr><td>${esc(al.nombre)}</td><td style="text-align:right;font-weight:600;white-space:nowrap">${v==null?"—":fmt(v)}</td><td>${pillCuant(v)}</td></tr>`;
+  }).join("");
+  return `<div class="dsg-report">
+    ${state.centroNombre?`<div class="dsg-letterhead">${esc(state.centroNombre)}</div>`:""}
+    <div class="dsg-eyebrow">Informes detallados de evaluación</div>
+    <h1 class="dsg-alumno" style="font-size:23px">${esc(grupo.nombre)}</h1>
+    <div class="dsg-meta">${esc(cat.materia)} ${esc(cat.curso)}<span class="sep">·</span><b>${esc(periodoLabel)}</b><span class="sep">·</span>${fechaLarga}</div>
+    <p class="dsg-muted" style="margin:0 0 16px">${alumnos.length} alumno${alumnos.length===1?"":"s"} con nota en este periodo, ordenados alfabéticamente por apellidos. Cada uno ocupa sus propias páginas a continuación de este índice.</p>
+    <table class="dsg-tabla"><thead><tr><th>Alumno/a</th><th style="text-align:right">Nota</th><th>Calificación</th></tr></thead><tbody>${filas}</tbody></table>
+  </div>`;
+}
+window.exportarInformesDetalladosTodos=periodo=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  const p=(periodo==="final")?"final":Number(periodo);
+  const conNota=grupo.alumnos.filter(al=>(p==="final"?notaFinal(grupo,al.id):notaTrimestre(grupo,al.id,p))!=null);
+  if(!conNota.length){ alert("Todavía no hay ningún alumno o alumna con nota en este periodo."); return; }
+  const periodoLabel=p==="final"?"final de curso":TRIMESTRES[p];
+  const portada=informesDetalladosPortadaHTML(grupo,conNota,p);
+  const partes=conNota.map(al=>informeDetalladoBodyHTML(grupo,al,p,{pageBreak:true}));
+  abrirVentanaInforme(`Informes detallados · ${grupo.nombre} · ${periodoLabel}`, dsgReportCSS()+portada+partes.join(""));
+};
+
+
 function renderResultados(grupo){
   const c=document.getElementById("tabContent");
   const idx=catIndex(grupo.catalogoKey);
@@ -5895,20 +6291,23 @@ function renderResultados(grupo){
             <option value="final">Evaluación final (curso completo)</option>
           </select>
           <button class="btn" onclick="exportarInformeGrupo(document.getElementById('repGrupoSel').value)">Informe de grupo</button>
+          <button class="ghost" style="border:1px solid var(--line)" onclick="exportarInformesDetalladosTodos(document.getElementById('repGrupoSel').value)">🖨️ Informes detallados</button>
         </span>
       </div>
     </div>
     <p class="sub" style="margin:6px 0 10px">Toca un alumno/a para ver y editar su informe completo debajo.</p>
     <div style="overflow-x:auto"><table>
-      <thead><tr><th>Alumno/a</th><th>${TRIMESTRES[trim]}</th><th>Nota final</th><th>Calificación</th><th></th><th></th></tr></thead>
+      <thead><tr><th>Alumno/a</th><th>${TRIMESTRES[trim]}</th><th>Nota final</th><th>Calificación</th><th></th><th></th><th></th></tr></thead>
       <tbody>${grupo.alumnos.map(a=>{const t=notaTrimestre(grupo,a.id,trim),f=notaFinal(grupo,a.id);
         return `<tr style="cursor:pointer;${a.id===(al&&al.id)?'background:var(--surface-2)':''}" onclick="irAAlumnoResultados('${a.id}')">
           <td><strong>${esc(a.nombre)}</strong>${neseBadgeHTML(a)}</td><td>${fmt(t)}</td><td>${fmt(f)}</td>
           <td>${pillCuant(f)}</td>
+          <td><button class="ghost small" style="border:1px solid var(--line)" title="Ver la evolución de ${esc(a.nombre)} en esta evaluación" onclick="event.stopPropagation();verEvolucionAlumno('${a.id}')">👁️</button>${grupoTieneEntrega(grupo,a.id,trim)?`<span title="Informe entregado el ${fmt2(grupoTieneEntrega(grupo,a.id,trim).fecha)}" style="margin-left:4px;color:#1e5631;font-weight:700;font-size:13px">✓</span>`:""}</td>
           <td><button class="ghost" onclick="event.stopPropagation();exportarInformeAlumno('${a.id}')">Informe</button></td>
           <td><button class="ghost" onclick="event.stopPropagation();exportarInformeFinalAlumno('${a.id}')">Informe final</button></td></tr>`;}).join("")}</tbody>
     </table></div>
-  </div>`;
+  </div>
+  ${state.ui.evolModalAl?evolucionModalHTML(grupo,grupo.alumnos.find(x=>x.id===state.ui.evolModalAl)):""}`;
 
   if(!al){ c.innerHTML=htmlClase; return; }
   const nt=notaTrimestre(grupo,al.id,trim), nf=notaFinal(grupo,al.id);
@@ -6283,7 +6682,8 @@ function renderAsistencia(grupo){
     return `<tr><td>${esc(al.nombre)}</td>
       <td style="text-align:center">${cnt.falta_justificada||"—"}</td>
       <td style="text-align:center">${cnt.falta_no_justificada||"—"}</td>
-      <td style="text-align:center">${cnt.retraso||"—"}</td></tr>`;
+      <td style="text-align:center">${cnt.retraso||"—"}</td>
+      <td><button class="ghost small" style="border:1px solid var(--line)" title="Ver el detalle de asistencia de ${esc(al.nombre)}" onclick="asistVerAlumno('${al.id}')">👁️</button>${grupoTieneEntrega(grupo,al.id,asistPeriodoKey(desde,hasta))?`<span title="Informe entregado el ${fmt2(grupoTieneEntrega(grupo,al.id,asistPeriodoKey(desde,hasta)).fecha)}" style="margin-left:4px;color:#1e5631;font-weight:700;font-size:13px">✓</span>`:""}</td></tr>`;
   }).join(""):"";
 
   c.innerHTML=`
@@ -6315,11 +6715,97 @@ function renderAsistencia(grupo){
       </label>
     </div>
     ${grupo.alumnos.length?`<div style="overflow-x:auto;margin-top:12px"><table>
-      <thead><tr><th>Alumno/a</th><th style="text-align:center">Faltas justif.</th><th style="text-align:center">Faltas no justif.</th><th style="text-align:center">Retrasos</th></tr></thead>
+      <thead><tr><th>Alumno/a</th><th style="text-align:center">Faltas justif.</th><th style="text-align:center">Faltas no justif.</th><th style="text-align:center">Retrasos</th><th></th></tr></thead>
       <tbody>${resumenFilas}</tbody>
     </table></div>`:""}
+  </div>
+  ${state.ui.asistModalAl?asistModalAlumnoHTML(grupo,grupo.alumnos.find(x=>x.id===state.ui.asistModalAl),desde,hasta):""}`;
+}
+/* ---- Detalle por alumno/a: gráfico mensual + registro de entrega + impresión ---- */
+function asistPeriodoKey(desde,hasta){ return `asist:${desde}_${hasta}`; }
+function asistPorMes(grupo,alId,desde,hasta){
+  const meses={};
+  Object.keys(grupo.asistencia||{}).sort().forEach(fecha=>{
+    if(fecha<desde||fecha>hasta) return;
+    const reg=grupo.asistencia[fecha][alId]; if(!reg||reg.estado==="presente") return;
+    const m=fecha.slice(0,7);
+    if(!meses[m]) meses[m]={falta_justificada:0,falta_no_justificada:0,retraso:0};
+    if(meses[m][reg.estado]!==undefined) meses[m][reg.estado]++;
+  });
+  return meses;
+}
+function asistEntradasAlumno(grupo,alId,desde,hasta){
+  return Object.keys(grupo.asistencia||{}).sort().filter(fecha=>{
+    if(fecha<desde||fecha>hasta) return false;
+    const reg=grupo.asistencia[fecha][alId];
+    return reg && reg.estado!=="presente";
+  }).map(fecha=>({fecha,...grupo.asistencia[fecha][alId]}));
+}
+function graficoAsistenciaAlumnoHTML(grupo,alId,desde,hasta){
+  const meses=asistPorMes(grupo,alId,desde,hasta);
+  const keys=Object.keys(meses).sort();
+  if(!keys.length) return '<p class="sub" style="margin:0">Sin faltas ni retrasos registrados en este periodo.</p>';
+  const cats=keys.map(k=>{ const mIdx=Number(k.slice(5,7))-1; const nom=AG_MESES[mIdx]||""; return nom.slice(0,1).toUpperCase()+nom.slice(1,3); });
+  return svgBarrasMultiserie(cats,[
+    {nombre:"Justif.",color:"#2563eb",valores:keys.map(k=>meses[k].falta_justificada)},
+    {nombre:"No justif.",color:"#dc2626",valores:keys.map(k=>meses[k].falta_no_justificada)},
+    {nombre:"Retraso",color:"#b45309",valores:keys.map(k=>meses[k].retraso)},
+  ],{ancho:520,alto:150});
+}
+function asistInformeAlumnoBodyHTML(grupo,al,desde,hasta){
+  const cnt=asistContarPeriodo(grupo,al.id,desde,hasta);
+  const entradas=asistEntradasAlumno(grupo,al.id,desde,hasta);
+  const filas=entradas.map(e=>`<tr><td>${fmt2(e.fecha)}</td><td>${asistEstadoInfo(e.estado).label}</td><td>${esc(e.nota||"—")}</td></tr>`).join("");
+  return `
+    <div class="flex" style="gap:22px;margin:4px 0 16px;flex-wrap:wrap">
+      <div><div style="font-size:11.5px;color:var(--mut)">Faltas justificadas</div><div style="font-size:20px;font-weight:700">${cnt.falta_justificada}</div></div>
+      <div><div style="font-size:11.5px;color:var(--mut)">Faltas no justificadas</div><div style="font-size:20px;font-weight:700">${cnt.falta_no_justificada}</div></div>
+      <div><div style="font-size:11.5px;color:var(--mut)">Retrasos</div><div style="font-size:20px;font-weight:700">${cnt.retraso}</div></div>
+    </div>
+    ${graficoAsistenciaAlumnoHTML(grupo,al.id,desde,hasta)}
+    ${entradas.length?`<table style="margin-top:16px"><thead><tr><th>Fecha</th><th>Estado</th><th>Nota</th></tr></thead><tbody>${filas}</tbody></table>`:""}
+  `;
+}
+function asistModalAlumnoHTML(grupo,al,desde,hasta){
+  if(!al) return "";
+  const periodo=asistPeriodoKey(desde,hasta);
+  const entrega=grupoTieneEntrega(grupo,al.id,periodo);
+  const entregaBtn=entrega
+    ?`<button class="ghost small" style="border:1px solid #bcdac8;color:#1e5631;background:#eef7f1" title="Pulsa para desmarcar" onclick="marcarInformeEntregado('${al.id}','${periodo}')">✓ Entregado el ${fmt2(entrega.fecha)}</button>`
+    :`<button class="ghost small" style="border:1px solid var(--line)" onclick="marcarInformeEntregado('${al.id}','${periodo}')">Marcar como entregado</button>`;
+  return `<div class="modal-overlay" onclick="if(event.target===this) asistCerrarAlumno()">
+    <div class="modal-box" style="max-width:80vw;width:80vw;max-height:80vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+      <div style="padding:14px 26px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div class="flex" style="justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:15px">👁️ Asistencia de ${esc(al.nombre)}</div>
+          <div class="flex" style="flex-shrink:0;flex-wrap:wrap">
+            ${entregaBtn}
+            <button class="ghost" style="border:1px solid var(--line)" onclick="asistImprimirAlumno('${al.id}')">🖨️ Imprimir</button>
+            <button class="modal-close" onclick="asistCerrarAlumno()" aria-label="Cerrar">×</button>
+          </div>
+        </div>
+        <p class="sub" style="margin:4px 0 0">Del ${fmt2(desde)} al ${fmt2(hasta)}</p>
+      </div>
+      <div style="overflow-y:auto;padding:20px 26px;flex:1">
+        ${asistInformeAlumnoBodyHTML(grupo,al,desde,hasta)}
+      </div>
+    </div>
   </div>`;
 }
+window.asistVerAlumno=alId=>{ state.ui.asistModalAl=alId; save(); render(); };
+window.asistCerrarAlumno=()=>{ state.ui.asistModalAl=""; save(); render(); };
+window.asistImprimirAlumno=alId=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  const al=grupo.alumnos.find(a=>a.id===alId); if(!al) return;
+  const cat=getCatalogo(grupo.catalogoKey);
+  const desde=state.ui.asistDesde||agHoyStr(), hasta=state.ui.asistHasta||agHoyStr();
+  const body=`
+    <h1>Informe de asistencia</h1>
+    <div class="meta">${esc(al.nombre)} · ${esc(grupo.nombre)} · ${esc(cat.materia)} · Del ${fmt2(desde)} al ${fmt2(hasta)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
+    ${asistInformeAlumnoBodyHTML(grupo,al,desde,hasta)}
+  `;
+  abrirVentanaInforme(`Asistencia · ${al.nombre}`, body);
+};
 window.asistImprimirResumen=()=>{
   const grupo=grupoActual();
   const cat=getCatalogo(grupo.catalogoKey);
@@ -6481,7 +6967,7 @@ function renderConvivencia(grupo){
       <button class="btn" onclick="convAbrirModalNueva()">+ Nuevo registro</button>
     </div>
     <p class="sub" style="margin:6px 0 10px">AC (falta de actitud y comportamiento), RC (reconocimiento positivo) y PA (parte de amonestación, con las categorías del Decreto 193/2025). Puede haber varios registros el mismo día.</p>
-    <div class="flex" style="gap:8px;flex-wrap:wrap">
+    <div class="flex" style="gap:8px;flex-wrap:wrap;align-items:center">
       <select class="in" id="convFiltroAlumno" style="min-width:160px" onchange="convFiltrar()">
         <option value="">Todo el alumnado</option>
         ${grupo.alumnos.map(a=>`<option value="${a.id}" ${filtroAl===a.id?"selected":""}>${esc(a.nombre)}</option>`).join("")}
@@ -6490,14 +6976,93 @@ function renderConvivencia(grupo){
         <option value="">Todos los tipos</option>
         ${CONV_TIPOS.map(t=>`<option value="${t.id}" ${filtroTipo===t.id?"selected":""}>${t.corto} — ${t.label.split(" — ")[1]}</option>`).join("")}
       </select>
+      ${filtroAl?`<button class="ghost" style="border:1px solid var(--line)" onclick="convVerAlumno('${filtroAl}')">👁️ Ver informe</button>${grupoTieneEntrega(grupo,filtroAl,"conv")?`<span title="Informe entregado el ${fmt2(grupoTieneEntrega(grupo,filtroAl,"conv").fecha)}" style="color:#1e5631;font-weight:700;font-size:13px">✓</span>`:""}`:""}
     </div>
   </div>
   <div class="card">
     <h2 style="font-size:15px">Historial (${entradas.length})</h2>
     <div class="grid" style="gap:8px;margin-top:8px">${filas}</div>
   </div>
-  ${state.ui.convModalNueva?convModalNuevaHTML(grupo):""}`;
+  ${state.ui.convModalNueva?convModalNuevaHTML(grupo):""}
+  ${state.ui.convModalAl?convModalAlumnoHTML(grupo,grupo.alumnos.find(x=>x.id===state.ui.convModalAl)):""}`;
 }
+/* ---- Detalle por alumno/a: gráfico mensual + registro de entrega + impresión ---- */
+function convPorMes(grupo,alId){
+  const meses={};
+  convEntradasAlumno(grupo,alId,null,null).forEach(e=>{
+    const m=e.fecha.slice(0,7);
+    if(!meses[m]) meses[m]={ac:0,rc:0,pa:0};
+    if(meses[m][e.tipo]!==undefined) meses[m][e.tipo]++;
+  });
+  return meses;
+}
+function graficoConvivenciaAlumnoHTML(grupo,alId){
+  const meses=convPorMes(grupo,alId);
+  const keys=Object.keys(meses).sort();
+  if(!keys.length) return '<p class="sub" style="margin:0">Sin registros de convivencia.</p>';
+  const cats=keys.map(k=>{ const mIdx=Number(k.slice(5,7))-1; const nom=AG_MESES[mIdx]||""; return nom.slice(0,1).toUpperCase()+nom.slice(1,3); });
+  return svgBarrasMultiserie(cats,[
+    {nombre:"AC",color:"#c62839",valores:keys.map(k=>meses[k].ac)},
+    {nombre:"RC",color:"#16a34a",valores:keys.map(k=>meses[k].rc)},
+    {nombre:"PA",color:"#a3620a",valores:keys.map(k=>meses[k].pa)},
+  ],{ancho:520,alto:150});
+}
+function convInformeAlumnoBodyHTML(grupo,al){
+  const entradas=convEntradasAlumno(grupo,al.id,null,null).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const cnt=convContarTipos(grupo,al.id,null,null);
+  const filas=entradas.map(e=>{
+    const info=convTipoInfo(e.tipo);
+    const resumen=e.tipo==="pa"?paResumenTexto(e.pa):(e.descripcion||"—");
+    return `<tr><td>${fmt2(e.fecha)}</td><td style="color:${info.color};font-weight:700">${info.corto}</td><td>${esc(resumen)}</td></tr>`;
+  }).join("");
+  return `
+    <div class="flex" style="gap:22px;margin:4px 0 16px;flex-wrap:wrap">
+      <div><div style="font-size:11.5px;color:var(--mut)">AC</div><div style="font-size:20px;font-weight:700">${cnt.ac}</div></div>
+      <div><div style="font-size:11.5px;color:var(--mut)">RC</div><div style="font-size:20px;font-weight:700">${cnt.rc}</div></div>
+      <div><div style="font-size:11.5px;color:var(--mut)">PA</div><div style="font-size:20px;font-weight:700">${cnt.pa}</div></div>
+    </div>
+    ${graficoConvivenciaAlumnoHTML(grupo,al.id)}
+    ${entradas.length?`<table style="margin-top:16px"><thead><tr><th>Fecha</th><th>Tipo</th><th>Resumen</th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="sub" style="margin-top:12px">Sin registros.</p>'}
+  `;
+}
+function convModalAlumnoHTML(grupo,al){
+  if(!al) return "";
+  const entrega=grupoTieneEntrega(grupo,al.id,"conv");
+  const entregaBtn=entrega
+    ?`<button class="ghost small" style="border:1px solid #bcdac8;color:#1e5631;background:#eef7f1" title="Pulsa para desmarcar" onclick="marcarInformeEntregado('${al.id}','conv')">✓ Entregado el ${fmt2(entrega.fecha)}</button>`
+    :`<button class="ghost small" style="border:1px solid var(--line)" onclick="marcarInformeEntregado('${al.id}','conv')">Marcar como entregado</button>`;
+  return `<div class="modal-overlay" onclick="if(event.target===this) convCerrarAlumno()">
+    <div class="modal-box" style="max-width:80vw;width:80vw;max-height:80vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+      <div style="padding:14px 26px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div class="flex" style="justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:15px">👁️ Convivencia de ${esc(al.nombre)}</div>
+          <div class="flex" style="flex-shrink:0;flex-wrap:wrap">
+            ${entregaBtn}
+            <button class="ghost" style="border:1px solid var(--line)" onclick="convImprimirAlumno('${al.id}')">🖨️ Imprimir</button>
+            <button class="modal-close" onclick="convCerrarAlumno()" aria-label="Cerrar">×</button>
+          </div>
+        </div>
+        <p class="sub" style="margin:4px 0 0">Historial completo del curso</p>
+      </div>
+      <div style="overflow-y:auto;padding:20px 26px;flex:1">
+        ${convInformeAlumnoBodyHTML(grupo,al)}
+      </div>
+    </div>
+  </div>`;
+}
+window.convVerAlumno=alId=>{ state.ui.convModalAl=alId; save(); render(); };
+window.convCerrarAlumno=()=>{ state.ui.convModalAl=""; save(); render(); };
+window.convImprimirAlumno=alId=>{
+  const grupo=grupoActual(); if(!grupo) return;
+  const al=grupo.alumnos.find(a=>a.id===alId); if(!al) return;
+  const cat=getCatalogo(grupo.catalogoKey);
+  const body=`
+    <h1>Informe de convivencia</h1>
+    <div class="meta">${esc(al.nombre)} · ${esc(grupo.nombre)} · ${esc(cat.materia)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
+    ${convInformeAlumnoBodyHTML(grupo,al)}
+  `;
+  abrirVentanaInforme(`Convivencia · ${al.nombre}`, body);
+};
 
 /* ---- Vista detalle (AC/RC simple, o formulario PA completo) ---- */
 function paChecklistHTML(lista,catalogo,marcados){
@@ -7593,11 +8158,25 @@ function memoriaEvolucionGrupoHTML(grupo){
   </div>`;
   return html;
 }
+/* ---- Perfil competencial del grupo (radar), reutilizando svgRadarCC ya usado en Resultados ---- */
+function graficoRadarCCGrupoHTML(grupo,periodo){
+  if(!grupo.alumnos.length) return "";
+  const idx=catIndex(grupo.catalogoKey);
+  const ccList=Object.keys(COMP_CLAVE).filter(cc=>idx.cat.ces.some(ce=>ce.cc.includes(cc)));
+  const ejes=ccList.map(cc=>{
+    const valores=grupo.alumnos.map(al=> periodo==="curso"?scoreCCAnual(grupo,al.id,cc):conTrim(periodo,()=>scoreCC(grupo,al.id,cc))).filter(v=>v!=null);
+    const media=valores.length? valores.reduce((a,b)=>a+b,0)/valores.length : null;
+    return {label:cc,value:media};
+  });
+  if(ejes.filter(e=>e.value!=null).length<3) return "";
+  return svgRadarCC(ejes);
+}
 function memoriaResumenGrupoHTML(grupo,periodo,opts){
   opts=opts||{};
   const m=memoriaMetricasGrupo(grupo,periodo);
   const pctAprob = (m.aprobados.total-m.aprobados.sc)>0 ? Math.round(m.aprobados.ap/(m.aprobados.total-m.aprobados.sc)*100) : null;
   const propuesta = periodo==="curso" ? (grupo.propuestasMejoraFinal||"") : (grupo.propuestasMejora[periodo]||"");
+  const radar=graficoRadarCCGrupoHTML(grupo,periodo);
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:8px">
       <div><div style="font-size:11.5px;color:var(--mut)">Aprobados</div><div style="font-size:18px;font-weight:700">${pctAprob==null?"—":pctAprob+"%"}</div><div style="font-size:11px;color:var(--mut)">${m.aprobados.ap} de ${m.aprobados.total-m.aprobados.sc} calificados</div></div>
@@ -7606,6 +8185,7 @@ function memoriaResumenGrupoHTML(grupo,periodo,opts){
       <div><div style="font-size:11.5px;color:var(--mut)">SdA impartidas</div><div style="font-size:18px;font-weight:700">${m.sda?m.sda.impartidas+"/"+m.sda.total:"—"}</div><div style="font-size:11px;color:var(--mut)">${m.sda?"":"sin Programación vinculada"}</div></div>
       <div><div style="font-size:11.5px;color:var(--mut)">NESE / Repetidor</div><div style="font-size:18px;font-weight:700">${m.nese} / ${m.repetidores}</div><div style="font-size:11px;color:var(--mut)">${m.problematica} con problemática</div></div>
     </div>
+    ${radar?`<div class="section-eyebrow" style="margin-top:16px">Perfil competencial del grupo</div><div style="max-width:300px;border:1px solid var(--line);border-radius:12px;padding:12px;background:${opts.print?'#fff':'var(--card)'}">${radar}</div>`:""}
     ${!opts.print?`<label style="font-size:12px;color:var(--mut);font-weight:500;display:block;margin-top:10px">Valoración de este grupo ${periodo==="curso"?"(evaluación final / memoria de curso)":`(${TRIMESTRES[periodo]})`} <span style="font-weight:400">— el mismo campo que en Resumen</span>
       <textarea class="in" style="width:100%;margin-top:4px;min-height:60px;resize:vertical" onchange="${periodo==='curso'?`setPropuestaMejoraFinal(this.value)`:`memoriaSetPropuestaTrim('${grupo.id}',${periodo},this.value)`}" data-memgrupo="${grupo.id}">${esc(propuesta)}</textarea>
     </label>`:`<div style="margin-top:10px"><strong style="font-size:12.5px">Valoración:</strong> <span style="font-size:13px">${propuesta?esc(propuesta):"<em style=color:#999>Sin registrar.</em>"}</span></div>`}
@@ -8281,6 +8861,37 @@ function evolucionAprobadosHTML(grupo){
     <div class="flex" style="align-items:flex-end;gap:14px;max-width:320px">${barras}</div>
   </div>`;
 }
+function evolucionMediaGrupoHTML(grupo){
+  const etiquetas=["1ª ev.","2ª ev.","3ª ev."];
+  const valores=[0,1,2].map(t=>{
+    const notas=grupo.alumnos.map(al=>notaTrimestre(grupo,al.id,t)).filter(v=>v!=null);
+    const media=notas.length? notas.reduce((a,b)=>a+b,0)/notas.length : null;
+    return {label:etiquetas[t],value:media,activo:false};
+  });
+  const notasFinal=grupo.alumnos.map(al=>notaFinal(grupo,al.id)).filter(v=>v!=null);
+  const mediaFinal=notasFinal.length? notasFinal.reduce((a,b)=>a+b,0)/notasFinal.length : null;
+  valores.push({label:"Final",value:mediaFinal,activo:true});
+  return `<div class="card" style="flex:1;min-width:280px">
+    <h2 style="font-size:15px">Evolución de la media del grupo</h2>
+    <p class="sub" style="margin:0 0 10px">Media de la nota cuantitativa (0-10) de todo el alumnado en cada evaluación.</p>
+    ${svgBarNotas(valores)}
+  </div>`;
+}
+function distribucionCalificacionesHTML(grupo){
+  const trim=state.ui.trim;
+  const notas=grupo.alumnos.map(al=>notaTrimestre(grupo,al.id,trim)).filter(v=>v!=null);
+  const total=notas.length;
+  const filas=NIVCUANT.map(n=>{
+    const cnt=notas.filter(v=>etiquetaNota(v)===n).length;
+    const pct=total? (cnt/total*100) : null;
+    return barraHorizontalHTML(`${n.etq} (${cnt})`,pct,n.fg);
+  }).join("");
+  return `<div class="card" style="flex:1;min-width:260px">
+    <h2 style="font-size:15px">Distribución de calificaciones</h2>
+    <p class="sub" style="margin:0 0 10px">${TRIMESTRES[trim]} · ${total} alumno${total===1?"":"s"} con nota.</p>
+    ${total?filas:'<p class="sub" style="margin:0">Todavía no hay ninguna nota registrada en esta evaluación.</p>'}
+  </div>`;
+}
 function statsProblematicaHTML(grupo){
   const nese=grupo.alumnos.filter(a=>a.nese).length;
   const repetidores=grupo.alumnos.filter(a=>a.repetidor).length;
@@ -8370,6 +8981,10 @@ function renderResumen(grupo){
   <div class="flex" style="align-items:stretch;flex-wrap:wrap;gap:16px">
     ${evolucionAprobadosHTML(grupo)}
     ${statsProblematicaHTML(grupo)}
+  </div>
+  <div class="flex" style="align-items:stretch;flex-wrap:wrap;gap:16px">
+    ${evolucionMediaGrupoHTML(grupo)}
+    ${distribucionCalificacionesHTML(grupo)}
   </div>
   ${cards}
   <div class="card" style="border-color:var(--accent)">
@@ -8885,12 +9500,56 @@ function renderCorCorregir(grupo){
       <div><div style="font-size:12.5px;color:var(--mut)">Aprobados</div><span class="big" style="font-size:24px">${aprob}/${notas.length}</span></div>
     </div>`:""}
   </div>
+  <div class="card">
+    <div class="flex" style="justify-content:space-between;align-items:center">
+      <h2 style="font-size:15px">📊 Estadísticas por ítem</h2>
+      <button class="ghost small" style="border:1px solid var(--line)" onclick="cxToggleEstadisticas()">${state.ui.cxVerEstadisticas?"Ocultar":"Ver"}</button>
+    </div>
+    ${state.ui.cxVerEstadisticas
+      ? (notas.length? cxEstadisticasItemsHTML(grupo,act) : '<p class="sub" style="margin:6px 0 0">Corrige al menos un alumno/a para ver las estadísticas.</p>')
+      : '<p class="sub" style="margin:6px 0 0">Qué ítems de la rúbrica ha fallado más la clase, para saber qué reforzar antes de seguir.</p>'}
+  </div>
   <div class="card"><div style="overflow-x:auto"><table>
     <thead><tr><th>Alumno/a</th><th>Nota</th><th>Calificación</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div></div>`;
   document.getElementById("cxExamSel").addEventListener("change",e=>{ state.ui.corExamId=e.target.value; save(); render(); });
 }
+/* ---- Estadísticas por ítem: qué ha fallado más la clase en este examen ---- */
+function barraHorizontalHTML(label,pct,color){
+  const w=pct==null?0:Math.max(2,Math.round(pct));
+  return `<div style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-bottom:3px"><span>${esc(label)}</span><span style="font-weight:700;white-space:nowrap">${pct==null?"—":Math.round(pct)+"%"}</span></div>
+    <div style="background:var(--surface-2);border-radius:6px;height:10px;overflow:hidden"><div style="width:${w}%;height:100%;background:${color};border-radius:6px"></div></div>
+  </div>`;
+}
+function cxEstadisticasItems(grupo,act){
+  const corregidos=grupo.alumnos.filter(al=>grupo.notasCuant?.[al.id]?.[act.id]!=null);
+  const filas=[];
+  (act.rubrica||[]).forEach(sec=>{
+    (sec.items||[]).forEach(it=>{
+      const max=Number(it.max)||0;
+      const vals=corregidos.map(al=>{
+        const v=grupo.rubricScores?.[al.id]?.[act.id]?.[it.id];
+        return (v==null||max<=0)?null:(Number(v)/max)*100;
+      }).filter(v=>v!=null);
+      const avg=vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+      filas.push({seccion:sec.title,label:it.label||"(sin enunciado)",avg,n:vals.length});
+    });
+  });
+  return filas;
+}
+function cxEstadisticasItemsHTML(grupo,act){
+  const stats=cxEstadisticasItems(grupo,act).sort((a,b)=>{
+    if(a.avg==null) return 1; if(b.avg==null) return -1; return a.avg-b.avg;
+  });
+  if(!stats.length) return '<p class="sub" style="margin:6px 0 0">Esta rúbrica todavía no tiene ítems.</p>';
+  const color=v=> v==null?"#c7cede": v<50?"#c62839": v<75?"#a3620a":"#1e7a44";
+  const filas=stats.map(s=>barraHorizontalHTML(`${s.label} — ${s.seccion}`,s.avg,color(s.avg))).join("");
+  return `<div style="margin-top:10px">${filas}</div>
+    <p class="sub" style="margin:4px 0 0;font-size:11px">Media de acierto de cada ítem (puntos obtenidos / puntos máximos) sobre el alumnado ya corregido, de peor a mejor.</p>`;
+}
+window.cxToggleEstadisticas=()=>{ state.ui.cxVerEstadisticas=!state.ui.cxVerEstadisticas; save(); render(); };
 function renderCxGradingAlumno(grupo,act,al){
   const c=document.getElementById("tabContent");
   const alumnos=grupo.alumnos;
