@@ -2351,7 +2351,9 @@ function agRenderCalendarioHTML(){
   return `
   <div class="card">
     <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h2 style="font-size:16px;text-transform:capitalize">📅 ${AG_MESES[m-1]} ${y}</h2>
+      <h2 style="font-size:16px;text-transform:capitalize;cursor:pointer;position:relative;display:inline-flex;align-items:center;gap:4px" title="Pulsa para ir directamente a un mes">📅 ${AG_MESES[m-1]} ${y} <span style="font-size:11px;color:var(--mut)">▾</span>
+        <input type="month" id="agMesInput" value="${mesStr}" onchange="agIrAMes(this.value)" style="position:absolute;inset:0;opacity:0;border:0;padding:0;margin:0;cursor:pointer;font-size:inherit">
+      </h2>
       <div class="flex" style="gap:8px;flex-wrap:wrap">
         ${agFiltroSelectHTML()}
         <div class="flex" style="gap:4px">
@@ -2658,6 +2660,7 @@ window.agEliminarEvento=id=>{
 window.agMesAnterior=()=>{ const [y,m]=agMesActual().split("-").map(Number); const d=new Date(y,m-2,1); state.ui.agMes=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); state.ui.agDiaSel=""; save(); render(); };
 window.agMesSiguiente=()=>{ const [y,m]=agMesActual().split("-").map(Number); const d=new Date(y,m,1); state.ui.agMes=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); state.ui.agDiaSel=""; save(); render(); };
 window.agMesHoy=()=>{ state.ui.agMes=agHoyStr().slice(0,7); state.ui.agDiaSel=agHoyStr(); save(); render(); };
+window.agIrAMes=v=>{ if(!v) return; state.ui.agMes=v; state.ui.agDiaSel=""; save(); render(); };
 window.agSeleccionarDia=fecha=>{ state.ui.agDiaSel = (state.ui.agDiaSel===fecha) ? "" : fecha; save(); render(); };
 window.agCerrarDia=()=>{ state.ui.agDiaSel=""; save(); render(); };
 
