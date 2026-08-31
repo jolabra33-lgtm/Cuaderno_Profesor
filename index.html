@@ -294,6 +294,7 @@ if ('serviceWorker' in navigator) {
   .ag-cell-pad{background:transparent;cursor:default;pointer-events:none}
   .ag-cell-hoy{background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:var(--shadow-glow)}
   .ag-cell-hoy .ag-daynum{color:var(--accent-ink);font-weight:800}
+  .ag-cell-sel{outline:2px solid var(--accent-2);outline-offset:-2px}
   .ag-daynum{font-size:13.5px;font-weight:700;color:var(--ink)}
   .ag-dots{display:flex;gap:2px;align-items:center}
   .ag-dot{width:5px;height:5px;border-radius:50%;display:inline-block}
@@ -1088,7 +1089,7 @@ function haceTiempo(ts){
 }
 function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:[], reuniones:[], plantillasRubrica:[], plantillasReunion:[], planesRefuerzo:[], planesRepeticion:[], planesNESE:[], horario:{celdas:{}}, centroNombre:"", centroCodigo:"", cursoEscolarGlobal:cursoAcademicoActual(), profesorNombreGlobal:"", programaciones:[], ui:{
   appMode:"inicio", corTab:"lista", corExamId:"", corAlId:"", corItemAbierto:"", corForm:{nombre:"",bloqueId:"",sda:"",fecha:"",plantillaId:""},
-  agMes:"", agModalFecha:"", agModalEventId:"", agVista:"mes", agFiltroGrupo:"", diarioFecha:"", asistFecha:"", asistDesde:"", asistHasta:"",
+  agMes:"", agModalFecha:"", agModalEventId:"", agVista:"mes", agFiltroGrupo:"", agFiltroTipo:"", agDiaSel:"", diarioFecha:"", asistFecha:"", asistDesde:"", asistHasta:"",
   convVista:"lista", convId:"", convModalNueva:false, convFiltroAlumno:"", convFiltroTipo:"",
   famModalNueva:false, famFiltroAlumno:"", famFiltroMedio:"", resumenFiltroTrim:"", progTab:"lista", progId:"", progModalNueva:false, progActividadAbierta:null, progSaberesAbierto:null,
   reTab:"lista", reId:"", reModalNueva:false, reFiltroTipo:"", reBusqueda:"", reFiltroDesde:"", reFiltroHasta:"",
@@ -1401,6 +1402,8 @@ if(state.ui.agModalFecha===undefined) state.ui.agModalFecha="";
 if(state.ui.agModalEventId===undefined) state.ui.agModalEventId="";
 if(state.ui.agVista===undefined) state.ui.agVista="mes";
 if(state.ui.agFiltroGrupo===undefined) state.ui.agFiltroGrupo="";
+if(state.ui.agDiaSel===undefined) state.ui.agDiaSel="";
+if(state.ui.agFiltroTipo===undefined) state.ui.agFiltroTipo="";
 if(state.ui.diarioFecha===undefined) state.ui.diarioFecha="";
 if(state.ui.asistFecha===undefined) state.ui.asistFecha="";
 if(state.ui.convVista===undefined) state.ui.convVista="lista";
@@ -2199,32 +2202,42 @@ const AG_TIPOS=[
   {id:"examen",label:"Examen",color:"#dc2626"},
   {id:"entrega",label:"Entrega de trabajo",color:"#2563eb"},
   {id:"reunion",label:"Reunión",color:"#7c3aed"},
+  {id:"cocope",label:"COCOPE",color:"#059669"},
+  {id:"claustro",label:"Claustro",color:"#ea580c"},
   {id:"otro",label:"Otro",color:"#64748b"}
 ];
 const AG_DIAS=["L","M","X","J","V","S","D"];
+const AG_DIAS_LARGO=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const AG_MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-function agTipoInfo(id){ return AG_TIPOS.find(t=>t.id===id)||AG_TIPOS[3]; }
+function agTipoInfo(id){ return AG_TIPOS.find(t=>t.id===id)||AG_TIPOS[AG_TIPOS.length-1]; }
 function agHoyStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function agMesActual(){
   if(!state.ui.agMes) state.ui.agMes=agHoyStr().slice(0,7);
   return state.ui.agMes;
 }
 function agEventosFiltrados(lista){
-  const f=state.ui.agFiltroGrupo;
-  if(!f) return lista;
-  if(f==="__general__") return lista.filter(e=>!e.grupoId);
-  return lista.filter(e=>e.grupoId===f);
+  const f=state.ui.agFiltroGrupo, t=state.ui.agFiltroTipo;
+  let out=lista;
+  if(f) out = f==="__general__" ? out.filter(e=>!e.grupoId) : out.filter(e=>e.grupoId===f);
+  if(t) out = out.filter(e=>e.tipo===t);
+  return out;
 }
+function agEventoFin(e){ return e.fechaFin||e.fecha; }
+function agEventoActivoEnDia(e,fecha){ return fecha>=e.fecha && fecha<=agEventoFin(e); }
 function agEventosDelMes(mesStr){
-  const base=(state.eventos||[]).filter(e=>e.fecha.slice(0,7)===mesStr);
+  const [y,m]=mesStr.split("-").map(Number);
+  const inicioMes=mesStr+"-01";
+  const finMes=y+"-"+String(m).padStart(2,"0")+"-"+String(new Date(y,m,0).getDate()).padStart(2,"0");
+  const base=(state.eventos||[]).filter(e=>e.fecha<=finMes && agEventoFin(e)>=inicioMes);
   return agEventosFiltrados(base).sort((a,b)=>a.fecha.localeCompare(b.fecha));
 }
 function agEventosHoy(){
-  return agEventosFiltrados((state.eventos||[]).filter(e=>e.fecha===agHoyStr()));
+  const hoy=agHoyStr();
+  return agEventosFiltrados((state.eventos||[]).filter(e=>agEventoActivoEnDia(e,hoy)));
 }
 function agProximosEventos(n){
   const hoy=agHoyStr();
-  const base=(state.eventos||[]).filter(e=>e.fecha>=hoy);
+  const base=(state.eventos||[]).filter(e=>agEventoFin(e)>=hoy);
   return agEventosFiltrados(base).sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,n||10);
 }
 function agExamenesDisponibles(){
@@ -2250,7 +2263,20 @@ function agGenerarICS(){
     const info=agTipoInfo(e.tipo);
     const grupo=e.grupoId?state.grupos.find(g=>g.id===e.grupoId):null;
     const desc=[info.label, grupo?("Grupo: "+grupo.nombre):"", e.notas||""].filter(Boolean).join(" — ");
-    ics+="BEGIN:VEVENT\r\nUID:"+e.id+"@geohist-suite\r\nDTSTAMP:"+ahora+"\r\nDTSTART;VALUE=DATE:"+e.fecha.replace(/-/g,"")+"\r\n";
+    const fechaIcs=e.fecha.replace(/-/g,"");
+    let dtstart, dtend="";
+    if(e.hora){
+      dtstart="DTSTART:"+fechaIcs+"T"+e.hora.replace(":","")+"00\r\n";
+      if(e.fechaFin && e.fechaFin>e.fecha) dtend="DTEND:"+e.fechaFin.replace(/-/g,"")+"T"+e.hora.replace(":","")+"00\r\n";
+    }else{
+      dtstart="DTSTART;VALUE=DATE:"+fechaIcs+"\r\n";
+      if(e.fechaFin && e.fechaFin>e.fecha){
+        const finExclusivo=new Date(e.fechaFin+"T00:00:00"); finExclusivo.setDate(finExclusivo.getDate()+1);
+        const finIcs=finExclusivo.getFullYear()+String(finExclusivo.getMonth()+1).padStart(2,"0")+String(finExclusivo.getDate()).padStart(2,"0");
+        dtend="DTEND;VALUE=DATE:"+finIcs+"\r\n";
+      }
+    }
+    ics+="BEGIN:VEVENT\r\nUID:"+e.id+"@geohist-suite\r\nDTSTAMP:"+ahora+"\r\n"+dtstart+dtend;
     ics+="SUMMARY:"+agIcsEscape(e.titulo)+"\r\n";
     if(desc) ics+="DESCRIPTION:"+agIcsEscape(desc)+"\r\n";
     ics+="END:VEVENT\r\n";
@@ -2259,19 +2285,26 @@ function agGenerarICS(){
 }
 window.agExportarICS=()=>{
   const evs=agEventosFiltrados(state.eventos||[]);
-  if(!evs.length){ alert("No hay eventos para exportar"+(state.ui.agFiltroGrupo?" con este filtro.":".")); return; }
+  if(!evs.length){ alert("No hay eventos para exportar"+((state.ui.agFiltroGrupo||state.ui.agFiltroTipo)?" con este filtro.":".")); return; }
   const blob=new Blob([agGenerarICS()],{type:"text/calendar;charset=utf-8"});
   const u=URL.createObjectURL(blob); const a=document.createElement("a");
   a.href=u; a.download="calendario-geohist.ics"; a.click(); URL.revokeObjectURL(u);
 };
 function agFiltroSelectHTML(){
-  return `<select class="in" style="padding:6px 10px;font-size:13px" id="agFiltroSel" onchange="agSetFiltro(this.value)">
+  return `<div class="flex" style="gap:8px;flex-wrap:wrap">
+  <select class="in" style="padding:6px 10px;font-size:13px" id="agFiltroSel" onchange="agSetFiltro(this.value)">
     <option value="" ${state.ui.agFiltroGrupo===""?"selected":""}>Todos los grupos</option>
     <option value="__general__" ${state.ui.agFiltroGrupo==="__general__"?"selected":""}>Sin grupo (general)</option>
     ${state.grupos.map(g=>`<option value="${g.id}" ${state.ui.agFiltroGrupo===g.id?"selected":""}>${esc(g.nombre)}</option>`).join("")}
-  </select>`;
+  </select>
+  <select class="in" style="padding:6px 10px;font-size:13px" id="agFiltroTipoSel" onchange="agSetFiltroTipo(this.value)">
+    <option value="" ${state.ui.agFiltroTipo===""?"selected":""}>Todos los tipos</option>
+    ${AG_TIPOS.map(t=>`<option value="${t.id}" ${state.ui.agFiltroTipo===t.id?"selected":""}>${t.label}</option>`).join("")}
+  </select>
+  </div>`;
 }
 window.agSetFiltro=v=>{ state.ui.agFiltroGrupo=v; save(); render(); };
+window.agSetFiltroTipo=v=>{ state.ui.agFiltroTipo=v; save(); render(); };
 window.agSetVista=v=>{ state.ui.agVista=v; save(); render(); };
 function agRenderHoyBannerHTML(){
   const evs=agEventosHoy();
@@ -2280,7 +2313,7 @@ function agRenderHoyBannerHTML(){
     const info=agTipoInfo(e.tipo);
     const grupo=e.grupoId?state.grupos.find(g=>g.id===e.grupoId):null;
     return `<span class="ag-hoy-chip" style="border-color:${info.color}55;background:${info.color}14" onclick="agAbrirModal('${e.fecha}','${e.id}')">
-      <span class="ag-dot" style="background:${info.color}"></span>${esc(e.titulo)}${grupo?` · ${esc(grupo.nombre)}`:""}
+      <span class="ag-dot" style="background:${info.color}"></span>${e.hora?esc(e.hora)+" · ":""}${esc(e.titulo)}${grupo?` · ${esc(grupo.nombre)}`:""}
     </span>`;
   }).join("");
   return `<div class="card" style="border-left:4px solid var(--accent);padding:14px 18px">
@@ -2297,17 +2330,17 @@ function agRenderCalendarioHTML(){
   let offset=primerDia.getDay(); offset=offset===0?6:offset-1;
   const ultimoDia=new Date(y,m,0).getDate();
   const hoyStr=agHoyStr();
-  const porDia={};
-  agEventosDelMes(mesStr).forEach(e=>{ (porDia[e.fecha]=porDia[e.fecha]||[]).push(e); });
+  const eventosDelMes=agEventosDelMes(mesStr);
 
   let celdas="";
   for(let i=0;i<offset;i++) celdas+=`<div class="ag-cell ag-cell-pad"></div>`;
   for(let d=1; d<=ultimoDia; d++){
     const fecha=`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const evs=porDia[fecha]||[];
+    const evs=eventosDelMes.filter(e=>agEventoActivoEnDia(e,fecha));
     const esHoy=fecha===hoyStr;
+    const esSel=fecha===state.ui.agDiaSel;
     const puntos=evs.slice(0,3).map(e=>`<span class="ag-dot" style="background:${agTipoInfo(e.tipo).color}"></span>`).join("");
-    celdas+=`<div class="ag-cell ${esHoy?"ag-cell-hoy":""}" title="${evs.length?evs.map(e=>e.titulo).join(" · "):""}" onclick="agAbrirModal('${fecha}','')">
+    celdas+=`<div class="ag-cell ${esHoy?"ag-cell-hoy":""} ${esSel?"ag-cell-sel":""}" title="${evs.length?evs.map(e=>(e.hora?e.hora+" ":"")+e.titulo).join(" · "):""}" onclick="agSeleccionarDia('${fecha}')">
       <span class="ag-daynum">${d}</span>
       ${evs.length?`<span class="ag-dots">${puntos}${evs.length>3?`<span class="ag-more">+${evs.length-3}</span>`:""}</span>`:""}
     </div>`;
@@ -2336,7 +2369,80 @@ function agRenderCalendarioHTML(){
     </div>
   </div>`;
 }
+function agConQuienLabel(e){ return e.tipo==="reunion" && e.reunionCon ? reTipoInfo(e.reunionCon).label : ""; }
+function agRangoLabel(e){ return (e.fechaFin && e.fechaFin!==e.fecha) ? `${fmt2(e.fecha)} – ${fmt2(e.fechaFin)}` : ""; }
+function agEventoDiaFilaHTML(e){
+  const info=agTipoInfo(e.tipo);
+  const grupo=e.grupoId? state.grupos.find(g=>g.id===e.grupoId) : null;
+  const con=agConQuienLabel(e);
+  const rango=agRangoLabel(e);
+  return `<div class="ag-evento" onclick="agAbrirModal('${e.fecha}','${e.id}')">
+    <div style="flex-shrink:0;width:44px;text-align:center;padding-top:2px">
+      <strong style="font-size:12.5px;color:var(--mut)">${e.hora?esc(e.hora):"—"}</strong>
+    </div>
+    <div class="ag-evento-info">
+      <span class="pill" style="background:${info.color}1a;color:${info.color}">${info.label}</span>
+      <div class="ag-evento-titulo">${esc(e.titulo)}</div>
+      ${grupo?`<div class="ag-evento-grupo">${esc(grupo.nombre)}</div>`:""}
+      ${con?`<div class="ag-evento-grupo">👥 ${esc(con)}</div>`:""}
+      ${rango?`<div class="ag-evento-grupo">📅 ${rango}</div>`:""}
+    </div>
+  </div>`;
+}
+function agHorarioDelDia(fecha){
+  const d=new Date(fecha+"T00:00:00");
+  const diaId=AG_DIAS[(d.getDay()+6)%7];
+  if(!HOR_DIAS.find(x=>x.id===diaId)) return [];
+  const out=[];
+  HOR_FILAS.forEach((f,i)=>{
+    const c=horCelda(i,diaId);
+    if(!c.tipo || c.tipo==="recreo") return;
+    out.push({inicio:f.inicio,fin:f.fin,celda:c});
+  });
+  return out;
+}
+function agHorarioFilaHTML(h){
+  const info=horTipoInfo(h.celda.tipo);
+  const detalle = h.celda.tipo==="clase" ? [h.celda.materia,h.celda.nivelGrupo,h.celda.aula].filter(Boolean).join(" · ") : (h.celda.nota||"");
+  return `<div class="ag-evento" style="cursor:default">
+    <div style="flex-shrink:0;width:44px;text-align:center;padding-top:2px">
+      <strong style="font-size:11px;color:var(--mut)">${h.inicio}</strong>
+    </div>
+    <div class="ag-evento-info">
+      <span class="pill" style="background:${info.color}1a;color:${info.color}">${info.label}</span>
+      ${detalle?`<div class="ag-evento-titulo" style="font-size:12.5px;font-weight:600">${esc(detalle)}</div>`:""}
+    </div>
+  </div>`;
+}
+function agRenderDiaHTML(fecha){
+  const d=new Date(fecha+"T00:00:00");
+  const nombreDia=AG_DIAS_LARGO[(d.getDay()+6)%7];
+  const evs=agEventosFiltrados((state.eventos||[]).filter(e=>agEventoActivoEnDia(e,fecha))).sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99")||a.titulo.localeCompare(b.titulo));
+  const esHoy=fecha===agHoyStr();
+  const horarioDia=agHorarioDelDia(fecha);
+  const filas=evs.length? evs.map(agEventoDiaFilaHTML).join("") : `<p class="sub" style="margin:8px 0 0">No hay nada previsto este día.</p>`;
+  return `
+  <div class="card">
+    <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:8px">
+      <div>
+        <strong style="font-size:14.5px">${nombreDia} ${d.getDate()} de ${AG_MESES[d.getMonth()]}</strong>
+        ${esHoy?`<span class="pill" style="background:var(--accent-soft);color:var(--accent-2);margin-left:8px">Hoy</span>`:""}
+      </div>
+      <button class="ghost" style="padding:2px 10px" onclick="agCerrarDia()" title="Volver al resumen del mes">× Cerrar</button>
+    </div>
+    ${horarioDia.length?`<div style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🗓️ Horario</div>
+      <div class="ag-lista" style="max-height:170px">${horarioDia.map(agHorarioFilaHTML).join("")}</div>
+    </div>`:""}
+    <div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px">📌 Eventos</div>
+    <div class="ag-lista">${filas}</div>
+    <div class="flex" style="margin-top:12px">
+      <button class="btn small" onclick="agAbrirModal('${fecha}','')">+ Añadir evento este día</button>
+    </div>
+  </div>`;
+}
 function agRenderResumenHTML(){
+  if(state.ui.agDiaSel) return agRenderDiaHTML(state.ui.agDiaSel);
   const vista=state.ui.agVista||"mes";
   const evs = vista==="proximos" ? agProximosEventos(10) : agEventosDelMes(agMesActual());
   const filas = evs.length? evs.map(e=>{
@@ -2344,15 +2450,20 @@ function agRenderResumenHTML(){
     const d=new Date(e.fecha+"T00:00:00");
     const etiquetaFecha = vista==="proximos" ? AG_MESES[d.getMonth()].slice(0,3) : AG_DIAS[(d.getDay()+6)%7];
     const grupo=e.grupoId? state.grupos.find(g=>g.id===e.grupoId) : null;
+    const con=agConQuienLabel(e);
+    const rango=agRangoLabel(e);
     return `<div class="ag-evento" onclick="agAbrirModal('${e.fecha}','${e.id}')">
       <div class="ag-evento-fecha"><span>${etiquetaFecha}</span><strong>${d.getDate()}</strong></div>
       <div class="ag-evento-info">
         <span class="pill" style="background:${info.color}1a;color:${info.color}">${info.label}</span>
+        ${e.hora?`<span class="pill" style="background:var(--surface);border:1px solid var(--line);color:var(--mut);margin-left:4px">⏰ ${esc(e.hora)}</span>`:""}
         <div class="ag-evento-titulo">${esc(e.titulo)}</div>
         ${grupo?`<div class="ag-evento-grupo">${esc(grupo.nombre)}</div>`:""}
+        ${con?`<div class="ag-evento-grupo">👥 ${esc(con)}</div>`:""}
+        ${rango?`<div class="ag-evento-grupo">📅 ${rango}</div>`:""}
       </div>
     </div>`;
-  }).join("") : `<p class="sub" style="margin:8px 0 0">${vista==="proximos"?"No hay próximos eventos.":"Sin eventos este mes."} Pulsa un día del calendario, o "Nuevo", para añadir uno.</p>`;
+  }).join("") : `<p class="sub" style="margin:8px 0 0">${vista==="proximos"?"No hay próximos eventos.":"Sin eventos este mes."} Pulsa un día del calendario para ver qué hay previsto, o "Nuevo" para añadir uno.</p>`;
   return `
   <div class="card">
     <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:8px">
@@ -2383,14 +2494,22 @@ function agRenderModalHTML(){
       ${vincRe?`<div class="alert-box" style="margin-top:8px">🗂️ Vinculado a la reunión "${esc(vincRe.titulo)}".
         <button class="btn small" onclick="agCerrarModal();reAbrirDesdeOtroModo('${vincRe.id}')">Ver reunión →</button></div>`:""}
       <div class="grid" style="gap:12px;margin-top:10px">
-        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Fecha
-          <input class="in" style="width:100%;margin-top:4px" type="date" id="agFFecha" value="${ev?ev.fecha:fecha}">
+        <div class="flex" style="gap:10px;align-items:flex-start">
+          <label style="flex:1;font-size:12.5px;color:var(--mut);font-weight:500">Fecha
+            <input class="in" style="width:100%;margin-top:4px" type="date" id="agFFecha" value="${ev?ev.fecha:fecha}">
+          </label>
+          <label style="width:130px;flex-shrink:0;font-size:12.5px;color:var(--mut);font-weight:500">Hora (opcional)
+            <input class="in" style="width:100%;margin-top:4px" type="time" id="agFHora" value="${ev?esc(ev.hora||""):""}">
+          </label>
+        </div>
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Fecha fin (opcional, para eventos de varios días)
+          <input class="in" style="width:100%;margin-top:4px" type="date" id="agFFechaFin" value="${ev?esc(ev.fechaFin||""):""}">
         </label>
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Título
           <input class="in" style="width:100%;margin-top:4px" id="agFTitulo" placeholder="Examen Tema 3, entrega del trabajo…" value="${ev?esc(ev.titulo):""}">
         </label>
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Tipo
-          <select class="in" style="width:100%;margin-top:4px" id="agFTipo" onchange="document.getElementById('agExamWrap').style.display=this.value==='examen'?'':'none'; document.getElementById('agReWrap').style.display=this.value==='reunion'?'':'none';">
+          <select class="in" style="width:100%;margin-top:4px" id="agFTipo" onchange="document.getElementById('agExamWrap').style.display=this.value==='examen'?'':'none'; document.getElementById('agReWrap').style.display=this.value==='reunion'?'':'none'; document.getElementById('agReConWrap').style.display=this.value==='reunion'?'':'none';">
             ${AG_TIPOS.map(t=>`<option value="${t.id}" ${tipoInicial===t.id?"selected":""}>${t.label}</option>`).join("")}
           </select>
         </label>
@@ -2403,9 +2522,17 @@ function agRenderModalHTML(){
           </label>
           <p class="sub" style="margin:4px 0 0;font-size:11.5px">Al vincularlo, este evento abrirá un acceso directo para corregirlo.</p>
         </div>
+        <div id="agReConWrap" style="display:${tipoInicial==="reunion"?"":"none"}">
+          <label style="font-size:12.5px;color:var(--mut);font-weight:500">¿Con quién es la reunión?
+            <select class="in" style="width:100%;margin-top:4px" id="agFReunionCon">
+              <option value="">Sin especificar</option>
+              ${RE_TIPOS.map(t=>`<option value="${t.id}" ${ev&&ev.reunionCon===t.id?"selected":""}>${t.label}</option>`).join("")}
+            </select>
+          </label>
+        </div>
         <div id="agReWrap" style="display:${tipoInicial==="reunion"?"":"none"}">
           <label style="font-size:12.5px;color:var(--mut);font-weight:500">Reunión vinculada (opcional)
-            <select class="in" style="width:100%;margin-top:4px" id="agFReunion">
+            <select class="in" style="width:100%;margin-top:4px" id="agFReunion" onchange="agSincronizarConReunion(this.value)">
               <option value="">Ninguna</option>
               ${(state.reuniones||[]).map(r=>`<option value="${r.id}" ${ev&&ev.reunionId===r.id?"selected":""}>${esc(r.titulo)}</option>`).join("")}
             </select>
@@ -2422,20 +2549,24 @@ function agRenderModalHTML(){
           <textarea class="in" style="width:100%;margin-top:4px;min-height:60px;resize:vertical" id="agFNotas">${ev?esc(ev.notas||""):""}</textarea>
         </label>
         ${!ev?`<div>
-          <label style="font-size:13px;display:flex;align-items:center;gap:8px;font-weight:500">
-            <input type="checkbox" id="agFRepetir" onchange="document.getElementById('agRepetirHastaWrap').style.display=this.checked?'':'none'">
-            Repetir semanalmente
+          <label style="font-size:12.5px;color:var(--mut);font-weight:500">Repetir
+            <select class="in" style="width:100%;margin-top:4px" id="agFRepetir" onchange="document.getElementById('agRepetirHastaWrap').style.display=this.value?'':'none'">
+              <option value="">No repetir</option>
+              <option value="semanal">Cada semana</option>
+              <option value="mensual">Cada mes</option>
+            </select>
           </label>
           <div id="agRepetirHastaWrap" style="display:none;margin-top:8px">
             <label style="font-size:12.5px;color:var(--mut);font-weight:500">Repetir hasta (inclusive)
               <input class="in" style="width:100%;margin-top:4px" type="date" id="agFRepetirHasta">
             </label>
+            <p class="sub" style="margin:4px 0 0;font-size:11.5px">Si además indicas una fecha fin arriba, se ignora la repetición: un evento de varios días no forma serie.</p>
           </div>
         </div>`:""}
-        ${ev&&ev.recurrenciaId?`<p class="sub" style="margin:0;font-size:11.5px">🔁 Forma parte de una serie semanal. "Eliminar" solo quita este día; hay una opción aparte para quitar toda la serie.</p>`:""}
+        ${ev&&ev.recurrenciaId?`<p class="sub" style="margin:0;font-size:11.5px">🔁 Forma parte de una serie. "Eliminar" solo quita este día; hay una opción aparte para quitar toda la serie.</p>`:""}
       </div>
       <div class="flex" style="justify-content:space-between;margin-top:18px">
-        <div class="flex">${ev?`<button class="ghost danger" onclick="agEliminarEvento('${ev.id}')">Eliminar</button>`:""}${ev&&ev.recurrenciaId?`<button class="ghost danger" onclick="agEliminarSerie('${ev.recurrenciaId}')">Eliminar serie</button>`:""}</div>
+        <div class="flex">${ev?`<button class="ghost danger" onclick="agEliminarEvento('${ev.id}')">Eliminar</button>`:""}${ev&&ev.recurrenciaId?`<button class="ghost danger" onclick="agEliminarSerie('${ev.recurrenciaId}')">Eliminar serie</button>`:""}${ev?`<button class="ghost" onclick="agDuplicarEvento('${ev.id}')" title="Crea una copia de este evento para otra fecha">⧉ Duplicar</button>`:""}</div>
         <div class="flex">
           <button class="ghost" onclick="agCerrarModal()">Cancelar</button>
           <button class="btn" id="agFGuardar" onclick="agGuardarEvento()">Guardar</button>
@@ -2446,38 +2577,69 @@ function agRenderModalHTML(){
 }
 window.agAbrirModal=(fecha,eventoId)=>{ state.ui.agModalFecha=fecha||agFechaPorDefecto(); state.ui.agModalEventId=eventoId||""; save(); render(); };
 window.agCerrarModal=()=>{ state.ui.agModalFecha=""; state.ui.agModalEventId=""; save(); render(); };
+window.agSincronizarConReunion=(reunionId)=>{
+  if(!reunionId) return;
+  const r=(state.reuniones||[]).find(x=>x.id===reunionId);
+  const sel=document.getElementById("agFReunionCon");
+  if(r && sel) sel.value=r.tipo;
+};
+window.agDuplicarEvento=id=>{
+  const ev=(state.eventos||[]).find(e=>e.id===id);
+  if(!ev) return;
+  const copia={...ev, id:uid(), recurrenciaId:""};
+  if(!Array.isArray(state.eventos)) state.eventos=[];
+  state.eventos.push(copia);
+  state.ui.agModalEventId=copia.id;
+  state.ui.agModalFecha=copia.fecha;
+  save(); render();
+};
 window.agGuardarEvento=()=>{
   const fecha=document.getElementById("agFFecha").value;
   const titulo=document.getElementById("agFTitulo").value.trim();
   const tipo=document.getElementById("agFTipo").value;
+  const hora=document.getElementById("agFHora")?.value||"";
+  const fechaFinInput=document.getElementById("agFFechaFin")?.value||"";
+  const fechaFin = (fechaFinInput && fechaFinInput>fecha) ? fechaFinInput : "";
   const grupoId=document.getElementById("agFGrupo").value;
   const notas=document.getElementById("agFNotas").value.trim();
   const examId = tipo==="examen" ? (document.getElementById("agFExamen")?.value||"") : "";
   const reunionId = tipo==="reunion" ? (document.getElementById("agFReunion")?.value||"") : "";
+  const reunionCon = tipo==="reunion" ? (document.getElementById("agFReunionCon")?.value||"") : "";
   if(!fecha || !titulo) return;
   if(!Array.isArray(state.eventos)) state.eventos=[];
   const id=state.ui.agModalEventId;
   if(id){
     const ev=state.eventos.find(e=>e.id===id);
-    if(ev){ ev.fecha=fecha; ev.titulo=titulo; ev.tipo=tipo; ev.grupoId=grupoId; ev.notas=notas; ev.examId=examId; ev.reunionId=reunionId; }
+    if(ev){ ev.fecha=fecha; ev.fechaFin=fechaFin; ev.titulo=titulo; ev.tipo=tipo; ev.hora=hora; ev.grupoId=grupoId; ev.notas=notas; ev.examId=examId; ev.reunionId=reunionId; ev.reunionCon=reunionCon; }
   }else{
-    const repetir=document.getElementById("agFRepetir")?.checked;
+    const repetir = fechaFin ? "" : (document.getElementById("agFRepetir")?.value||"");
     const hasta=repetir? document.getElementById("agFRepetirHasta")?.value : "";
     if(repetir && hasta && hasta>fecha){
       const recurrenciaId=uid();
-      const fin=new Date(hasta+"T00:00:00");
-      let cur=new Date(fecha+"T00:00:00");
-      let creados=0;
-      while(cur<=fin && creados<52){
-        const f=cur.getFullYear()+"-"+String(cur.getMonth()+1).padStart(2,"0")+"-"+String(cur.getDate()).padStart(2,"0");
-        state.eventos.push({id:uid(),fecha:f,titulo,tipo,grupoId,notas,examId:"",reunionId:"",recurrenciaId});
-        cur.setDate(cur.getDate()+7); creados++;
+      const inicio=new Date(fecha+"T00:00:00");
+      const diaObjetivo=inicio.getDate();
+      let n=0, creados=0, f=fecha;
+      while(creados<120){
+        if(repetir==="mensual"){
+          const totalM=inicio.getMonth()+n;
+          const y2=inicio.getFullYear()+Math.floor(totalM/12);
+          const m2=((totalM%12)+12)%12;
+          const ultimoDiaMes=new Date(y2,m2+1,0).getDate();
+          f=y2+"-"+String(m2+1).padStart(2,"0")+"-"+String(Math.min(diaObjetivo,ultimoDiaMes)).padStart(2,"0");
+        }else{
+          const dt=new Date(inicio); dt.setDate(dt.getDate()+7*n);
+          f=dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");
+        }
+        if(f>hasta) break;
+        state.eventos.push({id:uid(),fecha:f,fechaFin:"",titulo,tipo,hora,grupoId,notas,examId:"",reunionId:"",reunionCon,recurrenciaId});
+        n++; creados++;
       }
     }else{
-      state.eventos.push({id:uid(),fecha,titulo,tipo,grupoId,notas,examId,reunionId,recurrenciaId:""});
+      state.eventos.push({id:uid(),fecha,fechaFin,titulo,tipo,hora,grupoId,notas,examId,reunionId,reunionCon,recurrenciaId:""});
     }
   }
   state.ui.agMes=fecha.slice(0,7);
+  if(state.ui.agDiaSel) state.ui.agDiaSel=fecha;
   state.ui.agModalFecha=""; state.ui.agModalEventId="";
   save(); render();
 };
@@ -2493,9 +2655,11 @@ window.agEliminarEvento=id=>{
   state.ui.agModalFecha=""; state.ui.agModalEventId="";
   save(); render();
 };
-window.agMesAnterior=()=>{ const [y,m]=agMesActual().split("-").map(Number); const d=new Date(y,m-2,1); state.ui.agMes=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); save(); render(); };
-window.agMesSiguiente=()=>{ const [y,m]=agMesActual().split("-").map(Number); const d=new Date(y,m,1); state.ui.agMes=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); save(); render(); };
-window.agMesHoy=()=>{ state.ui.agMes=agHoyStr().slice(0,7); save(); render(); };
+window.agMesAnterior=()=>{ const [y,m]=agMesActual().split("-").map(Number); const d=new Date(y,m-2,1); state.ui.agMes=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); state.ui.agDiaSel=""; save(); render(); };
+window.agMesSiguiente=()=>{ const [y,m]=agMesActual().split("-").map(Number); const d=new Date(y,m,1); state.ui.agMes=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); state.ui.agDiaSel=""; save(); render(); };
+window.agMesHoy=()=>{ state.ui.agMes=agHoyStr().slice(0,7); state.ui.agDiaSel=agHoyStr(); save(); render(); };
+window.agSeleccionarDia=fecha=>{ state.ui.agDiaSel = (state.ui.agDiaSel===fecha) ? "" : fecha; save(); render(); };
+window.agCerrarDia=()=>{ state.ui.agDiaSel=""; save(); render(); };
 
 /* =================================================================
    REUNIONES — registro de reuniones (familias, alumnado, equipo
@@ -2705,7 +2869,7 @@ window.reCrearReunion=()=>{
   const r=reNuevaReunion({titulo,tipo,fecha,horaInicio,grupoId,alumnoId,ordenDia});
   if(fecha){
     if(!Array.isArray(state.eventos)) state.eventos=[];
-    const ev={id:uid(),fecha,titulo,tipo:"reunion",grupoId,notas:"",examId:"",reunionId:r.id};
+    const ev={id:uid(),fecha,fechaFin:"",hora:horaInicio||"",titulo,tipo:"reunion",grupoId,notas:"",examId:"",reunionId:r.id,reunionCon:tipo};
     state.eventos.push(ev); r.eventoId=ev.id; state.ui.agMes=fecha.slice(0,7);
   }
   if(!Array.isArray(state.reuniones)) state.reuniones=[];
@@ -2828,7 +2992,7 @@ function renderReDetalleHTML(root){
   campo("reDTitulo",v=>{ r.titulo=v.trim()||r.titulo; reSyncEvento(r); });
   campo("reDTipo",v=>{ r.tipo=v; reSyncEvento(r); });
   campo("reDFecha",v=>{ r.fecha=v; reSyncEvento(r); if(v) state.ui.agMes=v.slice(0,7); });
-  campo("reDHoraInicio",v=>r.horaInicio=v);
+  campo("reDHoraInicio",v=>{ r.horaInicio=v; reSyncEvento(r); });
   campo("reDHoraFin",v=>r.horaFin=v);
   campo("reDLugar",v=>r.lugar=v.trim());
   if(document.getElementById("reDAlumno")) campo("reDAlumno",v=>r.alumnoId=v);
@@ -2841,7 +3005,7 @@ function reGuardarCampos(){ save(); }
 function reSyncEvento(r){
   const vinculados=(state.eventos||[]).filter(e=>e.reunionId===r.id);
   if(!vinculados.length) return;
-  vinculados.forEach(ev=>{ ev.titulo=r.titulo; ev.tipo="reunion"; if(r.fecha) ev.fecha=r.fecha; ev.grupoId=r.grupoId||""; });
+  vinculados.forEach(ev=>{ ev.titulo=r.titulo; ev.tipo="reunion"; if(r.fecha) ev.fecha=r.fecha; ev.grupoId=r.grupoId||""; ev.reunionCon=r.tipo; ev.hora=r.horaInicio||""; });
   save();
 }
 window.reRefrescarAlumnoDetalle=()=>{
