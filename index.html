@@ -296,6 +296,10 @@ if ('serviceWorker' in navigator) {
   .ag-cell-hoy{background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:var(--shadow-glow)}
   .ag-cell-hoy .ag-daynum{color:var(--accent-ink);font-weight:800}
   .ag-cell-sel{outline:2px solid var(--accent-2);outline-offset:-2px}
+  .ag-cell-festivo{background:rgba(220,38,38,.16)}
+  .ag-cell-festivo:hover{background:rgba(220,38,38,.24)}
+  .ag-cell-festivo .ag-daynum{color:#b91c1c}
+  .ag-cell-hoy.ag-cell-festivo{background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:var(--shadow-glow),inset 0 0 0 2px rgba(220,38,38,.7)}
   .ag-daynum{font-size:13.5px;font-weight:700;color:var(--ink)}
   .ag-dots{display:flex;gap:2px;align-items:center}
   .ag-dot{width:5px;height:5px;border-radius:50%;display:inline-block}
@@ -1088,7 +1092,7 @@ function haceTiempo(ts){
   const d=Math.floor(h/24);
   return `hace ${d} día${d===1?"":"s"}`;
 }
-function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:[], reuniones:[], plantillasRubrica:[], plantillasReunion:[], planesRefuerzo:[], planesRepeticion:[], planesNESE:[], horario:{celdas:{}}, centroNombre:"", centroCodigo:"", cursoEscolarGlobal:cursoAcademicoActual(), profesorNombreGlobal:"", programaciones:[], ui:{
+function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:[], festivos:[], reuniones:[], plantillasRubrica:[], plantillasReunion:[], planesRefuerzo:[], planesRepeticion:[], planesNESE:[], horario:{celdas:{}}, centroNombre:"", centroCodigo:"", cursoEscolarGlobal:cursoAcademicoActual(), profesorNombreGlobal:"", programaciones:[], ui:{
   appMode:"inicio", corTab:"lista", corExamId:"", corAlId:"", corItemAbierto:"", corForm:{nombre:"",bloqueId:"",sda:"",fecha:"",plantillaId:""},
   agMes:"", agModalFecha:"", agModalEventId:"", agVista:"mes", agFiltroGrupo:"", agFiltroTipo:"", agDiaSel:"", diarioFecha:"", asistFecha:"", asistDesde:"", asistHasta:"",
   convVista:"lista", convId:"", convModalNueva:false, convFiltroAlumno:"", convFiltroTipo:"",
@@ -1301,6 +1305,7 @@ if(!state.examenDualMigrado){
 if(!state.ui) state.ui=defAppState().ui;
 if(!state.catalogosPersonalizados || typeof state.catalogosPersonalizados!=="object") state.catalogosPersonalizados={};
 if(!Array.isArray(state.eventos)) state.eventos=[];
+if(!Array.isArray(state.festivos)) state.festivos=[];
 if(!Array.isArray(state.reuniones)) state.reuniones=[];
 if(!Array.isArray(state.plantillasRubrica)) state.plantillasRubrica=[];
 if(!Array.isArray(state.plantillasReunion)) state.plantillasReunion=[];
@@ -2212,6 +2217,13 @@ const AG_DIAS_LARGO=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado",
 const AG_MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 function agTipoInfo(id){ return AG_TIPOS.find(t=>t.id===id)||AG_TIPOS[AG_TIPOS.length-1]; }
 function agHoyStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function agEsFestivo(fecha){ return (state.festivos||[]).includes(fecha); }
+window.agToggleFestivo=(fecha)=>{
+  if(!Array.isArray(state.festivos)) state.festivos=[];
+  const i=state.festivos.indexOf(fecha);
+  if(i>=0) state.festivos.splice(i,1); else state.festivos.push(fecha);
+  save(); render();
+};
 function agMesActual(){
   if(!state.ui.agMes) state.ui.agMes=agHoyStr().slice(0,7);
   return state.ui.agMes;
@@ -2314,13 +2326,14 @@ function agImprimirMesHTML(mesStr){
   const celdaHTML=(c,colIdx)=>{
     const esFinde=colIdx===5||colIdx===6;
     if(c.pad) return `<td class="ap-pad${esFinde?" ap-finde":""}"></td>`;
+    const esFestivo=agEsFestivo(c.fecha);
     const items=c.evs.map(e=>{
       const info=agTipoInfo(e.tipo);
       const esInicio=e.fecha===c.fecha;
       const txt=(esInicio&&e.hora?`<b>${esc(e.hora)}</b> `:"")+esc(e.titulo)+(!esInicio?" (sigue)":"");
       return `<div class="ap-ev" style="background:${info.color}1f;color:${info.color}">${txt}</div>`;
     }).join("");
-    const clases=[esFinde?"ap-finde":"", c.esHoy?"ap-hoy":""].filter(Boolean).join(" ");
+    const clases=[esFinde?"ap-finde":"", c.esHoy?"ap-hoy":"", esFestivo?"ap-festivo":""].filter(Boolean).join(" ");
     return `<td class="${clases}"><div class="ap-daynum">${c.dia}</div>${items}</td>`;
   };
   const filasHtml=[];
@@ -2347,6 +2360,8 @@ function agImprimirMesHTML(mesStr){
     td.ap-finde{background:#f7f4ec}
     td.ap-pad{background:#f7f8fa;border-style:dashed}
     td.ap-hoy{background:#fdf6e4;box-shadow:inset 0 0 0 2px #d7b463}
+    td.ap-festivo{background:rgba(220,38,38,.16)}
+    td.ap-festivo.ap-hoy{background:#fdf6e4;box-shadow:inset 0 0 0 2px #d7b463,inset 0 0 0 4px rgba(220,38,38,.55)}
     .ap-daynum{font-weight:800;font-size:14px;margin-bottom:4px;color:#1c2536}
     td.ap-hoy .ap-daynum{color:#8a6414}
     .ap-ev{font-size:10px;line-height:1.3;padding:2px 6px;margin-bottom:3px;border-radius:5px;overflow-wrap:break-word;font-weight:600}
@@ -2426,8 +2441,9 @@ function agRenderCalendarioHTML(){
     const evs=eventosDelMes.filter(e=>agEventoActivoEnDia(e,fecha));
     const esHoy=fecha===hoyStr;
     const esSel=fecha===state.ui.agDiaSel;
+    const esFestivo=agEsFestivo(fecha);
     const puntos=evs.slice(0,3).map(e=>`<span class="ag-dot" style="background:${agTipoInfo(e.tipo).color}"></span>`).join("");
-    celdas+=`<div class="ag-cell ${esHoy?"ag-cell-hoy":""} ${esSel?"ag-cell-sel":""}" title="${evs.length?evs.map(e=>(e.hora?e.hora+" ":"")+e.titulo).join(" · "):""}" onclick="agSeleccionarDia('${fecha}')">
+    celdas+=`<div class="ag-cell ${esHoy?"ag-cell-hoy":""} ${esSel?"ag-cell-sel":""} ${esFestivo?"ag-cell-festivo":""}" title="${esFestivo?"Festivo. ":""}${evs.length?evs.map(e=>(e.hora?e.hora+" ":"")+e.titulo).join(" · "):""}" onclick="agSeleccionarDia('${fecha}')">
       <span class="ag-daynum">${d}</span>
       ${evs.length?`<span class="ag-dots">${puntos}${evs.length>3?`<span class="ag-more">+${evs.length-3}</span>`:""}</span>`:""}
     </div>`;
@@ -2509,6 +2525,7 @@ function agRenderDiaHTML(fecha){
   const nombreDia=AG_DIAS_LARGO[(d.getDay()+6)%7];
   const evs=agEventosFiltrados((state.eventos||[]).filter(e=>agEventoActivoEnDia(e,fecha))).sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99")||a.titulo.localeCompare(b.titulo));
   const esHoy=fecha===agHoyStr();
+  const esFestivo=agEsFestivo(fecha);
   const horarioDia=agHorarioDelDia(fecha);
   const filas=evs.length? evs.map(agEventoDiaFilaHTML).join("") : `<p class="sub" style="margin:8px 0 0">No hay nada previsto este día.</p>`;
   return `
@@ -2517,8 +2534,12 @@ function agRenderDiaHTML(fecha){
       <div>
         <strong style="font-size:14.5px">${nombreDia} ${d.getDate()} de ${AG_MESES[d.getMonth()]}</strong>
         ${esHoy?`<span class="pill" style="background:var(--accent-soft);color:var(--accent-2);margin-left:8px">Hoy</span>`:""}
+        ${esFestivo?`<span class="pill" style="background:rgba(220,38,38,.14);color:#b91c1c;margin-left:8px">Festivo</span>`:""}
       </div>
       <button class="ghost" style="padding:2px 10px" onclick="agCerrarDia()" title="Volver al resumen del mes">× Cerrar</button>
+    </div>
+    <div class="flex" style="margin-top:6px">
+      <button class="ghost small" style="border:1px solid ${esFestivo?"#dc2626":"var(--line)"};color:${esFestivo?"#dc2626":"inherit"}" onclick="agToggleFestivo('${fecha}')">${esFestivo?"✕ Quitar festivo":"🔴 Marcar como festivo"}</button>
     </div>
     ${horarioDia.length?`<div style="margin-top:12px">
       <div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🗓️ Horario</div>
@@ -2592,14 +2613,19 @@ function agRenderModalHTML(){
             <input class="in" style="width:100%;margin-top:4px" type="time" id="agFHora" value="${ev?esc(ev.hora||""):""}">
           </label>
         </div>
-        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Fecha fin (opcional, para eventos de varios días)
-          <input class="in" style="width:100%;margin-top:4px" type="date" id="agFFechaFin" value="${ev?esc(ev.fechaFin||""):""}">
-        </label>
-        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Título
+        <div class="flex" style="gap:10px;align-items:flex-start">
+          <label style="flex:1;font-size:12.5px;color:var(--mut);font-weight:500">Fecha fin (opcional, para eventos de varios días)
+            <input class="in" style="width:100%;margin-top:4px" type="date" id="agFFechaFin" value="${ev?esc(ev.fechaFin||""):""}">
+          </label>
+          <label style="width:130px;flex-shrink:0;font-size:12.5px;color:var(--mut);font-weight:500">Hora fin (opcional)
+            <input class="in" style="width:100%;margin-top:4px" type="time" id="agFHoraFin" value="${ev?esc(ev.horaFin||""):""}">
+          </label>
+        </div>
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:${(tipoInicial==="cocope"||tipoInicial==="claustro")?"none":""}" id="agFTituloWrap">Título
           <input class="in" style="width:100%;margin-top:4px" id="agFTitulo" placeholder="Examen Tema 3, entrega del trabajo…" value="${ev?esc(ev.titulo):""}">
         </label>
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Tipo
-          <select class="in" style="width:100%;margin-top:4px" id="agFTipo" onchange="document.getElementById('agExamWrap').style.display=this.value==='examen'?'':'none'; document.getElementById('agReWrap').style.display=this.value==='reunion'?'':'none'; document.getElementById('agReConWrap').style.display=this.value==='reunion'?'':'none';">
+          <select class="in" style="width:100%;margin-top:4px" id="agFTipo" onchange="agActualizarCamposModalEvento(this.value)">
             ${AG_TIPOS.map(t=>`<option value="${t.id}" ${tipoInicial===t.id?"selected":""}>${t.label}</option>`).join("")}
           </select>
         </label>
@@ -2631,7 +2657,7 @@ function agRenderModalHTML(){
         </div>
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Grupo (opcional)
           <select class="in" style="width:100%;margin-top:4px" id="agFGrupo">
-            <option value="">General / todos</option>
+            <option value="" id="agFGrupoNinguno">${(tipoInicial==="cocope"||tipoInicial==="claustro")?"Ninguno":"General / todos"}</option>
             ${state.grupos.map(g=>`<option value="${g.id}" ${ev&&ev.grupoId===g.id?"selected":""}>${esc(g.nombre)}</option>`).join("")}
           </select>
         </label>
@@ -2665,6 +2691,19 @@ function agRenderModalHTML(){
     </div>
   </div>`;
 }
+window.agActualizarCamposModalEvento=(tipo)=>{
+  document.getElementById("agExamWrap").style.display=tipo==="examen"?"":"none";
+  document.getElementById("agReWrap").style.display=tipo==="reunion"?"":"none";
+  document.getElementById("agReConWrap").style.display=tipo==="reunion"?"":"none";
+  const sinTitulo = tipo==="cocope"||tipo==="claustro";
+  const tituloWrap=document.getElementById("agFTituloWrap");
+  if(tituloWrap) tituloWrap.style.display=sinTitulo?"none":"";
+  const grupoNinguno=document.getElementById("agFGrupoNinguno");
+  if(grupoNinguno){
+    grupoNinguno.textContent=sinTitulo?"Ninguno":"General / todos";
+    if(sinTitulo){ const sel=document.getElementById("agFGrupo"); if(sel) sel.value=""; }
+  }
+};
 window.agAbrirModal=(fecha,eventoId)=>{ state.ui.agModalFecha=fecha||agFechaPorDefecto(); state.ui.agModalEventId=eventoId||""; save(); render(); };
 window.agCerrarModal=()=>{ state.ui.agModalFecha=""; state.ui.agModalEventId=""; save(); render(); };
 window.agSincronizarConReunion=(reunionId)=>{
@@ -2685,11 +2724,13 @@ window.agDuplicarEvento=id=>{
 };
 window.agGuardarEvento=()=>{
   const fecha=document.getElementById("agFFecha").value;
-  const titulo=document.getElementById("agFTitulo").value.trim();
   const tipo=document.getElementById("agFTipo").value;
+  let titulo=document.getElementById("agFTitulo")?.value.trim()||"";
+  if(!titulo && (tipo==="cocope"||tipo==="claustro")) titulo=agTipoInfo(tipo).label;
   const hora=document.getElementById("agFHora")?.value||"";
   const fechaFinInput=document.getElementById("agFFechaFin")?.value||"";
   const fechaFin = (fechaFinInput && fechaFinInput>fecha) ? fechaFinInput : "";
+  const horaFin=document.getElementById("agFHoraFin")?.value||"";
   const grupoId=document.getElementById("agFGrupo").value;
   const notas=document.getElementById("agFNotas").value.trim();
   const examId = tipo==="examen" ? (document.getElementById("agFExamen")?.value||"") : "";
@@ -2700,7 +2741,7 @@ window.agGuardarEvento=()=>{
   const id=state.ui.agModalEventId;
   if(id){
     const ev=state.eventos.find(e=>e.id===id);
-    if(ev){ ev.fecha=fecha; ev.fechaFin=fechaFin; ev.titulo=titulo; ev.tipo=tipo; ev.hora=hora; ev.grupoId=grupoId; ev.notas=notas; ev.examId=examId; ev.reunionId=reunionId; ev.reunionCon=reunionCon; }
+    if(ev){ ev.fecha=fecha; ev.fechaFin=fechaFin; ev.titulo=titulo; ev.tipo=tipo; ev.hora=hora; ev.horaFin=horaFin; ev.grupoId=grupoId; ev.notas=notas; ev.examId=examId; ev.reunionId=reunionId; ev.reunionCon=reunionCon; }
   }else{
     const repetir = fechaFin ? "" : (document.getElementById("agFRepetir")?.value||"");
     const hasta=repetir? document.getElementById("agFRepetirHasta")?.value : "";
@@ -2721,11 +2762,11 @@ window.agGuardarEvento=()=>{
           f=dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");
         }
         if(f>hasta) break;
-        state.eventos.push({id:uid(),fecha:f,fechaFin:"",titulo,tipo,hora,grupoId,notas,examId:"",reunionId:"",reunionCon,recurrenciaId});
+        state.eventos.push({id:uid(),fecha:f,fechaFin:"",titulo,tipo,hora,horaFin,grupoId,notas,examId:"",reunionId:"",reunionCon,recurrenciaId});
         n++; creados++;
       }
     }else{
-      state.eventos.push({id:uid(),fecha,fechaFin,titulo,tipo,hora,grupoId,notas,examId,reunionId,reunionCon,recurrenciaId:""});
+      state.eventos.push({id:uid(),fecha,fechaFin,titulo,tipo,hora,horaFin,grupoId,notas,examId,reunionId,reunionCon,recurrenciaId:""});
     }
   }
   state.ui.agMes=fecha.slice(0,7);
@@ -4736,16 +4777,16 @@ window.horImprimir=()=>{
       const esRecreoVacio=f.recreo && !c.tipo;
       if(!c.tipo){
         return esRecreoVacio
-          ? `<td style="background:repeating-linear-gradient(135deg,#f3f3f3 0 6px,#e6e6e6 6px 12px)"></td>`
-          : `<td></td>`;
+          ? `<td style="background:repeating-linear-gradient(135deg,#f3f3f3 0 6px,#e6e6e6 6px 12px);padding:14px 10px"></td>`
+          : `<td style="padding:14px 10px"></td>`;
       }
       const info=horTipoInfo(c.tipo);
       const bg=hexA(info.color,0.16);
       const borde=hexA(info.color,0.55);
-      if(c.tipo==="clase") return `<td style="background:${bg};border-left:3px solid ${borde}"><strong>${esc(c.materia||"Clase")}</strong>${c.nivelGrupo?"<br>"+esc(c.nivelGrupo):""}${c.aula?'<br><span style="color:#777;font-size:11px">'+esc(c.aula)+"</span>":""}</td>`;
-      return `<td style="background:${bg};border-left:3px solid ${borde}"><strong>${info.label}</strong>${c.nota?"<br><span style=\"font-size:11px;color:#555\">"+esc(c.nota)+"</span>":""}</td>`;
+      if(c.tipo==="clase") return `<td style="background:${bg};border-left:3px solid ${borde};padding:14px 10px;font-size:13.5px"><strong>${esc(c.materia||"Clase")}</strong>${c.nivelGrupo?"<br>"+esc(c.nivelGrupo):""}${c.aula?'<br><span style="color:#777;font-size:12px">'+esc(c.aula)+"</span>":""}</td>`;
+      return `<td style="background:${bg};border-left:3px solid ${borde};padding:14px 10px;font-size:13.5px"><strong>${info.label}</strong>${c.nota?"<br><span style=\"font-size:12px;color:#555\">"+esc(c.nota)+"</span>":""}</td>`;
     }).join("");
-    return `<tr><td style="white-space:nowrap;font-size:11px;color:#666;font-weight:600">${f.inicio}–${f.fin}</td>${celdas}</tr>`;
+    return `<tr><td style="white-space:nowrap;font-size:12.5px;color:#666;font-weight:600;padding:14px 10px">${f.inicio}–${f.fin}</td>${celdas}</tr>`;
   }).join("");
   const leyenda=HOR_TIPOS.filter(t=>t.id && t.id!=="otro").map(t=>
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:11.5px;color:#555">
@@ -4756,13 +4797,13 @@ window.horImprimir=()=>{
       <div style="font-size:1.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em">${esc(state.centroNombre)||"Horario semanal"}</div>
       <div style="font-size:.85rem;color:rgba(255,255,255,.85);margin-top:4px">Curso escolar ${esc(cursoEscolarEfectivo(null))}${profesorNombreEfectivo(null)?" · "+esc(profesorNombreEfectivo(null)):""}</div>
     </div>
-    <table style="border-collapse:collapse">
-      <thead><tr><th></th>${HOR_DIAS.map(d=>`<th>${d.label}</th>`).join("")}</tr></thead>
+    <table style="border-collapse:collapse;table-layout:fixed;font-size:14px">
+      <thead><tr><th style="width:9%"></th>${HOR_DIAS.map(d=>`<th style="font-size:14px;padding:10px 8px">${d.label}</th>`).join("")}</tr></thead>
       <tbody>${filasHtml}</tbody>
     </table>
     <div style="margin-top:14px">${leyenda}</div>
   `;
-  abrirVentanaInforme("Horario semanal", body);
+  abrirVentanaInforme("Horario semanal", body, {landscape:true, maxWidth:"100%", center:true});
 };
 
 /* Estado puramente visual de Inicio (pestaña activa y desplegable de ayuda).
@@ -8784,12 +8825,19 @@ window.exportarCSVGrupo = () => {
    URL.revokeObjectURL(u);
 };
 
-function abrirVentanaInforme(titulo,bodyHtml){
+function abrirVentanaInforme(titulo,bodyHtml,opts){
+  opts=opts||{};
   const w=window.open("","_blank");
   if(!w){ alert("El navegador ha bloqueado la ventana emergente. Permite las ventanas emergentes para generar el informe."); return; }
+  const paisaje=!!opts.landscape;
+  const centrado=!!opts.center;
+  const maxWidth=opts.maxWidth||"820px";
+  const margenBody = centrado ? "28px auto" : "28px";
   w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${esc(titulo)}</title>
   <style>
-    body{font-family:system-ui,sans-serif;color:#222;margin:28px;max-width:820px;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    @page{ margin:1.5cm ${paisaje?"1.3cm":"2cm"}; ${paisaje?"size: A4 landscape;":""} }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,sans-serif;color:#222;margin:${margenBody};max-width:${maxWidth};width:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact}
     h1{font-size:19px;margin:0 0 2px}
     h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}
     .meta{color:#666;font-size:13px;margin-bottom:18px}
@@ -8802,7 +8850,7 @@ function abrirVentanaInforme(titulo,bodyHtml){
     .btnbar{margin-bottom:22px}
     button{padding:8px 16px;font-size:14px;cursor:pointer}
     .alert{background:#fcf4e3;border:1px solid #b57b0e;padding:10px;font-size:13px;border-radius:6px;margin:10px 0}
-    @media print{ .btnbar{display:none} }
+    @media print{ .btnbar{display:none} ${centrado?"body{margin:0 auto}":""} }
   </style></head><body>
   <div class="btnbar"><button onclick="window.print()">Imprimir / Guardar como PDF</button> <button onclick="window.close()" style="background:#eee;color:#333">✕ Cerrar</button></div>
   ${bodyHtml}
