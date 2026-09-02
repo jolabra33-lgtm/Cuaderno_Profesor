@@ -315,6 +315,16 @@ if ('serviceWorker' in navigator) {
   .ag-evento-grupo{font-size:11.5px;color:var(--mut);margin-top:1px}
   .ag-hoy-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;font-weight:700;cursor:pointer;transition:.12s}
   .ag-hoy-chip:hover{filter:brightness(.97)}
+  .ag-semana{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  @media(max-width:760px){ .ag-semana{grid-template-columns:1fr;gap:8px} }
+  .ag-semana-col{border:1px solid var(--line);border-radius:12px;padding:8px;min-height:170px;display:flex;flex-direction:column;gap:4px;background:var(--surface)}
+  .ag-semana-col.hoy{border-color:var(--accent-2);box-shadow:0 0 0 1px var(--accent-2)}
+  .ag-semana-col.festivo{background:rgba(220,38,38,.12)}
+  .ag-semana-dia{font-size:10.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+  .ag-semana-num{font-size:16px;font-weight:800;margin-bottom:2px}
+  .ag-semana-evs{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;max-height:220px}
+  .ag-semana-ev{font-size:10.5px;line-height:1.25;padding:3px 6px;border-radius:6px;cursor:pointer;font-weight:600}
+  .ag-semana-ev:hover{filter:brightness(.95)}
 
   /* Horario semanal */
   .hor-grid{display:grid;grid-template-columns:64px repeat(5,1fr);gap:4px;font-size:11px}
@@ -1092,7 +1102,7 @@ function haceTiempo(ts){
   const d=Math.floor(h/24);
   return `hace ${d} día${d===1?"":"s"}`;
 }
-function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:[], festivos:[], reuniones:[], plantillasRubrica:[], plantillasReunion:[], planesRefuerzo:[], planesRepeticion:[], planesNESE:[], horario:{celdas:{}}, centroNombre:"", centroCodigo:"", cursoEscolarGlobal:cursoAcademicoActual(), profesorNombreGlobal:"", programaciones:[], ui:{
+function defAppState(){ return { grupos:[], catalogosPersonalizados:{}, eventos:[], festivos:[], tiposColores:{}, reuniones:[], plantillasRubrica:[], plantillasReunion:[], planesRefuerzo:[], planesRepeticion:[], planesNESE:[], horario:{celdas:{}}, centroNombre:"", centroCodigo:"", cursoEscolarGlobal:cursoAcademicoActual(), profesorNombreGlobal:"", programaciones:[], ui:{
   appMode:"inicio", corTab:"lista", corExamId:"", corAlId:"", corItemAbierto:"", corForm:{nombre:"",bloqueId:"",sda:"",fecha:"",plantillaId:""},
   agMes:"", agModalFecha:"", agModalEventId:"", agVista:"mes", agFiltroGrupo:"", agFiltroTipo:"", agDiaSel:"", diarioFecha:"", asistFecha:"", asistDesde:"", asistHasta:"",
   convVista:"lista", convId:"", convModalNueva:false, convFiltroAlumno:"", convFiltroTipo:"",
@@ -1305,7 +1315,18 @@ if(!state.examenDualMigrado){
 if(!state.ui) state.ui=defAppState().ui;
 if(!state.catalogosPersonalizados || typeof state.catalogosPersonalizados!=="object") state.catalogosPersonalizados={};
 if(!Array.isArray(state.eventos)) state.eventos=[];
+state.eventos.forEach(e=>{ if(!Array.isArray(e.grupoIds)) e.grupoIds = e.grupoId?[e.grupoId]:[]; });
 if(!Array.isArray(state.festivos)) state.festivos=[];
+state.festivos = state.festivos.map(f=>{
+  if(typeof f==="string") return {id:uid(),fechaInicio:f,fechaFin:f,etiqueta:""};
+  if(f && typeof f==="object"){
+    const fechaInicio = f.fechaInicio || f.fecha || f.inicio || "";
+    const fechaFin = f.fechaFin || f.fin || fechaInicio;
+    return {id:f.id||uid(), fechaInicio, fechaFin, etiqueta:f.etiqueta||""};
+  }
+  return null;
+}).filter(f=>f && f.fechaInicio);
+if(!state.tiposColores || typeof state.tiposColores!=="object") state.tiposColores={};
 if(!Array.isArray(state.reuniones)) state.reuniones=[];
 if(!Array.isArray(state.plantillasRubrica)) state.plantillasRubrica=[];
 if(!Array.isArray(state.plantillasReunion)) state.plantillasReunion=[];
@@ -2215,24 +2236,121 @@ const AG_TIPOS=[
 const AG_DIAS=["L","M","X","J","V","S","D"];
 const AG_DIAS_LARGO=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const AG_MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-function agTipoInfo(id){ return AG_TIPOS.find(t=>t.id===id)||AG_TIPOS[AG_TIPOS.length-1]; }
+function agTipoBase(id){ return AG_TIPOS.find(t=>t.id===id)||AG_TIPOS[AG_TIPOS.length-1]; }
+function agTipoInfo(id){
+  const base=agTipoBase(id);
+  const custom=(state.tiposColores||{})[id];
+  return custom ? {...base,color:custom} : base;
+}
 function agHoyStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-function agEsFestivo(fecha){ return (state.festivos||[]).includes(fecha); }
+function agFestivoEnDia(fecha){ return (state.festivos||[]).find(f=>f && f.fechaInicio && fecha>=f.fechaInicio && fecha<=(f.fechaFin||f.fechaInicio)); }
+function agEsFestivo(fecha){ return !!agFestivoEnDia(fecha); }
 window.agToggleFestivo=(fecha)=>{
   if(!Array.isArray(state.festivos)) state.festivos=[];
-  const i=state.festivos.indexOf(fecha);
-  if(i>=0) state.festivos.splice(i,1); else state.festivos.push(fecha);
+  const existente=agFestivoEnDia(fecha);
+  if(existente){ state.festivos=state.festivos.filter(f=>f.id!==existente.id); }
+  else{ state.festivos.push({id:uid(),fechaInicio:fecha,fechaFin:fecha,etiqueta:""}); }
   save(); render();
 };
+window.agAnadirFestivo=()=>{
+  const ini=document.getElementById("agFestIni")?.value||"";
+  const finInput=document.getElementById("agFestFin")?.value||"";
+  const etiqueta=(document.getElementById("agFestEtiqueta")?.value||"").trim();
+  if(!ini) return;
+  const fin=(finInput && finInput>=ini) ? finInput : ini;
+  if(!Array.isArray(state.festivos)) state.festivos=[];
+  state.festivos.push({id:uid(),fechaInicio:ini,fechaFin:fin,etiqueta});
+  save(); render();
+  mostrarToast("✓ Festivo añadido");
+};
+window.agEliminarFestivo=(id)=>{
+  state.festivos=(state.festivos||[]).filter(f=>f.id!==id);
+  save(); render();
+};
+window.agImportarFestivos=()=>{
+  const texto=document.getElementById("agFestImportTexto")?.value||"";
+  const lineas=texto.split("\n").map(l=>l.trim()).filter(Boolean);
+  const reFecha=/^\d{4}-\d{2}-\d{2}$/;
+  let ok=0, fallidas=0;
+  if(!Array.isArray(state.festivos)) state.festivos=[];
+  lineas.forEach(linea=>{
+    const [rango,...restoEtq]=linea.split(";");
+    const etiqueta=restoEtq.join(";").trim();
+    const partes=rango.split(":").map(p=>p.trim());
+    const ini=partes[0], fin=partes[1]||partes[0];
+    if(reFecha.test(ini) && reFecha.test(fin) && fin>=ini){
+      state.festivos.push({id:uid(),fechaInicio:ini,fechaFin:fin,etiqueta});
+      ok++;
+    }else fallidas++;
+  });
+  if(ok){ const ta=document.getElementById("agFestImportTexto"); if(ta) ta.value=""; save(); render(); }
+  mostrarToast(ok?`✓ ${ok} festivo(s) importado(s)`+(fallidas?` — ${fallidas} línea(s) no reconocida(s)`:""):"No se ha reconocido ninguna línea válida", ok?"success":"info");
+};
+window.agAbrirModalFestivos=()=>{ state.ui.agModalFestivos=true; save(); render(); };
+window.agCerrarModalFestivos=()=>{ state.ui.agModalFestivos=false; save(); render(); };
+function agRenderModalFestivosHTML(){
+  const lista=(state.festivos||[]).filter(f=>f && f.fechaInicio).slice().sort((a,b)=>a.fechaInicio.localeCompare(b.fechaInicio));
+  const filas=lista.length? lista.map(f=>{
+    const rango=f.fechaInicio===f.fechaFin ? fmt2(f.fechaInicio) : `${fmt2(f.fechaInicio)} – ${fmt2(f.fechaFin)}`;
+    return `<div class="ag-evento" style="cursor:default">
+      <div class="ag-evento-info">
+        <span class="pill" style="background:rgba(220,38,38,.14);color:#b91c1c">🔴 ${rango}</span>
+        ${f.etiqueta?`<div class="ag-evento-titulo" style="font-size:12.5px">${esc(f.etiqueta)}</div>`:""}
+      </div>
+      <button class="ghost danger small" onclick="agEliminarFestivo('${f.id}')" title="Eliminar">✕</button>
+    </div>`;
+  }).join("") : `<p class="sub" style="margin:8px 0 0">Todavía no hay festivos marcados.</p>`;
+  return `
+  <div class="modal-overlay" onclick="if(event.target===this) agCerrarModalFestivos()">
+    <div class="modal-box" style="max-width:460px">
+      <div class="flex" style="justify-content:space-between;align-items:flex-start">
+        <h2 style="font-size:17px">🔴 Festivos</h2>
+        <button class="modal-close" onclick="agCerrarModalFestivos()">×</button>
+      </div>
+      <div class="grid" style="gap:12px;margin-top:10px">
+        <div class="flex" style="gap:10px;align-items:flex-start">
+          <label style="flex:1;font-size:12.5px;color:var(--mut);font-weight:500">Fecha inicio
+            <input class="in" style="width:100%;margin-top:4px" type="date" id="agFestIni">
+          </label>
+          <label style="flex:1;font-size:12.5px;color:var(--mut);font-weight:500">Fecha fin (opcional)
+            <input class="in" style="width:100%;margin-top:4px" type="date" id="agFestFin">
+          </label>
+        </div>
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Etiqueta (opcional)
+          <input class="in" style="width:100%;margin-top:4px" id="agFestEtiqueta" placeholder="Fallas, Navidad, Festivo local…">
+        </label>
+        <button class="btn" style="justify-self:start" onclick="agAnadirFestivo()">+ Añadir festivo</button>
+        <div style="border-top:1px solid var(--line);padding-top:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Festivos marcados</div>
+          <div class="ag-lista" style="max-height:180px">${filas}</div>
+        </div>
+        <div style="border-top:1px solid var(--line);padding-top:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Importar varios a la vez</div>
+          <p class="sub" style="margin:0 0 6px">Una línea por festivo. Formatos admitidos: <code>2026-03-16</code>, <code>2026-03-16:2026-03-20</code> o <code>2026-03-16:2026-03-20;Fallas</code>.</p>
+          <textarea class="in" style="width:100%;min-height:70px;resize:vertical;font-family:monospace;font-size:12px" id="agFestImportTexto" placeholder="2026-01-01
+2026-03-16:2026-03-20;Fallas"></textarea>
+          <button class="ghost small" style="margin-top:6px;border:1px solid var(--line)" onclick="agImportarFestivos()">⬇ Importar</button>
+        </div>
+      </div>
+      <div class="flex" style="justify-content:flex-end;margin-top:18px">
+        <button class="btn" onclick="agCerrarModalFestivos()">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
+}
 function agMesActual(){
   if(!state.ui.agMes) state.ui.agMes=agHoyStr().slice(0,7);
   return state.ui.agMes;
 }
+function agGrupoIdsDeEvento(e){ return Array.isArray(e.grupoIds) ? e.grupoIds : (e.grupoId?[e.grupoId]:[]); }
+function agGruposDeEvento(e){ return agGrupoIdsDeEvento(e).map(id=>state.grupos.find(g=>g.id===id)).filter(Boolean); }
+function agGruposLabelEvento(e){ return agGruposDeEvento(e).map(g=>g.nombre).join(", "); }
 function agEventosFiltrados(lista){
-  const f=state.ui.agFiltroGrupo, t=state.ui.agFiltroTipo;
+  const f=state.ui.agFiltroGrupo, t=state.ui.agFiltroTipo, q=(state.ui.agBusqueda||"").trim().toLowerCase();
   let out=lista;
-  if(f) out = f==="__general__" ? out.filter(e=>!e.grupoId) : out.filter(e=>e.grupoId===f);
+  if(f) out = f==="__general__" ? out.filter(e=>agGrupoIdsDeEvento(e).length===0) : out.filter(e=>agGrupoIdsDeEvento(e).includes(f));
   if(t) out = out.filter(e=>e.tipo===t);
+  if(q) out = out.filter(e=>(e.titulo||"").toLowerCase().includes(q) || (e.notas||"").toLowerCase().includes(q));
   return out;
 }
 function agEventoFin(e){ return e.fechaFin||e.fecha; }
@@ -2253,6 +2371,10 @@ function agProximosEventos(n){
   const base=(state.eventos||[]).filter(e=>agEventoFin(e)>=hoy);
   return agEventosFiltrados(base).sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,n||10);
 }
+function agEventosBusqueda(){
+  return agEventosFiltrados(state.eventos||[]).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+}
+window.agSetBusqueda=(v)=>{ state.ui.agBusqueda=v; save(); render(); };
 function agExamenesDisponibles(){
   const out=[];
   state.grupos.forEach(g=>{ g.actividades.filter(a=>a.esExamen&&a.rubrica).forEach(a=>{ out.push({id:a.id,label:a.nombre+" — "+g.nombre}); }); });
@@ -2274,8 +2396,8 @@ function agGenerarICS(){
   let ics="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Geografia e Historia//Calendario//ES\r\nCALSCALE:GREGORIAN\r\n";
   evs.forEach(e=>{
     const info=agTipoInfo(e.tipo);
-    const grupo=e.grupoId?state.grupos.find(g=>g.id===e.grupoId):null;
-    const desc=[info.label, grupo?("Grupo: "+grupo.nombre):"", e.notas||""].filter(Boolean).join(" — ");
+    const grupoLabel=agGruposLabelEvento(e);
+    const desc=[info.label, grupoLabel?("Grupo: "+grupoLabel):"", e.notas||""].filter(Boolean).join(" — ");
     const fechaIcs=e.fecha.replace(/-/g,"");
     let dtstart, dtend="";
     if(e.hora){
@@ -2305,23 +2427,17 @@ window.agExportarICS=()=>{
 };
 function agImprimirMesHTML(mesStr){
   const [y,m]=mesStr.split("-").map(Number);
-  const primerDia=new Date(y,m-1,1);
-  let offset=primerDia.getDay(); offset=offset===0?6:offset-1;
-  const ultimoDia=new Date(y,m,0).getDate();
   const hoyStr=agHoyStr();
   const eventosDelMes=agEventosDelMes(mesStr);
   const grupoFiltro = state.ui.agFiltroGrupo ? (state.ui.agFiltroGrupo==="__general__" ? "Sin grupo (general)" : esc((state.grupos.find(g=>g.id===state.ui.agFiltroGrupo)||{}).nombre||"")) : "Todos los grupos";
   const tipoFiltro = state.ui.agFiltroTipo ? esc(agTipoInfo(state.ui.agFiltroTipo).label) : "Todos los tipos";
   const centro = esc(state.centroNombre||"");
 
-  const celdas=[]; // array de {dia,fecha,evs,esHoy} o {pad:true}, en orden L..D repetido
-  for(let i=0;i<offset;i++) celdas.push({pad:true});
-  for(let d=1; d<=ultimoDia; d++){
-    const fecha=`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const evs=eventosDelMes.filter(e=>agEventoActivoEnDia(e,fecha)).sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99"));
-    celdas.push({dia:d,fecha,evs,esHoy:fecha===hoyStr});
-  }
-  while(celdas.length%7!==0) celdas.push({pad:true});
+  const celdas=agCalcularCeldasMes(mesStr).map(c=>{
+    if(c.pad) return c;
+    const evs=eventosDelMes.filter(e=>agEventoActivoEnDia(e,c.fecha)).sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99"));
+    return {...c,evs,esHoy:c.fecha===hoyStr};
+  });
 
   const celdaHTML=(c,colIdx)=>{
     const esFinde=colIdx===5||colIdx===6;
@@ -2392,8 +2508,73 @@ window.agImprimirMes=()=>{
   w.document.close();
   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },400);
 };
+function agImprimirAnioHTML(anio){
+  const centro=esc(state.centroNombre||"");
+  const meses=[];
+  for(let mes=1; mes<=12; mes++){
+    const mesStr=anio+"-"+String(mes).padStart(2,"0");
+    const eventosDelMes=agEventosDelMes(mesStr);
+    const celdas=agCalcularCeldasMes(mesStr).map(c=>{
+      if(c.pad) return c;
+      const evs=eventosDelMes.filter(e=>agEventoActivoEnDia(e,c.fecha));
+      return {...c,evs,esHoy:c.fecha===agHoyStr(),esFestivo:agEsFestivo(c.fecha)};
+    });
+    const filas=[];
+    for(let i=0;i<celdas.length;i+=7){
+      filas.push(`<tr>${celdas.slice(i,i+7).map(c=>{
+        if(c.pad) return `<td class="ay-pad"></td>`;
+        const clases=[c.esHoy?"ay-hoy":"", c.esFestivo?"ay-festivo":""].filter(Boolean).join(" ");
+        const punto = c.evs.length ? `<span class="ay-dot" style="background:${agTipoInfo(c.evs[0].tipo).color}"></span>` : "";
+        return `<td class="${clases}">${c.dia}${punto}</td>`;
+      }).join("")}</tr>`);
+    }
+    meses.push(`<div class="ay-mes">
+      <h3>${AG_MESES[mes-1]}</h3>
+      <table><thead><tr>${AG_DIAS.map(d=>`<th>${d}</th>`).join("")}</tr></thead><tbody>${filas.join("")}</tbody></table>
+    </div>`);
+  }
+  const leyenda=`<span class="ay-leyenda-item"><span class="ay-dot" style="background:rgba(220,38,38,.5)"></span>Festivo</span>` + AG_TIPOS.map(t=>`<span class="ay-leyenda-item"><span class="ay-dot" style="background:${t.color}"></span>${esc(t.label)}</span>`).join("");
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Calendario anual ${anio}</title>
+  <style>
+    @page{ size: A4 landscape; margin: 1.1cm; }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1c2536;margin:10px;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    h1{font-size:20px;margin:0 0 2px;color:#152a44}
+    .ay-centro{font-size:11px;color:#667;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+    .ay-leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:#4b5768;margin:0 0 10px}
+    .ay-leyenda-item{display:inline-flex;align-items:center;gap:4px;font-weight:600}
+    .ay-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:10px}
+    .ay-mes{border:1px solid #dde3ec;border-radius:8px;padding:6px}
+    .ay-mes h3{margin:0 0 4px;font-size:12px;text-transform:capitalize;text-align:center;color:#152a44}
+    .ay-mes table{border-collapse:collapse;width:100%;table-layout:fixed}
+    .ay-mes th{font-size:7.5px;color:#8a93a3;font-weight:700;padding:1px}
+    .ay-mes td{font-size:8.5px;text-align:center;padding:2px 0;position:relative;border-radius:3px}
+    .ay-pad{}
+    .ay-hoy{background:#fdf6e4;font-weight:800}
+    .ay-festivo{background:rgba(220,38,38,.22);font-weight:700}
+    .ay-dot{width:4px;height:4px;border-radius:50%;display:inline-block;margin-left:1px;vertical-align:middle}
+    .btnbar{margin-bottom:14px}
+    button{padding:8px 16px;font-size:14px;cursor:pointer;border-radius:8px;border:1px solid #ccc}
+    @media print{ .btnbar{display:none} }
+  </style></head><body>
+  <div class="btnbar"><button onclick="window.print()">Imprimir / Guardar como PDF</button> <button onclick="window.close()" style="background:#eee;color:#333">✕ Cerrar</button></div>
+  ${centro?`<div class="ay-centro">${centro}</div>`:""}
+  <h1>🗓️ Calendario ${anio}</h1>
+  <div class="ay-leyenda">${leyenda}</div>
+  <div class="ay-grid">${meses.join("")}</div>
+  </body></html>`;
+}
+window.agImprimirAnio=()=>{
+  const anio=Number(agMesActual().slice(0,4));
+  const w=window.open("","_blank");
+  if(!w){ alert("El navegador ha bloqueado la ventana emergente. Permite las ventanas emergentes para generar el calendario anual."); return; }
+  w.document.write(agImprimirAnioHTML(anio));
+  w.document.close();
+  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },400);
+};
 function agFiltroSelectHTML(){
-  return `<div class="flex" style="gap:8px;flex-wrap:wrap">
+  return `<div class="flex" style="gap:8px;flex-wrap:wrap;align-items:center">
+  <input class="in" style="padding:6px 10px;font-size:13px;width:150px" id="agBusquedaInput" placeholder="🔎 Buscar evento…" value="${esc(state.ui.agBusqueda||"")}" oninput="agSetBusqueda(this.value)">
   <select class="in" style="padding:6px 10px;font-size:13px" id="agFiltroSel" onchange="agSetFiltro(this.value)">
     <option value="" ${state.ui.agFiltroGrupo===""?"selected":""}>Todos los grupos</option>
     <option value="__general__" ${state.ui.agFiltroGrupo==="__general__"?"selected":""}>Sin grupo (general)</option>
@@ -2413,9 +2594,9 @@ function agRenderHoyBannerHTML(){
   if(!evs.length) return "";
   const chips=evs.map(e=>{
     const info=agTipoInfo(e.tipo);
-    const grupo=e.grupoId?state.grupos.find(g=>g.id===e.grupoId):null;
+    const grupoLabel=agGruposLabelEvento(e);
     return `<span class="ag-hoy-chip" style="border-color:${info.color}55;background:${info.color}14" onclick="agAbrirModal('${e.fecha}','${e.id}')">
-      <span class="ag-dot" style="background:${info.color}"></span>${e.hora?esc(e.hora)+" · ":""}${esc(e.titulo)}${grupo?` · ${esc(grupo.nombre)}`:""}
+      <span class="ag-dot" style="background:${info.color}"></span>${e.hora?esc(e.hora)+" · ":""}${esc(e.titulo)}${grupoLabel?` · ${esc(grupoLabel)}`:""}
     </span>`;
   }).join("");
   return `<div class="card" style="border-left:4px solid var(--accent);padding:14px 18px">
@@ -2425,7 +2606,138 @@ function agRenderHoyBannerHTML(){
     </div>
   </div>`;
 }
+window.agAbrirModalColores=()=>{ state.ui.agModalColores=true; save(); render(); };
+window.agCerrarModalColores=()=>{ state.ui.agModalColores=false; save(); render(); };
+window.agSetColorTipo=(id,color)=>{
+  if(!state.tiposColores || typeof state.tiposColores!=="object") state.tiposColores={};
+  state.tiposColores[id]=color;
+  save(); render();
+};
+window.agResetColorTipo=(id)=>{
+  if(state.tiposColores) delete state.tiposColores[id];
+  save(); render();
+};
+function agRenderModalColoresHTML(){
+  const filas=AG_TIPOS.map(t=>{
+    const color=agTipoInfo(t.id).color;
+    const personalizado=!!(state.tiposColores&&state.tiposColores[t.id]);
+    return `<div class="flex" style="justify-content:space-between;align-items:center;padding:6px 0">
+      <span class="pill" style="background:${color}1a;color:${color}">${t.label}</span>
+      <div class="flex" style="gap:6px;align-items:center">
+        <input type="color" value="${color}" style="width:34px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;cursor:pointer" onchange="agSetColorTipo('${t.id}',this.value)">
+        ${personalizado?`<button class="ghost small" style="border:1px solid var(--line)" onclick="agResetColorTipo('${t.id}')" title="Restablecer color por defecto">↺</button>`:""}
+      </div>
+    </div>`;
+  }).join("");
+  return `
+  <div class="modal-overlay" onclick="if(event.target===this) agCerrarModalColores()">
+    <div class="modal-box" style="max-width:380px">
+      <div class="flex" style="justify-content:space-between;align-items:flex-start">
+        <h2 style="font-size:17px">🎨 Colores de los tipos de evento</h2>
+        <button class="modal-close" onclick="agCerrarModalColores()">×</button>
+      </div>
+      <div style="margin-top:10px">${filas}</div>
+      <div class="flex" style="justify-content:flex-end;margin-top:18px">
+        <button class="btn" onclick="agCerrarModalColores()">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
+}
+function agCalcularCeldasMes(mesStr){
+  const [y,m]=mesStr.split("-").map(Number);
+  const primerDia=new Date(y,m-1,1);
+  let offset=primerDia.getDay(); offset=offset===0?6:offset-1;
+  const ultimoDia=new Date(y,m,0).getDate();
+  const celdas=[];
+  for(let i=0;i<offset;i++) celdas.push({pad:true});
+  for(let d=1; d<=ultimoDia; d++){
+    const fecha=`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    celdas.push({dia:d,fecha});
+  }
+  while(celdas.length%7!==0) celdas.push({pad:true});
+  return celdas;
+}
+function agLunesDeFecha(fecha){
+  const d=new Date(fecha+"T00:00:00");
+  const dow=(d.getDay()+6)%7;
+  d.setDate(d.getDate()-dow);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function agSemanaInicioActual(){
+  if(!state.ui.agSemanaInicio) state.ui.agSemanaInicio=agLunesDeFecha(agHoyStr());
+  return state.ui.agSemanaInicio;
+}
+function agSumarDiasFecha(fecha,dias){
+  const d=new Date(fecha+"T00:00:00"); d.setDate(d.getDate()+dias);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+window.agSetVistaCal=(v)=>{ state.ui.agVistaCal=v; save(); render(); };
+window.agSemanaAnterior=()=>{ state.ui.agSemanaInicio=agSumarDiasFecha(agSemanaInicioActual(),-7); save(); render(); };
+window.agSemanaSiguiente=()=>{ state.ui.agSemanaInicio=agSumarDiasFecha(agSemanaInicioActual(),7); save(); render(); };
+window.agSemanaHoy=()=>{ state.ui.agSemanaInicio=agLunesDeFecha(agHoyStr()); save(); render(); };
+function agRenderSemanaHTML(toggleVista,botonesExtra){
+  const inicio=agSemanaInicioActual();
+  const dIni=new Date(inicio+"T00:00:00");
+  const dias=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(dIni); d.setDate(d.getDate()+i);
+    dias.push({fecha:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"), d});
+  }
+  const dFin=dias[6].d;
+  const rangoLabel = dIni.getMonth()===dFin.getMonth()
+    ? `${dIni.getDate()}–${dFin.getDate()} de ${AG_MESES[dIni.getMonth()]} ${dFin.getFullYear()}`
+    : `${dIni.getDate()} ${AG_MESES[dIni.getMonth()].slice(0,3)} – ${dFin.getDate()} ${AG_MESES[dFin.getMonth()].slice(0,3)} ${dFin.getFullYear()}`;
+  const hoyStr=agHoyStr();
+  const cols=dias.map((it,idx)=>{
+    const evs=agEventosFiltrados((state.eventos||[]).filter(e=>agEventoActivoEnDia(e,it.fecha))).sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99"));
+    const esHoy=it.fecha===hoyStr;
+    const esFestivo=agEsFestivo(it.fecha);
+    const chips=evs.map(e=>{
+      const info=agTipoInfo(e.tipo);
+      return `<div class="ag-semana-ev" style="background:${info.color}1f;color:${info.color}" onclick="agAbrirModal('${e.fecha}','${e.id}')" title="${esc((e.hora?e.hora+" ":"")+e.titulo)}">${e.hora?`<b>${esc(e.hora)}</b> `:""}${esc(e.titulo)}</div>`;
+    }).join("");
+    return `<div class="ag-semana-col ${esHoy?"hoy":""} ${esFestivo?"festivo":""}">
+      <div class="ag-semana-dia">${AG_DIAS_LARGO[idx].slice(0,3)}</div>
+      <div class="ag-semana-num">${it.d.getDate()}</div>
+      <div class="ag-semana-evs">${chips}</div>
+      <button class="ghost small" style="margin-top:auto;padding:2px 6px;font-size:11px" onclick="agAbrirModal('${it.fecha}','')">+ Añadir</button>
+    </div>`;
+  }).join("");
+  return `
+  <div class="card">
+    <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+      ${toggleVista}
+      ${botonesExtra}
+    </div>
+    <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h2 style="font-size:16px">📅 ${rangoLabel}</h2>
+      <div class="flex" style="gap:8px;flex-wrap:wrap">
+        ${agFiltroSelectHTML()}
+        <div class="flex" style="gap:4px">
+          <button class="ghost" onclick="agSemanaAnterior()" title="Semana anterior">←</button>
+          <button class="ghost" onclick="agSemanaHoy()">Hoy</button>
+          <button class="ghost" onclick="agSemanaSiguiente()" title="Semana siguiente">→</button>
+        </div>
+      </div>
+    </div>
+    <div class="ag-semana">${cols}</div>
+    <div class="flex" style="margin-top:14px">
+      <button class="btn" onclick="agAbrirModal('${agFechaPorDefecto()}','')">+ Añadir evento</button>
+      <button class="ghost" style="border:1px solid var(--line)" onclick="agExportarICS()" title="Descarga un archivo .ics para importar en el Calendario del iPad, iPhone, Mac o Google Calendar">⬇ Exportar .ics</button>
+    </div>
+  </div>`;
+}
 function agRenderCalendarioHTML(){
+  const vistaCal=state.ui.agVistaCal||"mes";
+  const toggleVista=`<div class="flex" style="gap:4px">
+    <button class="tab ${vistaCal==="mes"?"on":""}" style="padding:5px 12px;font-size:12.5px" onclick="agSetVistaCal('mes')">📅 Mes</button>
+    <button class="tab ${vistaCal==="semana"?"on":""}" style="padding:5px 12px;font-size:12.5px" onclick="agSetVistaCal('semana')">🗓️ Semana</button>
+  </div>`;
+  const botonesExtra=`<div class="flex" style="gap:8px;flex-wrap:wrap">
+    <button class="ghost small" style="border:1px solid var(--line)" onclick="agAbrirModalFestivos()">🔴 Festivos</button>
+    <button class="ghost small" style="border:1px solid var(--line)" onclick="agAbrirModalColores()">🎨 Colores</button>
+  </div>`;
+  if(vistaCal==="semana") return agRenderSemanaHTML(toggleVista,botonesExtra);
   const mesStr=agMesActual();
   const [y,m]=mesStr.split("-").map(Number);
   const primerDia=new Date(y,m-1,1);
@@ -2442,8 +2754,10 @@ function agRenderCalendarioHTML(){
     const esHoy=fecha===hoyStr;
     const esSel=fecha===state.ui.agDiaSel;
     const esFestivo=agEsFestivo(fecha);
+    const festivoInfo=agFestivoEnDia(fecha);
     const puntos=evs.slice(0,3).map(e=>`<span class="ag-dot" style="background:${agTipoInfo(e.tipo).color}"></span>`).join("");
-    celdas+=`<div class="ag-cell ${esHoy?"ag-cell-hoy":""} ${esSel?"ag-cell-sel":""} ${esFestivo?"ag-cell-festivo":""}" title="${esFestivo?"Festivo. ":""}${evs.length?evs.map(e=>(e.hora?e.hora+" ":"")+e.titulo).join(" · "):""}" onclick="agSeleccionarDia('${fecha}')">
+    const tituloTip=[esFestivo?("Festivo"+(festivoInfo&&festivoInfo.etiqueta?": "+festivoInfo.etiqueta:"")):"", evs.length?evs.map(e=>(e.hora?e.hora+" ":"")+e.titulo).join(" · "):""].filter(Boolean).join(". ");
+    celdas+=`<div class="ag-cell ${esHoy?"ag-cell-hoy":""} ${esSel?"ag-cell-sel":""} ${esFestivo?"ag-cell-festivo":""}" title="${esc(tituloTip)}" onclick="agSeleccionarDia('${fecha}')">
       <span class="ag-daynum">${d}</span>
       ${evs.length?`<span class="ag-dots">${puntos}${evs.length>3?`<span class="ag-more">+${evs.length-3}</span>`:""}</span>`:""}
     </div>`;
@@ -2453,6 +2767,10 @@ function agRenderCalendarioHTML(){
 
   return `
   <div class="card">
+    <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+      ${toggleVista}
+      ${botonesExtra}
+    </div>
     <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <h2 style="font-size:16px;text-transform:capitalize;cursor:pointer;position:relative;display:inline-flex;align-items:center;gap:4px" title="Pulsa para ir directamente a un mes">📅 ${AG_MESES[m-1]} ${y} <span style="font-size:11px;color:var(--mut)">▾</span>
         <input type="month" id="agMesInput" value="${mesStr}" onchange="agIrAMes(this.value)" style="position:absolute;inset:0;opacity:0;border:0;padding:0;margin:0;cursor:pointer;font-size:inherit">
@@ -2472,6 +2790,7 @@ function agRenderCalendarioHTML(){
       <button class="btn" onclick="agAbrirModal('${agFechaPorDefecto()}','')">+ Añadir evento</button>
       <button class="ghost" style="border:1px solid var(--line)" onclick="agExportarICS()" title="Descarga un archivo .ics para importar en el Calendario del iPad, iPhone, Mac o Google Calendar">⬇ Exportar .ics</button>
       <button class="ghost" style="border:1px solid var(--line)" onclick="agImprimirMes()" title="Abre una vista imprimible de este mes, lista para imprimir en A3">🖨️ Imprimir mes (A3)</button>
+      <button class="ghost" style="border:1px solid var(--line)" onclick="agImprimirAnio()" title="Vista anual compacta con los festivos marcados, lista para imprimir">🖨️ Imprimir año</button>
     </div>
   </div>`;
 }
@@ -2479,7 +2798,7 @@ function agConQuienLabel(e){ return e.tipo==="reunion" && e.reunionCon ? reTipoI
 function agRangoLabel(e){ return (e.fechaFin && e.fechaFin!==e.fecha) ? `${fmt2(e.fecha)} – ${fmt2(e.fechaFin)}` : ""; }
 function agEventoDiaFilaHTML(e){
   const info=agTipoInfo(e.tipo);
-  const grupo=e.grupoId? state.grupos.find(g=>g.id===e.grupoId) : null;
+  const grupoLabel=agGruposLabelEvento(e);
   const con=agConQuienLabel(e);
   const rango=agRangoLabel(e);
   return `<div class="ag-evento" onclick="agAbrirModal('${e.fecha}','${e.id}')">
@@ -2489,7 +2808,7 @@ function agEventoDiaFilaHTML(e){
     <div class="ag-evento-info">
       <span class="pill" style="background:${info.color}1a;color:${info.color}">${info.label}</span>
       <div class="ag-evento-titulo">${esc(e.titulo)}</div>
-      ${grupo?`<div class="ag-evento-grupo">${esc(grupo.nombre)}</div>`:""}
+      ${grupoLabel?`<div class="ag-evento-grupo">${esc(grupoLabel)}</div>`:""}
       ${con?`<div class="ag-evento-grupo">👥 ${esc(con)}</div>`:""}
       ${rango?`<div class="ag-evento-grupo">📅 ${rango}</div>`:""}
     </div>
@@ -2526,6 +2845,7 @@ function agRenderDiaHTML(fecha){
   const evs=agEventosFiltrados((state.eventos||[]).filter(e=>agEventoActivoEnDia(e,fecha))).sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99")||a.titulo.localeCompare(b.titulo));
   const esHoy=fecha===agHoyStr();
   const esFestivo=agEsFestivo(fecha);
+  const festivoInfo=agFestivoEnDia(fecha);
   const horarioDia=agHorarioDelDia(fecha);
   const filas=evs.length? evs.map(agEventoDiaFilaHTML).join("") : `<p class="sub" style="margin:8px 0 0">No hay nada previsto este día.</p>`;
   return `
@@ -2534,7 +2854,7 @@ function agRenderDiaHTML(fecha){
       <div>
         <strong style="font-size:14.5px">${nombreDia} ${d.getDate()} de ${AG_MESES[d.getMonth()]}</strong>
         ${esHoy?`<span class="pill" style="background:var(--accent-soft);color:var(--accent-2);margin-left:8px">Hoy</span>`:""}
-        ${esFestivo?`<span class="pill" style="background:rgba(220,38,38,.14);color:#b91c1c;margin-left:8px">Festivo</span>`:""}
+        ${esFestivo?`<span class="pill" style="background:rgba(220,38,38,.14);color:#b91c1c;margin-left:8px">Festivo${festivoInfo&&festivoInfo.etiqueta?": "+esc(festivoInfo.etiqueta):""}</span>`:""}
       </div>
       <button class="ghost" style="padding:2px 10px" onclick="agCerrarDia()" title="Volver al resumen del mes">× Cerrar</button>
     </div>
@@ -2554,13 +2874,14 @@ function agRenderDiaHTML(fecha){
 }
 function agRenderResumenHTML(){
   if(state.ui.agDiaSel) return agRenderDiaHTML(state.ui.agDiaSel);
+  const busqueda=(state.ui.agBusqueda||"").trim();
   const vista=state.ui.agVista||"mes";
-  const evs = vista==="proximos" ? agProximosEventos(10) : agEventosDelMes(agMesActual());
+  const evs = busqueda ? agEventosBusqueda() : (vista==="proximos" ? agProximosEventos(10) : agEventosDelMes(agMesActual()));
   const filas = evs.length? evs.map(e=>{
     const info=agTipoInfo(e.tipo);
     const d=new Date(e.fecha+"T00:00:00");
-    const etiquetaFecha = vista==="proximos" ? AG_MESES[d.getMonth()].slice(0,3) : AG_DIAS[(d.getDay()+6)%7];
-    const grupo=e.grupoId? state.grupos.find(g=>g.id===e.grupoId) : null;
+    const etiquetaFecha = (busqueda||vista==="proximos") ? AG_MESES[d.getMonth()].slice(0,3) : AG_DIAS[(d.getDay()+6)%7];
+    const grupoLabel=agGruposLabelEvento(e);
     const con=agConQuienLabel(e);
     const rango=agRangoLabel(e);
     return `<div class="ag-evento" onclick="agAbrirModal('${e.fecha}','${e.id}')">
@@ -2569,18 +2890,19 @@ function agRenderResumenHTML(){
         <span class="pill" style="background:${info.color}1a;color:${info.color}">${info.label}</span>
         ${e.hora?`<span class="pill" style="background:var(--surface);border:1px solid var(--line);color:var(--mut);margin-left:4px">⏰ ${esc(e.hora)}</span>`:""}
         <div class="ag-evento-titulo">${esc(e.titulo)}</div>
-        ${grupo?`<div class="ag-evento-grupo">${esc(grupo.nombre)}</div>`:""}
+        ${grupoLabel?`<div class="ag-evento-grupo">${esc(grupoLabel)}</div>`:""}
         ${con?`<div class="ag-evento-grupo">👥 ${esc(con)}</div>`:""}
         ${rango?`<div class="ag-evento-grupo">📅 ${rango}</div>`:""}
       </div>
     </div>`;
-  }).join("") : `<p class="sub" style="margin:8px 0 0">${vista==="proximos"?"No hay próximos eventos.":"Sin eventos este mes."} Pulsa un día del calendario para ver qué hay previsto, o "Nuevo" para añadir uno.</p>`;
+  }).join("") : `<p class="sub" style="margin:8px 0 0">${busqueda?"Sin resultados para esta búsqueda.":(vista==="proximos"?"No hay próximos eventos.":"Sin eventos este mes.")} ${busqueda?"":`Pulsa un día del calendario para ver qué hay previsto, o "Nuevo" para añadir uno.`}</p>`;
   return `
   <div class="card">
     <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:8px">
       <div class="flex" style="gap:4px">
+        ${busqueda?`<span class="pill" style="background:var(--accent-soft);color:var(--accent-2)">🔎 Resultados de "${esc(busqueda)}"</span>`:`
         <button class="tab ${vista==="mes"?"on":""}" style="padding:5px 12px;font-size:12.5px" onclick="agSetVista('mes')">Este mes</button>
-        <button class="tab ${vista==="proximos"?"on":""}" style="padding:5px 12px;font-size:12.5px" onclick="agSetVista('proximos')">Próximos</button>
+        <button class="tab ${vista==="proximos"?"on":""}" style="padding:5px 12px;font-size:12.5px" onclick="agSetVista('proximos')">Próximos</button>`}
       </div>
       <button class="btn small" onclick="agAbrirModal('${agFechaPorDefecto()}','')">+ Nuevo</button>
     </div>
@@ -2655,12 +2977,14 @@ function agRenderModalHTML(){
           </label>
           <p class="sub" style="margin:4px 0 0;font-size:11.5px">Al vincularla, este evento abrirá un acceso directo a su acta.</p>
         </div>
-        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Grupo (opcional)
-          <select class="in" style="width:100%;margin-top:4px" id="agFGrupo">
-            <option value="" id="agFGrupoNinguno">${(tipoInicial==="cocope"||tipoInicial==="claustro")?"Ninguno":"General / todos"}</option>
-            ${state.grupos.map(g=>`<option value="${g.id}" ${ev&&ev.grupoId===g.id?"selected":""}>${esc(g.nombre)}</option>`).join("")}
-          </select>
-        </label>
+        <div style="font-size:12.5px;color:var(--mut);font-weight:500" id="agFGrupoWrap">
+          Grupos (opcional) <span id="agFGrupoNingunoTxt" style="font-weight:400;font-style:italic">${(tipoInicial==="cocope"||tipoInicial==="claustro")?"— Ninguno (no aplica a grupos) —":"— vacío = General / todos —"}</span>
+          <div class="ag-lista" id="agFGrupoLista" style="max-height:120px;margin-top:4px;border:1px solid var(--line);border-radius:10px;padding:6px 10px">
+            ${state.grupos.length? state.grupos.map(g=>`<label class="flex" style="gap:8px;align-items:center;font-weight:400;font-size:13px;padding:3px 0">
+              <input type="checkbox" class="agFGrupoChk" value="${g.id}" ${ev&&agGrupoIdsDeEvento(ev).includes(g.id)?"checked":""}>${esc(g.nombre)}
+            </label>`).join("") : `<p class="sub" style="margin:2px 0">No hay grupos creados todavía.</p>`}
+          </div>
+        </div>
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Notas (opcional)
           <textarea class="in" style="width:100%;margin-top:4px;min-height:60px;resize:vertical" id="agFNotas">${ev?esc(ev.notas||""):""}</textarea>
         </label>
@@ -2669,6 +2993,7 @@ function agRenderModalHTML(){
             <select class="in" style="width:100%;margin-top:4px" id="agFRepetir" onchange="document.getElementById('agRepetirHastaWrap').style.display=this.value?'':'none'">
               <option value="">No repetir</option>
               <option value="semanal">Cada semana</option>
+              <option value="quincenal">Cada 15 días</option>
               <option value="mensual">Cada mes</option>
             </select>
           </label>
@@ -2698,10 +3023,10 @@ window.agActualizarCamposModalEvento=(tipo)=>{
   const sinTitulo = tipo==="cocope"||tipo==="claustro";
   const tituloWrap=document.getElementById("agFTituloWrap");
   if(tituloWrap) tituloWrap.style.display=sinTitulo?"none":"";
-  const grupoNinguno=document.getElementById("agFGrupoNinguno");
-  if(grupoNinguno){
-    grupoNinguno.textContent=sinTitulo?"Ninguno":"General / todos";
-    if(sinTitulo){ const sel=document.getElementById("agFGrupo"); if(sel) sel.value=""; }
+  const grupoNingunoTxt=document.getElementById("agFGrupoNingunoTxt");
+  if(grupoNingunoTxt){
+    grupoNingunoTxt.textContent=sinTitulo?"— Ninguno (no aplica a grupos) —":"— vacío = General / todos —";
+    if(sinTitulo) document.querySelectorAll(".agFGrupoChk").forEach(chk=>{ chk.checked=false; });
   }
 };
 window.agAbrirModal=(fecha,eventoId)=>{ state.ui.agModalFecha=fecha||agFechaPorDefecto(); state.ui.agModalEventId=eventoId||""; save(); render(); };
@@ -2715,7 +3040,7 @@ window.agSincronizarConReunion=(reunionId)=>{
 window.agDuplicarEvento=id=>{
   const ev=(state.eventos||[]).find(e=>e.id===id);
   if(!ev) return;
-  const copia={...ev, id:uid(), recurrenciaId:""};
+  const copia={...ev, id:uid(), recurrenciaId:"", grupoIds:agGrupoIdsDeEvento(ev).slice()};
   if(!Array.isArray(state.eventos)) state.eventos=[];
   state.eventos.push(copia);
   state.ui.agModalEventId=copia.id;
@@ -2731,7 +3056,7 @@ window.agGuardarEvento=()=>{
   const fechaFinInput=document.getElementById("agFFechaFin")?.value||"";
   const fechaFin = (fechaFinInput && fechaFinInput>fecha) ? fechaFinInput : "";
   const horaFin=document.getElementById("agFHoraFin")?.value||"";
-  const grupoId=document.getElementById("agFGrupo").value;
+  const grupoIds=Array.from(document.querySelectorAll(".agFGrupoChk:checked")).map(chk=>chk.value);
   const notas=document.getElementById("agFNotas").value.trim();
   const examId = tipo==="examen" ? (document.getElementById("agFExamen")?.value||"") : "";
   const reunionId = tipo==="reunion" ? (document.getElementById("agFReunion")?.value||"") : "";
@@ -2741,7 +3066,7 @@ window.agGuardarEvento=()=>{
   const id=state.ui.agModalEventId;
   if(id){
     const ev=state.eventos.find(e=>e.id===id);
-    if(ev){ ev.fecha=fecha; ev.fechaFin=fechaFin; ev.titulo=titulo; ev.tipo=tipo; ev.hora=hora; ev.horaFin=horaFin; ev.grupoId=grupoId; ev.notas=notas; ev.examId=examId; ev.reunionId=reunionId; ev.reunionCon=reunionCon; }
+    if(ev){ ev.fecha=fecha; ev.fechaFin=fechaFin; ev.titulo=titulo; ev.tipo=tipo; ev.hora=hora; ev.horaFin=horaFin; ev.grupoIds=grupoIds; delete ev.grupoId; ev.notas=notas; ev.examId=examId; ev.reunionId=reunionId; ev.reunionCon=reunionCon; }
   }else{
     const repetir = fechaFin ? "" : (document.getElementById("agFRepetir")?.value||"");
     const hasta=repetir? document.getElementById("agFRepetirHasta")?.value : "";
@@ -2749,6 +3074,7 @@ window.agGuardarEvento=()=>{
       const recurrenciaId=uid();
       const inicio=new Date(fecha+"T00:00:00");
       const diaObjetivo=inicio.getDate();
+      const pasoDias = repetir==="quincenal" ? 14 : 7;
       let n=0, creados=0, f=fecha;
       while(creados<120){
         if(repetir==="mensual"){
@@ -2758,15 +3084,15 @@ window.agGuardarEvento=()=>{
           const ultimoDiaMes=new Date(y2,m2+1,0).getDate();
           f=y2+"-"+String(m2+1).padStart(2,"0")+"-"+String(Math.min(diaObjetivo,ultimoDiaMes)).padStart(2,"0");
         }else{
-          const dt=new Date(inicio); dt.setDate(dt.getDate()+7*n);
+          const dt=new Date(inicio); dt.setDate(dt.getDate()+pasoDias*n);
           f=dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");
         }
         if(f>hasta) break;
-        state.eventos.push({id:uid(),fecha:f,fechaFin:"",titulo,tipo,hora,horaFin,grupoId,notas,examId:"",reunionId:"",reunionCon,recurrenciaId});
+        state.eventos.push({id:uid(),fecha:f,fechaFin:"",titulo,tipo,hora,horaFin,grupoIds,notas,examId:"",reunionId:"",reunionCon,recurrenciaId});
         n++; creados++;
       }
     }else{
-      state.eventos.push({id:uid(),fecha,fechaFin,titulo,tipo,hora,horaFin,grupoId,notas,examId,reunionId,reunionCon,recurrenciaId:""});
+      state.eventos.push({id:uid(),fecha,fechaFin,titulo,tipo,hora,horaFin,grupoIds,notas,examId,reunionId,reunionCon,recurrenciaId:""});
     }
   }
   state.ui.agMes=fecha.slice(0,7);
@@ -2774,7 +3100,7 @@ window.agGuardarEvento=()=>{
   state.ui.agModalFecha=""; state.ui.agModalEventId="";
   // Si el filtro activo dejaría oculto el evento que se acaba de guardar, se quita
   // para que se vea de inmediato (si no, parece que el evento no se ha guardado).
-  const filtroGrupoOk = !state.ui.agFiltroGrupo || (state.ui.agFiltroGrupo==="__general__" ? !grupoId : state.ui.agFiltroGrupo===grupoId);
+  const filtroGrupoOk = !state.ui.agFiltroGrupo || (state.ui.agFiltroGrupo==="__general__" ? grupoIds.length===0 : grupoIds.includes(state.ui.agFiltroGrupo));
   const filtroTipoOk = !state.ui.agFiltroTipo || state.ui.agFiltroTipo===tipo;
   let filtroAjustado=false;
   if(!filtroGrupoOk){ state.ui.agFiltroGrupo=""; filtroAjustado=true; }
@@ -3145,7 +3471,7 @@ function reGuardarCampos(){ save(); }
 function reSyncEvento(r){
   const vinculados=(state.eventos||[]).filter(e=>e.reunionId===r.id);
   if(!vinculados.length) return;
-  vinculados.forEach(ev=>{ ev.titulo=r.titulo; ev.tipo="reunion"; if(r.fecha) ev.fecha=r.fecha; ev.grupoId=r.grupoId||""; ev.reunionCon=r.tipo; ev.hora=r.horaInicio||""; });
+  vinculados.forEach(ev=>{ ev.titulo=r.titulo; ev.tipo="reunion"; if(r.fecha) ev.fecha=r.fecha; ev.grupoIds=r.grupoId?[r.grupoId]:[]; ev.reunionCon=r.tipo; ev.hora=r.horaInicio||""; });
   save();
 }
 window.reRefrescarAlumnoDetalle=()=>{
@@ -5023,6 +5349,8 @@ function renderHome(){
     </div>
   </div>`:""}
   ${state.ui.agModalFecha ? agRenderModalHTML() : ""}
+  ${state.ui.agModalFestivos ? agRenderModalFestivosHTML() : ""}
+  ${state.ui.agModalColores ? agRenderModalColoresHTML() : ""}
   ${state.ui.horModalCelda ? horRenderModalHTML() : ""}`;
 }
 window.irAGrupo=id=>{ state.ui.grupoId=id;
@@ -8775,7 +9103,7 @@ window.borrarGrupoId=id=>{
     state.grupos=state.grupos.filter(x=>x.id!==id);
     if(state.ui.grupoId===id){ state.ui.grupoId=null; state.ui.corExamId=""; state.ui.corAlId=""; state.ui.corTab="lista"; }
     if(state.ui.agFiltroGrupo===id) state.ui.agFiltroGrupo="";
-    (state.eventos||[]).forEach(e=>{ if(e.grupoId===id) e.grupoId=""; });
+    (state.eventos||[]).forEach(e=>{ e.grupoIds=agGrupoIdsDeEvento(e).filter(gid=>gid!==id); if(e.grupoId===id) e.grupoId=""; });
     (state.reuniones||[]).forEach(r=>{ if(r.grupoId===id){ r.grupoId=""; r.alumnoId=""; } });
     save(); render();
   }
