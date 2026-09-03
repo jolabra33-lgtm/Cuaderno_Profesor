@@ -6778,7 +6778,7 @@ function evolucionModalHTML(grupo,al){
     ?`<button class="ghost small" style="border:1px solid #bcdac8;color:#1e5631;background:#eef7f1" title="Pulsa para desmarcar" onclick="marcarInformeEntregado('${al.id}',${periodoArg})">✓ Entregado el ${fmt2(entrega.fecha)}</button>`
     :`<button class="ghost small" style="border:1px solid var(--line)" onclick="marcarInformeEntregado('${al.id}',${periodoArg})">Marcar como entregado</button>`;
   return `<div class="modal-overlay" onclick="if(event.target===this) cerrarEvolucionAlumno()">
-    <div class="modal-box" style="max-width:80vw;width:80vw;height:80vh;max-height:80vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <div class="modal-box" style="max-width:80vw;width:80vw;height:80vh;max-height:80vh;display:flex;flex-direction:column;padding:0;overflow:hidden;background:var(--card);backdrop-filter:none;-webkit-backdrop-filter:none">
       <div style="padding:14px 26px;border-bottom:1px solid var(--line);flex-shrink:0">
         <div class="flex" style="justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-weight:700;font-size:15px">👁️ ${esc(al.nombre)}</div>
