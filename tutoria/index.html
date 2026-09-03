@@ -3542,7 +3542,7 @@ function renderMain() {
     editBtn.dataset.nivel = nivel;
     editBtn.dataset.grupo = g;
     editBtn.textContent = '✏';
-    editBtn.addEventListener('click', e => { e.stopPropagation(); openRenameGrupo(nivel, g); });
+    editBtn.addEventListener('click', e => { e.stopPropagation(); openRenameGrupoModal(nivel, g); });
     tab.appendChild(editBtn);
 
     // Delete button
@@ -6074,6 +6074,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const ag = document.getElementById('addGrupoOverlay');
   if (ag) ag.addEventListener('click', function(e) { if (e.target === this) closeAddGrupoModal(); });
 
+  const rg = document.getElementById('renameGrupoOverlay');
+  if (rg) rg.addEventListener('click', function(e) { if (e.target === this) closeRenameGrupoModal(); });
+
   const ji = document.getElementById('jsonImportOverlay');
   if (ji) ji.addEventListener('click', function(e) { if (e.target === this) closeJsonImportModal(); });
 
@@ -8564,20 +8567,37 @@ function confirmAddGrupo() {
   showToast(`✓ Grupo ${nivel} ${letra} creado`);
 }
 
-function openRenameGrupo(nivel, grupo) {
-  const nuevoNombre = prompt(`Renombrar grupo "${nivel} ${grupo}"\n\nNuevo nombre:`, grupo);
-  if (nuevoNombre === null) return; // cancelled
-  const nombre = nuevoNombre.trim();
-  if (!nombre) { alert('El nombre no puede estar vacío.'); return; }
-  if (nombre === grupo) return; // no change
-  if (GRUPOS_POR_NIVEL[nivel].includes(nombre)) {
-    alert(`Ya existe un grupo "${nombre}" en ${nivel}.`);
-    return;
-  }
-  confirmRenameGrupo(nivel, grupo, nombre);
+let _pendingRenameGrupo = null; // { nivel, grupo }
+
+function openRenameGrupoModal(nivel, grupo) {
+  _pendingRenameGrupo = { nivel, grupo };
+  const inp = document.getElementById('renameGrupoNombre');
+  if (inp) inp.value = grupo;
+  const err = document.getElementById('renameGrupoError');
+  if (err) err.style.display = 'none';
+  document.getElementById('renameGrupoOverlay').classList.add('open');
+  setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 100);
 }
 
-function confirmRenameGrupo(nivel, grupoViejo, grupoNuevo) {
+function closeRenameGrupoModal() {
+  document.getElementById('renameGrupoOverlay').classList.remove('open');
+  _pendingRenameGrupo = null;
+}
+
+function confirmRenameGrupo() {
+  if (!_pendingRenameGrupo) return;
+  const { nivel, grupo: grupoViejo } = _pendingRenameGrupo;
+  const grupoNuevo = (document.getElementById('renameGrupoNombre').value || '').trim();
+  const errEl = document.getElementById('renameGrupoError');
+  const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+  if (!grupoNuevo) { showErr('Introduce un nombre para el grupo.'); return; }
+  if (grupoNuevo === grupoViejo) { closeRenameGrupoModal(); return; }
+  if (GRUPOS_POR_NIVEL[nivel].includes(grupoNuevo)) {
+    showErr(`Ya existe un grupo "${grupoNuevo}" en ${nivel}.`);
+    return;
+  }
+
   // Update GRUPOS_POR_NIVEL preserving order
   const idx = GRUPOS_POR_NIVEL[nivel].indexOf(grupoViejo);
   GRUPOS_POR_NIVEL[nivel].splice(idx, 1, grupoNuevo);
@@ -8608,6 +8628,7 @@ function confirmRenameGrupo(nivel, grupoViejo, grupoNuevo) {
   // Update currentGrupos
   if (currentGrupos[nivel] === grupoViejo) currentGrupos[nivel] = grupoNuevo;
 
+  closeRenameGrupoModal();
   renderAll();
   markDirty();
   showToast(`✓ Grupo renombrado a "${nivel} ${grupoNuevo}"`);
@@ -16061,6 +16082,25 @@ async function pwaInstall() {
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeAddGrupoModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmAddGrupo()">Crear grupo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="renameGrupoOverlay">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">✏️ Renombrar Grupo</div>
+    <div class="modal-field">
+      <label class="modal-label">Nuevo nombre del grupo (letra, número o nombre)</label>
+      <input class="modal-input" id="renameGrupoNombre" placeholder="Ej: E, 5, Bilingüe…"
+        onkeydown="if(event.key==='Enter')confirmRenameGrupo()" />
+      <div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.5;">
+        Se actualizan automáticamente el alumnado, el tutor/a, las actas guardadas, las observaciones, la asistencia, las fotos y el horario de este grupo.
+      </div>
+    </div>
+    <div id="renameGrupoError" style="display:none;color:var(--red);font-size:12px;margin-top:-8px;margin-bottom:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeRenameGrupoModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmRenameGrupo()">Renombrar</button>
     </div>
   </div>
 </div>
