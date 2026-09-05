@@ -3887,13 +3887,36 @@ function rfEstadoInfo(id){ return RF_ESTADOS.find(e=>e.id===id)||RF_ESTADOS[0]; 
 function rfValoracionInfo(id){ return RF_VALORACIONES.find(v=>v.id===id)||RF_VALORACIONES[1]; }
 function rfAlumno(p){ const g=state.grupos.find(x=>x.id===p.grupoId); if(!g) return null; const al=g.alumnos.find(x=>x.id===p.alumnoId); return al?{al,g}:null; }
 function rfNombre(p){ const alV=rfAlumno(p); return alV?alV.al.nombre:(p.alumnoNombre||"(sin asignar)"); }
+/* Orden académico de un grupo a partir de su nombre: nivel educativo
+   (Primaria < ESO < FPB < Bachillerato) y, dentro de cada nivel, el
+   número de curso. Se usa para listar Planes de Refuerzo/Repetición
+   agrupados por curso en vez de por fecha. */
+const RFRP_NIVEL_ORDEN={"primaria":0,"eso":1,"fpb":2,"bachillerato":3};
+function rfrpOrdenCursoGrupo(g){
+  if(!g) return 999;
+  const t=normalizarTexto(g.nombre||"");
+  const m=t.match(/(\d+)\s*(?:er|do|to|º|o|\.)?\s*(primaria|eso|fpb|bachillerato|bach)/);
+  if(!m) return 999;
+  const num=parseInt(m[1],10)||0;
+  const nivel=m[2]==="bach"?"bachillerato":m[2];
+  const rango=RFRP_NIVEL_ORDEN[nivel];
+  return (rango===undefined?9:rango)*10+num;
+}
+function rfrpComparaPorCurso(pa,pb,alumnoFn,nombreFn){
+  const gA=(alumnoFn(pa)||{}).g, gB=(alumnoFn(pb)||{}).g;
+  const oa=rfrpOrdenCursoGrupo(gA), ob=rfrpOrdenCursoGrupo(gB);
+  if(oa!==ob) return oa-ob;
+  const cmpGrupo=collatorEs.compare(gA?gA.nombre:"", gB?gB.nombre:"");
+  if(cmpGrupo) return cmpGrupo;
+  return collatorEs.compare(nombreFn(pa), nombreFn(pb));
+}
 function rfListaFiltrada(){
   const f=state.ui.rfFiltroEstado, q=(state.ui.rfBusqueda||"").toLowerCase().trim();
   return (state.planesRefuerzo||[]).filter(p=>{
     if(f && p.estado!==f) return false;
     if(q){ const alV=rfAlumno(p); const texto=normalizarTexto((p.titulo||"")+" "+(alV?alV.al.nombre:"")); if(!texto.includes(normalizarTexto(q))) return false; }
     return true;
-  }).sort((a,b)=>(b.fechaInicio||"").localeCompare(a.fechaInicio||""));
+  }).sort((a,b)=>rfrpComparaPorCurso(a,b,rfAlumno,rfNombre));
 }
 window.rfTab=k=>{ state.ui.rfTab=k; if(k==="lista") state.ui.rfId=""; save(); render(); };
 window.rfIrLista=()=>{ state.ui.rfTab="lista"; state.ui.rfId=""; save(); render(); };
@@ -4377,7 +4400,7 @@ function rpListaFiltrada(){
     if(f && p.estado!==f) return false;
     if(q){ const texto=normalizarTexto(rpNombre(p)+" "+(p.cursoRepite||"")); if(!texto.includes(normalizarTexto(q))) return false; }
     return true;
-  }).sort((a,b)=>(b.fechaInicio||"").localeCompare(a.fechaInicio||""));
+  }).sort((a,b)=>rfrpComparaPorCurso(a,b,rpAlumno,rpNombre));
 }
 window.rpTab=k=>{ state.ui.rpTab=k; if(k==="lista") state.ui.rpId=""; save(); render(); };
 window.rpIrLista=()=>{ state.ui.rpTab="lista"; state.ui.rpId=""; save(); render(); };
@@ -6284,7 +6307,14 @@ function autoCrearPlanRefuerzoPendiente(g,a,curso){
   return true;
 }
 window.toggleRepetidor=(id,checked)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id);
-  if(a){ a.repetidor=checked; save(); } };
+  if(a){
+    a.repetidor=checked;
+    if(checked){
+      if(!a.plan) a.plan="repeticion";
+      if(autoCrearPlanRepeticionSiFalta(g,a)) mostrarToast("✓ Plan de Repetición creado para "+a.nombre);
+    }
+    save(); render();
+  } };
 window.toggleObservacion=id=>{ state.ui.alumAbierto = state.ui.alumAbierto===id? null : id; save(); render(); };
 window.togglePendientesRow=id=>{ state.ui.alumPendAbierto = state.ui.alumPendAbierto===id? null : id; save(); render(); };
 window.setFechaNacimiento=(id,valor)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id); if(a){ a.fechaNacimiento=valor; save(); render(); } };
