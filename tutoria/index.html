@@ -1090,7 +1090,7 @@ if ('serviceWorker' in navigator) {
   /* ===== WELCOME SCREEN — SPLIT LAYOUT ===== */
   #welcomeScreen {
     position: fixed; inset: 0; z-index: 9000;
-    display: flex; align-items: stretch;
+    display: none; align-items: stretch;
     background: #060810;
     animation: wsFadeIn 0.5s ease;
   }
@@ -2858,7 +2858,7 @@ if ('serviceWorker' in navigator) {
         PWA · Funciona sin internet
       </div>
       <div class="ws-hero-footer-sep"></div>
-      <div class="ws-hero-footer-badge">Archivos .evalies</div>
+      <div class="ws-hero-footer-badge">Archivos .json</div>
       <div class="ws-hero-footer-sep"></div>
       <div class="ws-hero-footer-badge">EvalIES v2025</div>
     </div>
@@ -2892,7 +2892,7 @@ if ('serviceWorker' in navigator) {
       <button class="ws-btn ws-btn-open" onclick="fsOpenFile()">
         <div class="ws-btn-icon">📂</div>
         <div style="flex:1">
-          <span class="ws-btn-label">Abrir archivo .evalies</span>
+          <span class="ws-btn-label">Abrir archivo .json</span>
           <span class="ws-btn-desc">Continuar con un archivo guardado</span>
         </div>
         <span class="ws-btn-arrow">→</span>
@@ -7347,7 +7347,7 @@ function renderMaterias() {
         </div>
 
         <div style="font-size:10px;color:var(--text3);padding:8px 14px;border-top:1px solid var(--border);margin-top:4px;">
-          💡 Doble clic o botón ✏ para renombrar · Arrastra para reordenar · Los cambios se guardan automáticamente en el archivo .evalies
+          💡 Doble clic o botón ✏ para renombrar · Arrastra para reordenar · Los cambios se guardan automáticamente en el archivo .json
         </div>
       </div>`;
   }
@@ -14599,7 +14599,7 @@ function openGuide() {
       <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto;">
         <div class="modal-title">📖 Guía rápida — EvalIES</div>
         <div style="font-size:13px;color:var(--text2);line-height:1.8;">
-          <p style="margin-bottom:12px">Gestor de Tutoría: seguimiento de evaluaciones, promoción y tutoría para centros de secundaria de la Comunitat Valenciana. Es una aplicación <strong>independiente</strong>, con sus propios datos y su propio archivo <code>.evalies</code> — no comparte alumnado ni notas con las demás herramientas de la suite.</p>
+          <p style="margin-bottom:12px">Gestor de Tutoría: seguimiento de evaluaciones, promoción y tutoría para centros de secundaria de la Comunitat Valenciana. Es una aplicación <strong>independiente</strong>, con sus propios datos y su propio archivo <code>.json</code> — no comparte alumnado ni notas con las demás herramientas de la suite.</p>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">🏠 Pestañas principales</div>
           <ul style="margin:0 0 12px 16px">
             <li><strong>Inicio</strong> — Resumen global con propuestas por nivel, FPB, PDC y Titulación</li>
@@ -14629,9 +14629,9 @@ function openGuide() {
           </ul>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">💾 Guardar datos</div>
           <ul style="margin:0 0 12px 16px">
-            <li>Los datos se guardan automáticamente en el navegador (localStorage)</li>
-            <li>Usa <strong>Ctrl+S</strong> o el menú de guardar para escribir al archivo <code>.evalies</code></li>
-            <li>El archivo <code>.evalies</code> es portable — lo puedes abrir en cualquier ordenador</li>
+            <li>Los datos se guardan automáticamente en el navegador (localStorage), siempre en formato JSON</li>
+            <li>Usa <strong>Ctrl+S</strong> o el menú de guardar para escribir al archivo <code>.json</code></li>
+            <li>El archivo <code>.json</code> es portable — lo puedes abrir en cualquier ordenador, e incluso con un editor de texto</li>
           </ul>
         </div>
         <div class="modal-actions">
@@ -15058,7 +15058,7 @@ let _autosaveTimer = null;
 let _quotaWarned = false;   // para no repetir el aviso de memoria llena
 
 // Estado COMPLETO de la aplicación: única fuente de verdad usada tanto por
-// el autoguardado en localStorage como por el guardado en archivo .evalies.
+// el autoguardado en localStorage como por el guardado en archivo .json.
 // Así ambos mecanismos nunca se desincronizan (antes localStorage guardaba
 // menos campos y "Continuar" perdía asistencia, observaciones, fotos, etc.).
 function buildState(includeImages = true, includeActas = true) {
@@ -15456,7 +15456,10 @@ function hideWelcomeScreen() {
   ws.style.display = 'none'; // immediate — no opacity trick that could leave it blocking clicks
 }
 
-// Mostrar pantalla de bienvenida siempre al abrir
+// Entrar directamente en la aplicación al abrir, sin mostrar la pantalla de bienvenida.
+// Si hay una sesión guardada en localStorage se retoma automáticamente (mismo
+// comportamiento que antes ofrecía el botón "Continuar sesión anterior");
+// si no la hay, se abre con el estado inicial en blanco (igual que "Nuevo archivo").
 window.addEventListener('load', () => {
   // Snapshot exports skip welcome — data already injected
   if (window.__IS_SNAPSHOT_EXPORT__) {
@@ -15465,25 +15468,10 @@ window.addEventListener('load', () => {
     return;
   }
 
-  // Always show welcome screen
-  const hasSaved = !!localStorage.getItem('evalies_data');
-  const continueBtn  = document.getElementById('wsBtnContinue');
-  const subtitle     = document.getElementById('wsSubtitle');
-  const continueDesc = document.getElementById('wsContinueDesc');
-
-  if (hasSaved) {
-    // Show "Continue" button with the saved centre name if available
-    const iesName = localStorage.getItem('evalies_iesname') || 'sesión anterior';
-    if (continueBtn)  continueBtn.style.display = '';
-    if (continueDesc) continueDesc.textContent   = iesName;
-    if (subtitle)     subtitle.textContent       = 'Tienes una sesión guardada. ¿Cómo quieres continuar?';
-  } else {
-    if (continueBtn) continueBtn.style.display = 'none';
-    if (subtitle)    subtitle.textContent = 'Abre un archivo existente o empieza uno nuevo para tu centro.';
-  }
-
-  showWelcomeScreen();
-  renderRecentsList();
+  hideWelcomeScreen();
+  renderAll();
+  syncDateInputs();
+  updateFileIndicator();
 });
 
 // --- Indicador de archivo en cabecera ---
@@ -15511,7 +15499,7 @@ function updateFileIndicator(name, unsaved) {
   } else {
     label.textContent = 'Sin archivo abierto';
     label.title = escrituraDirecta
-      ? 'Abre o crea un archivo .evalies para guardar tus cambios'
+      ? 'Abre o crea un archivo .json para guardar tus cambios'
       : 'Este navegador no reescribe archivos: Guardar descargará una copia';
     dot.className = 'file-dot nofile';
     if (status) {
@@ -15682,8 +15670,8 @@ async function fsNewFile() {
   }
   try {
     const handle = await window.showSaveFilePicker({
-      suggestedName: 'MiCentro_' + new Date().getFullYear() + '-' + String(new Date().getFullYear()+1).slice(2) + '.evalies',
-      types: [{ description: 'Archivo EvalIES', accept: { 'application/json': ['.evalies'] } }]
+      suggestedName: 'MiCentro_' + new Date().getFullYear() + '-' + String(new Date().getFullYear()+1).slice(2) + '.json',
+      types: [{ description: 'Archivo EvalIES (JSON)', accept: { 'application/json': ['.json'] } }]
     });
     _fileHandle = handle;
     // Reset data
@@ -15726,7 +15714,7 @@ async function fsOpenFile() {
   }
   try {
     const [handle] = await window.showOpenFilePicker({
-      types: [{ description: 'Archivo EvalIES', accept: { 'application/json': ['.evalies', '.json'] } }],
+      types: [{ description: 'Archivo EvalIES (JSON)', accept: { 'application/json': ['.json', '.evalies'] } }],
       multiple: false
     });
     _fileHandle = handle;
@@ -15748,7 +15736,7 @@ async function fsOpenFile() {
 function fsOpenFileFallback() {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.evalies,.json';
+  input.accept = '.json,.evalies';
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
@@ -15818,7 +15806,7 @@ async function fsSaveAs() {
   if (!window.showSaveFilePicker) {
     // Fallback: descarga
     const blob = new Blob([getFilePayload()], {type:'application/json'});
-    const name = (_fileHandle?.name || 'evalies_datos') .replace(/\.evalies$/,'') + '.evalies';
+    const name = (_fileHandle?.name || 'evalies_datos').replace(/\.(evalies|json)$/i,'') + '.json';
     triggerDownload(blob, name);
     _fileUnsaved = false;
     updateFileIndicator();
@@ -15827,8 +15815,8 @@ async function fsSaveAs() {
   }
   try {
     const handle = await window.showSaveFilePicker({
-      suggestedName: _fileHandle?.name || 'MiCentro.evalies',
-      types: [{ description: 'Archivo EvalIES', accept: { 'application/json': ['.evalies'] } }]
+      suggestedName: (_fileHandle?.name || 'MiCentro').replace(/\.(evalies|json)$/i,'') + '.json',
+      types: [{ description: 'Archivo EvalIES (JSON)', accept: { 'application/json': ['.json'] } }]
     });
     _fileHandle = handle;
     await fsSave();
@@ -15885,10 +15873,10 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-// --- Apertura desde el sistema operativo (doble clic en un .evalies) ---
+// --- Apertura desde el sistema operativo (doble clic en un .json/.evalies) ---
 // Requiere que la app esté instalada como PWA y que el manifest declare
-// "file_handlers" para .evalies. El navegador lanza la app y nos entrega el
-// archivo aquí, sin que el usuario tenga que abrirlo manualmente.
+// "file_handlers" para esa extensión. El navegador lanza la app y nos entrega
+// el archivo aquí, sin que el usuario tenga que abrirlo manualmente.
 if ('launchQueue' in window && 'setConsumer' in window.launchQueue) {
   window.launchQueue.setConsumer(async (launchParams) => {
     if (!launchParams || !launchParams.files || !launchParams.files.length) return;
@@ -15918,14 +15906,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Insertar sección de archivo al principio del menú
   const fileSection = document.createElement('div');
   fileSection.innerHTML = `
-    <div class="dropdown-section-label">Archivo .evalies</div>
+    <div class="dropdown-section-label">Archivo .json</div>
     <button class="dropdown-item" onclick="closeCourseMenu();fsNewFile()">
       <span class="di-icon">📄</span>
       <div><div class="di-title" style="color:var(--accent)">Nuevo archivo</div><div class="di-desc">Crear nuevo centro / curso académico</div></div>
     </button>
     <button class="dropdown-item" onclick="closeCourseMenu();fsOpenFile()">
       <span class="di-icon">📂</span>
-      <div><div class="di-title">Abrir archivo .evalies</div><div class="di-desc">Abrir desde OneDrive, escritorio o USB</div></div>
+      <div><div class="di-title">Abrir archivo .json</div><div class="di-desc">Abrir desde OneDrive, escritorio o USB</div></div>
     </button>
     <button class="dropdown-item di-save" onclick="closeCourseMenu();fsSave()">
       <span class="di-icon">💾</span>
