@@ -7837,6 +7837,32 @@ function _actaOcultarAviso() {
   if (bar) bar.style.display = 'none';
 }
 
+// ===================== ANOTACIONES DEL ACTA OFICIAL =====================
+// El Acta Oficial (ver openActaOficial) se genera en una ventana aparte, así
+// que el cuadro de "Acuerdos de la sesión de evaluación" no puede guardarse
+// solo ahí: la ventana emergente llama de vuelta a esta función, en la
+// ventana principal (vía window.opener), y aquí se guarda indexado por
+// nivel-grupo-evaluación igual que las actas editables, para que persista
+// con el resto de datos de la app (autoguardado, archivo .json, etc.).
+function _actaOficialKey(nivel, grupo, evalNum) { return `${nivel}-${grupo}-eval${evalNum}`; }
+
+function _actaOficialGetAcuerdos(nivel, grupo, evalNum) {
+  if (!window._actasOficialesData) window._actasOficialesData = {};
+  const g = window._actasOficialesData[_actaOficialKey(nivel, grupo, evalNum)];
+  return g ? (g.acuerdos || '') : '';
+}
+
+function guardarAcuerdosActaOficial(nivel, grupo, evalNum, acuerdosHtml) {
+  if (!window._actasOficialesData) window._actasOficialesData = {};
+  window._actasOficialesData[_actaOficialKey(nivel, grupo, evalNum)] = {
+    acuerdos: acuerdosHtml,
+    savedAt: new Date().toISOString(),
+  };
+  markDirty();
+  showToast('💾 Anotaciones del Acta Oficial guardadas');
+  return true;
+}
+
 // ── Filas ampliables en las actas ──────────────────────────────────────────
 // Genera la fila con el botón "+ Añadir fila" que se coloca al final de cada
 // bloque de tabla. cols = nº de celdas editables que tendrá la fila nueva.
@@ -8743,6 +8769,42 @@ function exportInformeWord() {
   showToast('📄 Word generado — ábrelo con Microsoft Word o LibreOffice');
 }
 
+// ── Exportar acta a HTML ────────────────────────────────────────────────
+// A diferencia del PDF (que puede variar según el navegador/impresora) y del
+// Word (que necesita convertir flexbox/grid a tablas), el HTML exportado
+// conserva exactamente la misma maquetación que se ve en pantalla, porque es
+// el mismo contenido con su misma hoja de estilos. Además, al conservar los
+// campos contenteditable/inputs, el archivo resultante se puede seguir
+// editando si se vuelve a abrir en un navegador.
+function exportInformeHTML() {
+  const srcEl = document.getElementById('informeContent');
+  if (!srcEl) { showToast('⚠ No hay ningún acta abierta'); return; }
+
+  const _clone = _actaCleanClone(srcEl);
+  const content = _clone.innerHTML;
+  const css = _actaReportCss();
+  const tituloEl = document.getElementById('informeToolbarTitle');
+  const titulo = (tituloEl && tituloEl.textContent) ? tituloEl.textContent.trim() : 'Acta de Evaluación';
+  const tituloEsc = titulo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>${tituloEsc}</title>
+<style>${css}</style>
+</head>
+<body>
+${content}
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const filename = `${titulo.replace(/[^a-zA-Z0-9ÁÉÍÓÚÑÜáéíóúñü]+/g,'_').replace(/^_+|_+$/g,'')}.html`;
+  triggerDownload(blob, filename);
+  showToast('🌐 HTML exportado — conserva la maquetación exacta y se puede seguir editando');
+}
+
 // informeOverlay listener moved to DOMContentLoaded
 
 // ===================== GESTIÓN DE GRUPOS =====================
@@ -8879,6 +8941,7 @@ function confirmDeleteGrupo(nivel, grupo) {
   const gk = `${nivel}-${grupo}`;
   ['eval1', 'eval2', 'eval3', 'shared'].forEach(ev => { delete _colState[`${gk}_${ev}`]; });
   [1, 2, 3].forEach(evalNum => { if (window._actasData) delete window._actasData[`${gk}-eval${evalNum}`]; });
+  [1, 2, 3].forEach(evalNum => { if (window._actasOficialesData) delete window._actasOficialesData[`${gk}-eval${evalNum}`]; });
   if (window._obsGrupoData) delete window._obsGrupoData[gk];
   if (window._asistenciaData) delete window._asistenciaData[gk];
   if (window._fotoData) delete window._fotoData[gk];
@@ -9032,6 +9095,10 @@ function confirmRenameNivel() {
         window._actasData[newAK] = window._actasData[oldAK];
         delete window._actasData[oldAK];
       }
+      if (window._actasOficialesData && window._actasOficialesData[oldAK]) {
+        window._actasOficialesData[newAK] = window._actasOficialesData[oldAK];
+        delete window._actasOficialesData[oldAK];
+      }
     });
 
     if (window._obsGrupoData && window._obsGrupoData[oldGK] !== undefined) {
@@ -9105,6 +9172,7 @@ function executeDeleteNivel() {
     delete tutores[gk];
     ['eval1', 'eval2', 'eval3', 'shared'].forEach(ev => { delete _colState[`${gk}_${ev}`]; });
     [1, 2, 3].forEach(evalNum => { if (window._actasData) delete window._actasData[`${gk}-eval${evalNum}`]; });
+    [1, 2, 3].forEach(evalNum => { if (window._actasOficialesData) delete window._actasOficialesData[`${gk}-eval${evalNum}`]; });
     if (window._obsGrupoData) delete window._obsGrupoData[gk];
     if (window._asistenciaData) delete window._asistenciaData[gk];
     if (window._fotoData) delete window._fotoData[gk];
@@ -12226,6 +12294,9 @@ function openActaOficial(nivel, grupo, evalNum) {
 
   // ── HELPERS ──
   const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Escapado para incrustar nivel/grupo dentro de literales JS de comillas
+  // simples en el script de la ventana emergente (ver más abajo).
+  const jsEsc = s => String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const propTipo = a => {
     if (!propField) return '—';
     const p = getPropObj(a[propField]);
@@ -12476,7 +12547,10 @@ function openActaOficial(nivel, grupo, evalNum) {
 
 <div class="acta-toolbar no-print">
   <span class="acta-toolbar-title">📋 Acta ${evalLabel} Evaluación — ${esc(nivel)} ${esc(grupo)}</span>
-  <div style="display:flex;gap:8px;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="toolbar-btn" id="aoSaveBtn" style="background:#2dd4a0;color:#062b20;" onclick="_aoGuardarAcuerdos()">💾 Guardar anotaciones</button>
+    <button class="toolbar-btn" style="background:#8a63d2;color:#fff;" onclick="_aoExportarWord()">📄 Exportar a Word</button>
+    <button class="toolbar-btn" style="background:#22d3ee;color:#042a30;" onclick="_aoExportarHTML()">🌐 Exportar a HTML</button>
     <button class="toolbar-btn btn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
     <button class="toolbar-btn btn-close" onclick="window.close()">✕ Cerrar</button>
   </div>
@@ -12567,8 +12641,9 @@ function openActaOficial(nivel, grupo, evalNum) {
 
   <!-- SECCIÓN ACUERDOS -->
   <div class="section-title" style="margin-top:32px"><span>${propField?'4':'3'}</span>Acuerdos de la sesión de evaluación</div>
-  <div class="acuerdos-box" contenteditable="true"
-    data-placeholder="Escribe aquí los acuerdos adoptados en la sesión: medidas de mejora, compromisos del equipo docente, actuaciones con familias, etc."></div>
+  <div class="acuerdos-box" id="acuerdosBox" contenteditable="true"
+    data-placeholder="Escribe aquí los acuerdos adoptados en la sesión: medidas de mejora, compromisos del equipo docente, actuaciones con familias, etc.">${_actaOficialGetAcuerdos(nivel, grupo, evalNum)}</div>
+  <div class="no-print" style="font-size:8pt;color:#9aa3bb;margin-top:4px;">Pulsa «💾 Guardar anotaciones» para no perder este texto — la ventana no lo guarda sola al cerrarla.</div>
 
   <!-- SECCIÓN PROFESORES ASISTENTES -->
   <div class="section-title"><span>${propField?'5':'4'}</span>Profesorado asistente a la sesión</div>
@@ -12588,12 +12663,12 @@ function openActaOficial(nivel, grupo, evalNum) {
     <div class="firma-block">
       <div class="firma-line"></div>
       <div class="firma-label">Jefe/a de Estudios</div>
-      <div class="firma-name"></div>
+      <div class="firma-name" contenteditable="true" data-placeholder="Nombre y apellidos"></div>
     </div>
     <div class="firma-block">
       <div class="firma-line"></div>
       <div class="firma-label">Director/a del centro</div>
-      <div class="firma-name"></div>
+      <div class="firma-name" contenteditable="true" data-placeholder="Nombre y apellidos"></div>
     </div>
   </div>
   <div style="text-align:right;margin-top:10px;font-size:8.5pt;color:#888">
@@ -12601,7 +12676,108 @@ function openActaOficial(nivel, grupo, evalNum) {
   </div>
 
 </div><!-- /page -->
-<script>window.onload = function(){ /* ready */ }<\/script>
+<script>
+window.onload = function(){ /* ready */ };
+
+var _AO_NIVEL = '${jsEsc(nivel)}';
+var _AO_GRUPO = '${jsEsc(grupo)}';
+var _AO_EVAL  = ${evalNum};
+
+// Guarda el contenido actual de "Acuerdos de la sesión" en la ventana
+// principal (window.opener), ya que esta ventana emergente no tiene forma
+// propia de persistir datos entre sesiones.
+function _aoGuardarAcuerdos() {
+  var box = document.getElementById('acuerdosBox');
+  var contenido = box ? box.innerHTML : '';
+  var btn = document.getElementById('aoSaveBtn');
+  if (window.opener && !window.opener.closed && typeof window.opener.guardarAcuerdosActaOficial === 'function') {
+    window.opener.guardarAcuerdosActaOficial(_AO_NIVEL, _AO_GRUPO, _AO_EVAL, contenido);
+    if (btn) {
+      var original = btn.textContent;
+      btn.textContent = '✓ Guardado';
+      setTimeout(function(){ if (btn) btn.textContent = original; }, 1600);
+    }
+  } else {
+    alert('No se puede guardar: se ha perdido la conexión con la ventana principal de EvalIES. Vuelve a abrir el Acta Oficial desde allí e inténtalo de nuevo.');
+  }
+}
+
+// Clona la página quitando los controles de pantalla (toolbar) antes de
+// exportar, igual que se hace con las actas editables.
+function _aoCleanClone() {
+  var clone = document.querySelector('.page').cloneNode(true);
+  var els = clone.querySelectorAll('.no-print');
+  for (var i = 0; i < els.length; i++) { els[i].parentNode.removeChild(els[i]); }
+  return clone;
+}
+
+function _aoDownload(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+}
+
+function _aoFileBase() {
+  return ('Acta_Oficial_${jsEsc(evalOrdinal[evalNum])}_${jsEsc(nivel)}_${jsEsc(grupo)}').replace(/[^a-zA-Z0-9ÁÉÍÓÚÑÜáéíóúñü]+/g,'_');
+}
+
+// Exporta el acta oficial tal cual se ve (misma hoja de estilos), para no
+// perder la maquetación al archivarla o compartirla.
+function _aoExportarHTML() {
+  var clone = _aoCleanClone();
+  var styleEl = document.querySelector('style');
+  var css = styleEl ? styleEl.textContent : '';
+  var html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Acta ${jsEsc(evalLabel)} Evaluación — ${jsEsc(nivel)} ${jsEsc(grupo)}</title><style>' + css + '</style></head><body>' + clone.outerHTML + '</body></html>';
+  var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  _aoDownload(blob, _aoFileBase() + '.html');
+}
+
+// Igual que en las actas editables: Word no entiende flexbox/grid, así que
+// las zonas maquetadas en cuadrícula (cabecera, estadísticas, firmas) se
+// convierten a tablas equivalentes antes de exportar.
+function _aoWordifyGrid(container, itemSelector, perRow) {
+  if (!container) return;
+  var items = Array.prototype.filter.call(container.children, function(el){ return el.matches(itemSelector); });
+  if (!items.length) return;
+  var table = document.createElement('table');
+  table.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;';
+  for (var i = 0; i < items.length; i += perRow) {
+    var tr = document.createElement('tr');
+    for (var j = i; j < Math.min(i + perRow, items.length); j++) {
+      var td = document.createElement('td');
+      td.className = items[j].className;
+      td.style.cssText = 'vertical-align:top;border:none;padding:3px;';
+      td.innerHTML = items[j].innerHTML;
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  container.parentNode.replaceChild(table, container);
+}
+
+function _aoExportarWord() {
+  var clone = _aoCleanClone();
+  var editables = clone.querySelectorAll('[contenteditable]');
+  for (var k = 0; k < editables.length; k++) { editables[k].removeAttribute('contenteditable'); }
+  var inputs = clone.querySelectorAll('input');
+  for (var m = 0; m < inputs.length; m++) {
+    var span = document.createElement('span');
+    span.textContent = inputs[m].value || '';
+    inputs[m].parentNode.replaceChild(span, inputs[m]);
+  }
+  _aoWordifyGrid(clone.querySelector('.acta-meta'), '.acta-meta-cell', 3);
+  _aoWordifyGrid(clone.querySelector('.stats-grid'), '.stat-box', 4);
+  _aoWordifyGrid(clone.querySelector('.firmas-grid'), '.firma-block', 3);
+  var styleEl = document.querySelector('style');
+  var css = styleEl ? styleEl.textContent : '';
+  var titulo = 'Acta ${jsEsc(evalLabel)} Evaluación — ${jsEsc(nivel)} ${jsEsc(grupo)}';
+  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + titulo + '</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]--><style>@page Section1 { size: 21cm 29.7cm; margin: 1.2cm 1.4cm 1.8cm 1.4cm; } div.Section1 { page: Section1; } table { border-collapse: collapse; } ' + css + '</style></head><body><div class="Section1">' + clone.outerHTML + '</div></body></html>';
+  var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+  _aoDownload(blob, _aoFileBase() + '.doc');
+}
+<\/script>
 </body>
 </html>`;
 
@@ -14726,6 +14902,7 @@ function guardarVersionCurso() {
     asistenciaData:  JSON.parse(JSON.stringify(window._asistenciaData || {})),
     convivenciaData: JSON.parse(JSON.stringify(window._convivenciaData || {})),
     actasData:       JSON.parse(JSON.stringify(window._actasData || {})),
+    actasOficialesData: JSON.parse(JSON.stringify(window._actasOficialesData || {})),
     vacantesCfg:     JSON.parse(JSON.stringify(typeof _vacantesCfg!=='undefined' ? _vacantesCfg : {})),
     fotoData:        cap(window._fotoData),
     horarioData:     cap(window._horarioData),
@@ -14764,6 +14941,7 @@ window.__IS_SNAPSHOT_EXPORT__ = true;
       if(_s.asistenciaData){ if(!window._asistenciaData) window._asistenciaData={}; Object.assign(window._asistenciaData, _s.asistenciaData); }
       if(_s.convivenciaData){ if(!window._convivenciaData) window._convivenciaData={}; Object.assign(window._convivenciaData, _s.convivenciaData); }
       if(_s.actasData){ if(!window._actasData) window._actasData={}; Object.assign(window._actasData, _s.actasData); }
+      if(_s.actasOficialesData){ if(!window._actasOficialesData) window._actasOficialesData={}; Object.assign(window._actasOficialesData, _s.actasOficialesData); }
       if(_s.vacantesCfg && typeof _vacantesCfg!=='undefined') Object.assign(_vacantesCfg, _s.vacantesCfg);
       if(_s.fotoData){ if(!window._fotoData) window._fotoData={}; Object.assign(window._fotoData, _s.fotoData); }
       if(_s.horarioData){ if(!window._horarioData) window._horarioData={}; Object.assign(window._horarioData, _s.horarioData); }
@@ -14844,8 +15022,8 @@ function openGuide() {
           </ul>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">📋 Por grupo (cabecera de grupo)</div>
           <ul style="margin:0 0 12px 16px">
-            <li><strong>Acta I/II/Final</strong> — Actas de sesión de evaluación, editables y guardables</li>
-            <li><strong>Acta Oficial</strong> — Genera el acta de sesión para I, II o Evaluación Final</li>
+            <li><strong>Acta I/II/Final</strong> — Actas de sesión de evaluación, editables y guardables; se pueden exportar a PDF, Word o HTML (esta última conserva la maquetación exacta)</li>
+            <li><strong>Acta Oficial</strong> — Genera el acta de sesión para I, II o Evaluación Final; permite guardar las anotaciones del grupo y exportar a PDF, Word o HTML</li>
             <li><strong>🖼️ Fotos del grupo</strong> — Galería de fotos del alumnado</li>
             <li><strong>🪑 Plano del grupo</strong> — Distribución de mesas: toca un alumno/a (de la lista o de una mesa) y luego una mesa; si está libre se sienta ahí, si está ocupada se intercambian. Tamaño de cuadrícula ajustable e imprimible</li>
             <li><strong>🕐 Horario del grupo</strong> — Horario semanal del grupo</li>
@@ -15305,6 +15483,7 @@ function buildState(includeImages = true, includeActas = true) {
     planosGrupo: window._planosGrupo || {},
     convivenciaData: window._convivenciaData || {},
     actasData: includeActas ? (window._actasData || {}) : {},
+    actasOficialesData: includeActas ? (window._actasOficialesData || {}) : {},
     vacantesCfg: _vacantesCfg
   };
   if (includeImages) {
@@ -15327,7 +15506,7 @@ function buildState(includeImages = true, includeActas = true) {
 // avisar al tutor antes de que la memoria del navegador se llene.
 function getActasStorageSize() {
   try {
-    return JSON.stringify(window._actasData || {}).length;
+    return JSON.stringify(window._actasData || {}).length + JSON.stringify(window._actasOficialesData || {}).length;
   } catch (e) { return 0; }
 }
 function _fmtBytes(n) {
@@ -15438,6 +15617,7 @@ function loadFromLocalStorage() {
       if (saved.asistenciaData) { if (!window._asistenciaData) window._asistenciaData = {}; Object.assign(window._asistenciaData, saved.asistenciaData); }
       if (saved.planosGrupo) { if (!window._planosGrupo) window._planosGrupo = {}; Object.assign(window._planosGrupo, saved.planosGrupo); }
       if (saved.actasData)      { if (!window._actasData)      window._actasData      = {}; Object.assign(window._actasData,      saved.actasData); }
+      if (saved.actasOficialesData) { if (!window._actasOficialesData) window._actasOficialesData = {}; Object.assign(window._actasOficialesData, saved.actasOficialesData); }
       if (saved.fotoData)       { if (!window._fotoData)       window._fotoData       = {}; Object.assign(window._fotoData,       saved.fotoData); }
       if (saved.horarioData)    { if (!window._horarioData)    window._horarioData    = {}; Object.assign(window._horarioData,    saved.horarioData); }
       // Sync currentGrupos for all known niveles
@@ -16225,6 +16405,7 @@ async function pwaInstall() {
         <button id="actaSaveBtn" onclick="saveActa()" style="padding:7px 14px;border-radius:7px;border:1px solid #2dd4a0;background:rgba(45,212,160,0.15);color:#2dd4a0;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;">💾 Guardar</button>
         <button onclick="printInforme()" style="padding:7px 14px;border-radius:7px;border:1px solid #4f8ef7;background:rgba(79,142,247,0.15);color:#4f8ef7;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;">🖨️ Imprimir / PDF</button>
         <button onclick="exportInformeWord()" style="padding:7px 14px;border-radius:7px;border:1px solid #8a63d2;background:rgba(138,99,210,0.15);color:#8a63d2;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;">📄 Exportar a Word</button>
+        <button onclick="exportInformeHTML()" style="padding:7px 14px;border-radius:7px;border:1px solid #22d3ee;background:rgba(34,211,238,0.15);color:#22d3ee;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;">🌐 Exportar a HTML</button>
         <button onclick="closeInforme()" style="padding:7px 14px;border-radius:7px;border:1px solid #2e3350;background:transparent;color:#8891b4;cursor:pointer;font-family:inherit;font-size:12px;">✕ Cerrar</button>
       </div>
     </div>
