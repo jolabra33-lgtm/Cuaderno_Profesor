@@ -3196,6 +3196,11 @@ let currentNivel = '__home__';
 let currentGrupos = {};
 NIVELES.forEach(n => { currentGrupos[n] = GRUPOS_POR_NIVEL[n][0]; });
 
+// Visibilidad de la pestaña "Actas no Oficiales" (se puede ocultar/mostrar
+// desde el icono 🗂️ junto a "＋ Nivel"; el estado se guarda con el resto del
+// estado de la app).
+let _actasNoOficialesTabVisible = true;
+
 // Estructura de datos: data[nivel][grupo] = [ {alumno...}, ... ]
 let data = {};
 NIVELES.forEach(nivel => {
@@ -3452,7 +3457,7 @@ function calcEdad(fechaNac, fechaRef) {
 function renderAll() {
   renderNivelTabs();
   const addBtn = document.getElementById('btnAddAlumnoHeader');
-  const isSpecial = ['__home__','__materias__', '__calendario__', '__convivencia__', '__informe__', '__vacantes__'].includes(currentNivel);
+  const isSpecial = ['__home__','__materias__', '__calendario__', '__convivencia__', '__informe__', '__vacantes__', '__actasnooficiales__'].includes(currentNivel);
   if (addBtn) addBtn.style.display = isSpecial ? 'none' : '';
   if (currentNivel === '__home__') { renderResumen(); return; }
   if (currentNivel === '__materias__') { renderMaterias(); return; }
@@ -3460,6 +3465,7 @@ function renderAll() {
   if (currentNivel === '__convivencia__') { renderConvivencia(); return; }
   if (currentNivel === '__informe__') { renderInformeAcademico(); return; }
   if (currentNivel === '__segfam__') { renderSegFamiliaListado(); return; }
+  if (currentNivel === '__actasnooficiales__') { renderActasNoOficiales(); return; }
   renderMain();
   syncDateInputs();
 }
@@ -3471,10 +3477,14 @@ function renderNivelTabs() {
   const informeTab = `<div class="nivel-tab ${currentNivel === '__informe__' ? 'active' : ''}" onclick="selectNivel('__informe__')" style="color:#22d3ee">🎓 Informe Académico</div>`;
   const segFamTab = `<div class="nivel-tab ${currentNivel === '__segfam__' ? 'active' : ''}" onclick="selectNivel('__segfam__')" style="color:#f76ea0">📞 Seguimientos</div>`;
   const convivenciaTab = `<div class="nivel-tab ${currentNivel === '__convivencia__' ? 'active' : ''}" onclick="selectNivel('__convivencia__')" style="color:var(--orange)">🤝 Informe Convivencia</div>`;
+  const actasNoOficialesTab = _actasNoOficialesTabVisible
+    ? `<div class="nivel-tab ${currentNivel === '__actasnooficiales__' ? 'active' : ''}" onclick="selectNivel('__actasnooficiales__')" style="color:#f5a623">🗂️ Actas no Oficiales</div>`
+    : '';
   const vacantesTab = `<div class="nivel-tab ${currentNivel === '__vacantes__' ? 'active' : ''}" onclick="selectNivel('__vacantes__')" style="color:var(--accent2)">🏗️ Unidades Vacantes</div>`;
   const materiasTab = `<div class="nivel-tab ${currentNivel === '__materias__' ? 'active' : ''}" onclick="selectNivel('__materias__')" style="color:var(--yellow)">⚙ Materias</div>`;
   const addNivelTab = `<div class="nivel-tab nivel-tab-add" onclick="openAddNivelModal()" title="Crear un nuevo nivel" style="color:var(--green);font-weight:700;">＋ Nivel</div>`;
-  c.innerHTML = homeTab + calendarioTab + informeTab + segFamTab + convivenciaTab + NIVELES.map(n => {
+  const actasNoOficialesToggle = `<div class="nivel-tab" onclick="toggleActasNoOficialesTab()" title="${_actasNoOficialesTabVisible ? 'Ocultar' : 'Mostrar'} la pestaña «Actas no Oficiales»" style="opacity:0.55;font-weight:400;">${_actasNoOficialesTabVisible ? '🗂️🙈' : '🗂️👁️'}</div>`;
+  c.innerHTML = homeTab + calendarioTab + informeTab + segFamTab + convivenciaTab + actasNoOficialesTab + NIVELES.map(n => {
     // Count pending decisions for this nivel
     const grupos = GRUPOS_POR_NIVEL[n]||[];
     let totalAl = 0, pendAl = 0;
@@ -3497,7 +3507,7 @@ function renderNivelTabs() {
         style="opacity:0.4;transition:opacity 0.15s;"
         onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">✕</button>
     </div>
-  `;}).join('') + addNivelTab + materiasTab;
+  `;}).join('') + addNivelTab + materiasTab + actasNoOficialesToggle;
 
   // Delegated handlers for nivel delete/rename buttons
   c.querySelectorAll('[data-nivel]').forEach(btn => {
@@ -3512,6 +3522,14 @@ function renderNivelTabs() {
       openRenameNivelModal(btn.dataset.nivelRename);
     });
   });
+}
+
+function toggleActasNoOficialesTab() {
+  _actasNoOficialesTabVisible = !_actasNoOficialesTabVisible;
+  if (!_actasNoOficialesTabVisible && currentNivel === '__actasnooficiales__') currentNivel = '__home__';
+  markDirty();
+  renderAll();
+  showToast(_actasNoOficialesTabVisible ? '🗂️ Pestaña «Actas no Oficiales» visible' : '🙈 Pestaña «Actas no Oficiales» oculta');
 }
 
 function renderMain() {
@@ -3703,9 +3721,7 @@ function renderGrupoContent(mc, grupoBlock, nivel, grupo, alumnos) {
         <button class="compact-toggle${window._compactMode?' active':''}" id="compactToggle-${nivel}-${grupo}"
           title="Modo compacto — reduce el tamaño de las filas"
           onclick="_toggleCompact('${nivel}','${grupo}',this)">${window._compactMode?'⊡ Normal':'⊟ Compacto'}</button>
-        <button class="btn btn-sm" style="background:rgba(79,142,247,0.15);color:var(--accent);border:1px solid var(--accent);" onclick="openInforme('${nivel}','${grupo}',1)">📄 Acta I Evaluación</button>
-        <button class="btn btn-sm" style="background:rgba(45,212,160,0.15);color:var(--green);border:1px solid var(--green);" onclick="openInforme('${nivel}','${grupo}',2)">📄 Acta II Evaluación</button>
-        <button class="btn btn-sm" style="background:rgba(124,92,252,0.15);color:var(--purple);border:1px solid var(--purple);" onclick="openInforme('${nivel}','${grupo}',3)">📄 Acta Evaluación Final</button>
+        <button class="btn btn-sm" style="background:rgba(245,166,35,0.15);color:#f5a623;border:1px solid #f5a623;" onclick="selectNivel('__actasnooficiales__')" title="Las Actas I/II/Final de todos los grupos se gestionan en su propia pestaña">🗂️ Actas no Oficiales</button>
         <button class="btn btn-sm" style="background:rgba(220,38,38,0.12);color:#f87171;border:1px solid rgba(220,38,38,0.4);" onclick="openActaOficialMenu('${nivel}','${grupo}')">📋 Acta Oficial</button>
         <button class="btn btn-sm" style="background:rgba(167,139,250,0.15);color:var(--purple);border:1px solid var(--purple);" onclick="openFotoGaleria('${nivel}','${grupo}')">🖼️ Fotos del grupo</button>
         <button class="btn btn-sm" style="background:rgba(45,212,160,0.15);color:var(--green);border:1px solid var(--green);" onclick="openPlanoGrupo('${nivel}','${grupo}')">🪑 Plano del grupo</button>
@@ -7839,27 +7855,29 @@ function _actaOcultarAviso() {
 
 // ===================== ANOTACIONES DEL ACTA OFICIAL =====================
 // El Acta Oficial (ver openActaOficial) se genera en una ventana aparte, así
-// que el cuadro de "Acuerdos de la sesión de evaluación" no puede guardarse
-// solo ahí: la ventana emergente llama de vuelta a esta función, en la
-// ventana principal (vía window.opener), y aquí se guarda indexado por
-// nivel-grupo-evaluación igual que las actas editables, para que persista
-// con el resto de datos de la app (autoguardado, archivo .json, etc.).
+// que sus campos rellenables (acuerdos, firmas de Jefatura/Dirección y las
+// decisiones sobre materias pendientes de cursos anteriores) no pueden
+// guardarse solos ahí: la ventana emergente llama de vuelta a esta función,
+// en la ventana principal (vía window.opener), y aquí se guardan indexados
+// por nivel-grupo-evaluación para que persistan con el resto de datos de la
+// app (autoguardado, archivo .json, etc.). El resto del acta (listados,
+// estadísticas...) siempre se recalcula a partir de los datos actuales del
+// grupo cada vez que se abre, para no mostrar notas desactualizadas.
 function _actaOficialKey(nivel, grupo, evalNum) { return `${nivel}-${grupo}-eval${evalNum}`; }
 
-function _actaOficialGetAcuerdos(nivel, grupo, evalNum) {
+function _actaOficialGetGuardada(nivel, grupo, evalNum) {
   if (!window._actasOficialesData) window._actasOficialesData = {};
-  const g = window._actasOficialesData[_actaOficialKey(nivel, grupo, evalNum)];
-  return g ? (g.acuerdos || '') : '';
+  return window._actasOficialesData[_actaOficialKey(nivel, grupo, evalNum)] || null;
 }
 
-function guardarAcuerdosActaOficial(nivel, grupo, evalNum, acuerdosHtml) {
+function guardarActaOficial(nivel, grupo, evalNum, payload) {
   if (!window._actasOficialesData) window._actasOficialesData = {};
   window._actasOficialesData[_actaOficialKey(nivel, grupo, evalNum)] = {
-    acuerdos: acuerdosHtml,
+    ...payload,
     savedAt: new Date().toISOString(),
   };
   markDirty();
-  showToast('💾 Anotaciones del Acta Oficial guardadas');
+  showToast('💾 Acta Oficial guardada — anotaciones, firmas y decisiones sobre pendientes conservadas');
   return true;
 }
 
@@ -12292,6 +12310,19 @@ function openActaOficial(nivel, grupo, evalNum) {
 
   const isBachNivel = isBach(nivel);
 
+  // Anotaciones guardadas en una sesión anterior (acuerdos, firmas de
+  // Jefatura/Dirección, decisiones sobre pendientes de cursos anteriores).
+  // El resto del acta se recalcula siempre a partir de los datos actuales.
+  const guardada = _actaOficialGetGuardada(nivel, grupo, evalNum) || {};
+  const guardadaPendAnt = guardada.pendAnt || {};
+
+  // Numeración automática de las secciones: como varias son condicionales
+  // (propuestas solo en II/Final, detalle de suspensos solo en I/II...), se
+  // numeran con un contador correlativo en vez de índices fijos, para que
+  // nunca queden huecos ni números repetidos.
+  let _secN = 0;
+  const nextSec = () => ++_secN;
+
   // ── HELPERS ──
   const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // Escapado para incrustar nivel/grupo dentro de literales JS de comillas
@@ -12389,6 +12420,15 @@ function openActaOficial(nivel, grupo, evalNum) {
   }).join('');
   if (!neseRows) neseRows = `<tr><td colspan="4" style="text-align:center;color:#888;font-style:italic">Sin alumnado con medidas de atención específica</td></tr>`;
 
+  // Leyenda de los códigos de Compensatoria y de recurso NESE realmente
+  // presentes en este grupo (los 9 códigos oficiales están en COMP_CODES;
+  // aquí solo se listan los que de verdad aparecen, para no sobrecargar el acta).
+  const codigosCompUsados = new Set();
+  neseAlumnos.forEach(a => (Array.isArray(a.codComp) ? a.codComp : (a.codComp ? [a.codComp] : [])).forEach(c => codigosCompUsados.add(String(c))));
+  const leyendaComp = (typeof COMP_CODES !== 'undefined' ? COMP_CODES : []).filter(c => codigosCompUsados.has(c.code));
+  const usaAL = neseAlumnos.some(a => _getNeseCodes(a.recursoNese).includes('AL'));
+  const usaPT = neseAlumnos.some(a => _getNeseCodes(a.recursoNese).includes('PT'));
+
   // ── SECTION 3: summary stats ──
   const total       = alumnos.length;
   const todo0       = alumnos.filter(a=>(+a[evalField]||0)===0).length;
@@ -12424,6 +12464,49 @@ function openActaOficial(nivel, grupo, evalNum) {
   const profRows = Array(18).fill('').map((_,i)=>
     `<tr><td style="color:#bbb;text-align:center">${i+1}</td><td></td><td></td></tr>`
   ).join('');
+
+  // ══════════════════════════════════════════════════════════════════════
+  // NUEVAS SECCIONES: estadísticas académicas y de convivencia adicionales
+  // ══════════════════════════════════════════════════════════════════════
+
+  // Materias no superadas EN ESTA EVALUACIÓN (misma fuente que la tabla
+  // principal: pendientes1 / pendientes2 / pendientesIII), para el ranking
+  // de materias con más suspensos y el detalle por alumno.
+  const pendField = evalNum === 1 ? 'pendientes1' : evalNum === 2 ? 'pendientes2' : 'pendientesIII';
+  const matCount = {};
+  alumnos.forEach(a => (Array.isArray(a[pendField]) ? a[pendField] : []).forEach(m => { matCount[m] = (matCount[m] || 0) + 1; }));
+  const matRanking = Object.entries(matCount).map(([materia, susp]) => ({ materia, susp }))
+    .sort((a, b) => b.susp - a.susp || a.materia.localeCompare(b.materia, 'es'));
+  const maxSuspMat = matRanking.length ? matRanking[0].susp : 1;
+  const alumnosConSusp = sorted.filter(a => (Array.isArray(a[pendField]) ? a[pendField] : []).length > 0);
+
+  // Materias pendientes de cursos anteriores: una fila por (alumno, materia)
+  // con su estado (recuperada / en proceso / no recuperada) y campos libres
+  // de nota y motivo que el equipo docente rellena en la propia sesión.
+  const alumnosConPendAnt = sorted.filter(a => (a.pendientesAnteriores || []).length > 0);
+
+  // Faltas de asistencia, AC, partes de amonestación y expedientes de esta evaluación.
+  const fjField = `faltasJust${evalNum}`, fiField = `faltasInjust${evalNum}`,
+        acField = `ac${evalNum}`, partField = `partes${evalNum}`, expField = `expedientes${evalNum}`;
+  const totalFJ = alumnos.reduce((s, a) => s + (+a[fjField] || 0), 0);
+  const totalFI = alumnos.reduce((s, a) => s + (+a[fiField] || 0), 0);
+  const totalAC = alumnos.reduce((s, a) => s + (+a[acField] || 0), 0);
+  const totalPartes = alumnos.reduce((s, a) => s + (+a[partField] || 0), 0);
+  const totalExp = alumnos.reduce((s, a) => s + (+a[expField] || 0), 0);
+  const alumnosConvivencia = sorted
+    .filter(a => (+a[fjField] || 0) + (+a[fiField] || 0) + (+a[acField] || 0) + (+a[partField] || 0) + (+a[expField] || 0) > 0)
+    .sort((a, b) => (+b[fiField] || 0) - (+a[fiField] || 0) || (+b[partField] || 0) - (+a[partField] || 0) || (+b[expField] || 0) - (+a[expField] || 0));
+
+  // Evolución del nº medio de materias no superadas respecto a la evaluación
+  // anterior (solo tiene sentido a partir de la II Evaluación).
+  let evolucion = null;
+  if (evalNum >= 2 && total > 0) {
+    const prevField = evalNum === 2 ? 'eval1' : 'eval2';
+    const prevLabel = evalNum === 2 ? 'I Evaluación' : 'II Evaluación';
+    const promPrev = alumnos.reduce((s, a) => s + (+a[prevField] || 0), 0) / total;
+    const promAct  = alumnos.reduce((s, a) => s + (+a[evalField] || 0), 0) / total;
+    evolucion = { prevLabel, promPrev, promAct, delta: promAct - promPrev };
+  }
 
   // ── HEADER COLUMNS for main table ──
   const mainThFinal = `<th>Nº</th><th>Alumno/a</th><th style="text-align:center">Mat. no sup.</th><th>Materias pendientes</th><th>Pend. cursos ant.</th><th>Decisión final</th>`;
@@ -12548,7 +12631,7 @@ function openActaOficial(nivel, grupo, evalNum) {
 <div class="acta-toolbar no-print">
   <span class="acta-toolbar-title">📋 Acta ${evalLabel} Evaluación — ${esc(nivel)} ${esc(grupo)}</span>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button class="toolbar-btn" id="aoSaveBtn" style="background:#2dd4a0;color:#062b20;" onclick="_aoGuardarAcuerdos()">💾 Guardar anotaciones</button>
+    <button class="toolbar-btn" id="aoSaveBtn" style="background:#2dd4a0;color:#062b20;" onclick="_aoGuardar()">💾 Guardar</button>
     <button class="toolbar-btn" style="background:#8a63d2;color:#fff;" onclick="_aoExportarWord()">📄 Exportar a Word</button>
     <button class="toolbar-btn" style="background:#22d3ee;color:#042a30;" onclick="_aoExportarHTML()">🌐 Exportar a HTML</button>
     <button class="toolbar-btn btn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
@@ -12610,7 +12693,7 @@ function openActaOficial(nivel, grupo, evalNum) {
   </div>
 
   <!-- SECCIÓN 1: RELACIÓN DE ALUMNADO -->
-  <div class="section-title"><span>1</span>Relación de alumnado y resultados</div>
+  <div class="section-title"><span>${nextSec()}</span>Relación de alumnado y resultados</div>
   <table>
     <thead><tr>${isFinal ? mainThFinal : mainThNonFinal}</tr></thead>
     <tbody>${tbodyRows}</tbody>
@@ -12618,7 +12701,7 @@ function openActaOficial(nivel, grupo, evalNum) {
 
   ${propField ? `
   <!-- RESUMEN PROPUESTAS -->
-  <div class="section-title" style="margin-top:18px"><span>2</span>Resumen de propuestas / decisiones</div>
+  <div class="section-title" style="margin-top:18px"><span>${nextSec()}</span>Resumen de propuestas / decisiones</div>
   <table style="max-width:420px">
     <thead><tr><th colspan="2">Decisión</th><th style="text-align:center">Alumnos</th><th>%</th></tr></thead>
     <tbody>
@@ -12629,31 +12712,129 @@ function openActaOficial(nivel, grupo, evalNum) {
     </tbody>
   </table>` : ''}
 
+  <!-- SECCIÓN NUEVA: RANKING DE MATERIAS CON MÁS SUSPENSOS -->
+  <div class="section-title" style="margin-top:18px"><span>${nextSec()}</span>Materias con más alumnado suspenso</div>
+  ${matRanking.length ? `
+  <table style="max-width:540px">
+    <thead><tr><th>Materia</th><th style="text-align:center;width:70px">Suspensos</th><th style="width:170px">&nbsp;</th></tr></thead>
+    <tbody>
+      ${matRanking.map(x => `<tr>
+        <td style="font-size:9.5pt">${esc(x.materia)}</td>
+        <td style="text-align:center;font-weight:700;color:${x.susp>0?'#991b1b':'#166534'}">${x.susp}</td>
+        <td><div style="background:#f1f5f9;border-radius:4px;height:10px;overflow:hidden;"><div style="width:${Math.round(x.susp/maxSuspMat*100)}%;height:10px;background:#ef4444;"></div></div></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : `<div style="color:#166534;font-size:9.5pt;font-style:italic">✓ No hay materias con alumnado suspenso en esta evaluación.</div>`}
+
+  ${!isFinal ? `
+  <!-- SECCIÓN NUEVA: DETALLE DE MATERIAS SUSPENDIDAS POR ALUMNO -->
+  <div class="section-title" style="margin-top:18px"><span>${nextSec()}</span>Detalle de materias suspendidas por alumno</div>
+  ${alumnosConSusp.length ? `
+  <table>
+    <thead><tr><th style="width:32%">Alumno/a</th><th>Materias suspendidas</th></tr></thead>
+    <tbody>
+      ${alumnosConSusp.map(a => `<tr>
+        <td style="font-weight:600">${esc(a.nombre)}</td>
+        <td style="font-size:9pt;line-height:1.5">${(a[pendField]||[]).map(m=>`<span style="display:inline-block;background:#fee2e2;border:1px solid #fecaca;border-radius:3px;padding:0 4px;font-size:8pt;margin:1px;">${esc(m)}</span>`).join(' ')}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : `<div style="color:#166534;font-size:9.5pt;font-style:italic">✓ Ningún alumno tiene materias suspendidas en esta evaluación.</div>`}
+  ` : ''}
+
+  <!-- SECCIÓN NUEVA: MATERIAS PENDIENTES DE CURSOS ANTERIORES — DECISIÓN -->
+  <div class="section-title page-break" style="margin-top:18px"><span>${nextSec()}</span>Materias pendientes de cursos anteriores — decisión adoptada</div>
+  ${alumnosConPendAnt.length ? `
+  <div style="font-size:8.5pt;color:#5a6a8a;margin-bottom:6px">Para cada materia pendiente: si la recuperación está en proceso, si ya se ha recuperado (con qué nota) o si no se ha recuperado (con el motivo).</div>
+  <table>
+    <thead><tr><th style="width:20%">Alumno/a</th><th style="width:20%">Materia pendiente</th><th style="width:19%">Estado</th><th style="width:11%">Nota</th><th>Motivo / Observaciones</th></tr></thead>
+    <tbody>
+      ${alumnosConPendAnt.map((a, ai) => (a.pendientesAnteriores||[]).map((m, mi) => {
+        const pk = `${ai}-${mi}`;
+        const recuperada = (a.recuperadasAnteriores||[]).includes(m);
+        const fila = guardadaPendAnt[pk] || null;
+        const estadoG = fila ? fila.estado : (recuperada ? 'Recuperada' : 'En proceso de recuperación');
+        const notaG = fila ? esc(fila.nota||'') : '';
+        const motivoG = fila ? esc(fila.motivo||'') : '';
+        return `<tr data-pk="${pk}">
+          <td style="font-weight:600">${esc(a.nombre)}</td>
+          <td style="font-size:9pt">${esc(m)}</td>
+          <td><select class="ao-estado-select" style="font-family:inherit;font-size:8.5pt;border:1px solid #c5d8ef;border-radius:3px;padding:2px 4px;background:#fff;max-width:100%;">
+            <option ${estadoG==='En proceso de recuperación'?'selected':''}>En proceso de recuperación</option>
+            <option ${estadoG==='Recuperada'?'selected':''}>Recuperada</option>
+            <option ${estadoG==='No recuperada'?'selected':''}>No recuperada</option>
+          </select></td>
+          <td contenteditable="true" class="ao-nota" style="font-size:9pt;min-width:36px">${notaG}</td>
+          <td contenteditable="true" class="ao-motivo" style="font-size:9pt;min-width:110px">${motivoG}</td>
+        </tr>`;
+      }).join('')).join('')}
+    </tbody>
+  </table>` : `<div style="color:#166534;font-size:9.5pt;font-style:italic">✓ Ningún alumno tiene materias pendientes de cursos anteriores.</div>`}
+
   <!-- SECCIÓN NESE -->
-  <div class="section-title page-break" style="margin-top:36px"><span>${propField?'3':'2'}</span>Alumnado con medidas de atención específica (NESE)</div>
+  <div class="section-title page-break" style="margin-top:36px"><span>${nextSec()}</span>Alumnado NESE y de Compensatoria</div>
   <div style="font-size:8.5pt;color:#5a6a8a;margin-bottom:6px">
-    ● Indicador en nombre = alumno con NESE · AL = Audición y Lenguaje · PT = Pedagogía Terapéutica · Códigos compensatoria: A=Desconocimiento idioma, B=Desfase curricular, etc.
+    AL = Audición y Lenguaje · PT = Pedagogía Terapéutica · «Cód. Comp.» = código oficial de compensatoria educativa (ver leyenda debajo de la tabla)
   </div>
   <table>
     <thead><tr><th style="width:35%">Alumno/a</th><th style="width:15%;text-align:center">Recurso</th><th style="width:20%">Cód. Comp.</th><th>Observaciones / Medidas tomadas</th></tr></thead>
     <tbody>${neseRows}</tbody>
   </table>
+  ${(leyendaComp.length || usaAL || usaPT) ? `
+  <div style="font-size:8pt;color:#3a4560;margin-top:6px;line-height:1.7;background:#f8faff;border:1px solid #e2e8f5;border-radius:5px;padding:8px 10px;">
+    <strong>Leyenda de códigos</strong>
+    ${(usaAL || usaPT) ? `<br>${usaAL?'<strong>AL</strong> = Audición y Lenguaje':''}${usaAL&&usaPT?' · ':''}${usaPT?'<strong>PT</strong> = Pedagogía Terapéutica':''}` : ''}
+    ${leyendaComp.length ? leyendaComp.map(c => `<br><strong>${esc(c.code)}</strong> = ${esc(c.label)}`).join('') : ''}
+  </div>` : ''}
+
+  <!-- SECCIÓN NUEVA: FALTAS DE ASISTENCIA Y CONVIVENCIA -->
+  <div class="section-title page-break" style="margin-top:32px"><span>${nextSec()}</span>Faltas de asistencia y convivencia</div>
+  <div class="stats-grid" style="margin-bottom:10px">
+    <div class="stat-box blue"><div class="sv">${totalFJ}</div><div class="sl">Faltas justif.</div></div>
+    <div class="stat-box red"><div class="sv">${totalFI}</div><div class="sl">Faltas injustif.</div></div>
+    <div class="stat-box yellow"><div class="sv">${totalAC}</div><div class="sl">Amonestaciones (AC)</div></div>
+    <div class="stat-box red"><div class="sv">${totalPartes}</div><div class="sl">Partes</div></div>
+    <div class="stat-box red"><div class="sv">${totalExp}</div><div class="sl">Expedientes</div></div>
+  </div>
+  ${alumnosConvivencia.length ? `
+  <table>
+    <thead><tr><th style="width:28%">Alumno/a</th><th style="text-align:center">F. Just.</th><th style="text-align:center">F. Injust.</th><th style="text-align:center">AC</th><th style="text-align:center">Partes</th><th style="text-align:center">Expedientes</th></tr></thead>
+    <tbody>
+      ${alumnosConvivencia.map(a => `<tr>
+        <td style="font-weight:600">${esc(a.nombre)}</td>
+        <td style="text-align:center">${+a[fjField]||0}</td>
+        <td style="text-align:center;font-weight:${(+a[fiField]||0)>0?'700':'400'};color:${(+a[fiField]||0)>0?'#991b1b':'#111'}">${+a[fiField]||0}</td>
+        <td style="text-align:center">${+a[acField]||0}</td>
+        <td style="text-align:center;font-weight:${(+a[partField]||0)>0?'700':'400'};color:${(+a[partField]||0)>0?'#b45309':'#111'}">${+a[partField]||0}</td>
+        <td style="text-align:center;font-weight:${(+a[expField]||0)>0?'700':'400'};color:${(+a[expField]||0)>0?'#991b1b':'#111'}">${+a[expField]||0}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : `<div style="color:#166534;font-size:9.5pt;font-style:italic">✓ No hay faltas ni incidencias registradas en esta evaluación.</div>`}
+
+  ${evolucion ? `
+  <!-- SECCIÓN NUEVA: EVOLUCIÓN RESPECTO A LA EVALUACIÓN ANTERIOR -->
+  <div class="section-title" style="margin-top:18px"><span>${nextSec()}</span>Evolución respecto a la evaluación anterior</div>
+  <div class="stats-grid" style="margin-bottom:6px">
+    <div class="stat-box"><div class="sv">${evolucion.promPrev.toFixed(2)}</div><div class="sl">Media ${evolucion.prevLabel}</div></div>
+    <div class="stat-box"><div class="sv">${evolucion.promAct.toFixed(2)}</div><div class="sl">Media ${evalLabel} Evaluación</div></div>
+    <div class="stat-box ${evolucion.delta<0?'green':evolucion.delta>0?'red':'yellow'}"><div class="sv">${evolucion.delta>0?'+':''}${evolucion.delta.toFixed(2)}</div><div class="sl">${evolucion.delta<0?'Mejora':evolucion.delta>0?'Empeora':'Sin cambios'} (nº medio de materias no superadas)</div></div>
+  </div>
+  ` : ''}
 
   <!-- SECCIÓN ACUERDOS -->
-  <div class="section-title" style="margin-top:32px"><span>${propField?'4':'3'}</span>Acuerdos de la sesión de evaluación</div>
+  <div class="section-title" style="margin-top:32px"><span>${nextSec()}</span>Acuerdos de la sesión de evaluación</div>
   <div class="acuerdos-box" id="acuerdosBox" contenteditable="true"
-    data-placeholder="Escribe aquí los acuerdos adoptados en la sesión: medidas de mejora, compromisos del equipo docente, actuaciones con familias, etc.">${_actaOficialGetAcuerdos(nivel, grupo, evalNum)}</div>
-  <div class="no-print" style="font-size:8pt;color:#9aa3bb;margin-top:4px;">Pulsa «💾 Guardar anotaciones» para no perder este texto — la ventana no lo guarda sola al cerrarla.</div>
+    data-placeholder="Escribe aquí los acuerdos adoptados en la sesión: medidas de mejora, compromisos del equipo docente, actuaciones con familias, etc.">${guardada.acuerdos || ''}</div>
+  <div class="no-print" style="font-size:8pt;color:#9aa3bb;margin-top:4px;">Pulsa «💾 Guardar» para no perder este texto, las firmas y las decisiones sobre pendientes — la ventana no lo guarda solo al cerrarla.</div>
 
   <!-- SECCIÓN PROFESORES ASISTENTES -->
-  <div class="section-title"><span>${propField?'5':'4'}</span>Profesorado asistente a la sesión</div>
+  <div class="section-title"><span>${nextSec()}</span>Profesorado asistente a la sesión</div>
   <table>
     <thead><tr><th style="width:4%">#</th><th>Nombre del profesor/a</th><th>Materia que imparte</th></tr></thead>
     <tbody>${profRows}</tbody>
   </table>
 
   <!-- FIRMAS -->
-  <div class="section-title" style="margin-top:20px"><span>${propField?'6':'5'}</span>Firmas</div>
+  <div class="section-title" style="margin-top:20px"><span>${nextSec()}</span>Firmas</div>
   <div class="firmas-grid">
     <div class="firma-block">
       <div class="firma-line"></div>
@@ -12663,12 +12844,12 @@ function openActaOficial(nivel, grupo, evalNum) {
     <div class="firma-block">
       <div class="firma-line"></div>
       <div class="firma-label">Jefe/a de Estudios</div>
-      <div class="firma-name" contenteditable="true" data-placeholder="Nombre y apellidos"></div>
+      <div class="firma-name" id="firmaJefeEstudios" contenteditable="true" data-placeholder="Nombre y apellidos">${esc(guardada.jefeEstudios||'')}</div>
     </div>
     <div class="firma-block">
       <div class="firma-line"></div>
       <div class="firma-label">Director/a del centro</div>
-      <div class="firma-name" contenteditable="true" data-placeholder="Nombre y apellidos"></div>
+      <div class="firma-name" id="firmaDirector" contenteditable="true" data-placeholder="Nombre y apellidos">${esc(guardada.director||'')}</div>
     </div>
   </div>
   <div style="text-align:right;margin-top:10px;font-size:8.5pt;color:#888">
@@ -12683,15 +12864,36 @@ var _AO_NIVEL = '${jsEsc(nivel)}';
 var _AO_GRUPO = '${jsEsc(grupo)}';
 var _AO_EVAL  = ${evalNum};
 
-// Guarda el contenido actual de "Acuerdos de la sesión" en la ventana
-// principal (window.opener), ya que esta ventana emergente no tiene forma
-// propia de persistir datos entre sesiones.
-function _aoGuardarAcuerdos() {
+// Guarda en la ventana principal (window.opener) todo el contenido rellenable
+// de esta acta: acuerdos, firmas de Jefatura/Dirección y las decisiones sobre
+// materias pendientes de cursos anteriores. Esta ventana emergente no tiene
+// forma propia de persistir datos entre sesiones.
+function _aoGuardar() {
   var box = document.getElementById('acuerdosBox');
-  var contenido = box ? box.innerHTML : '';
+  var acuerdos = box ? box.innerHTML : '';
+  var jefeEl = document.getElementById('firmaJefeEstudios');
+  var dirEl  = document.getElementById('firmaDirector');
+  var jefeEstudios = jefeEl ? jefeEl.textContent.trim() : '';
+  var director = dirEl ? dirEl.textContent.trim() : '';
+  var pendAnt = {};
+  var filas = document.querySelectorAll('tr[data-pk]');
+  for (var i = 0; i < filas.length; i++) {
+    var tr = filas[i];
+    var pk = tr.getAttribute('data-pk');
+    var sel = tr.querySelector('.ao-estado-select');
+    var nota = tr.querySelector('.ao-nota');
+    var motivo = tr.querySelector('.ao-motivo');
+    pendAnt[pk] = {
+      estado: sel ? sel.options[sel.selectedIndex].text : '',
+      nota: nota ? nota.textContent.trim() : '',
+      motivo: motivo ? motivo.textContent.trim() : ''
+    };
+  }
   var btn = document.getElementById('aoSaveBtn');
-  if (window.opener && !window.opener.closed && typeof window.opener.guardarAcuerdosActaOficial === 'function') {
-    window.opener.guardarAcuerdosActaOficial(_AO_NIVEL, _AO_GRUPO, _AO_EVAL, contenido);
+  if (window.opener && !window.opener.closed && typeof window.opener.guardarActaOficial === 'function') {
+    window.opener.guardarActaOficial(_AO_NIVEL, _AO_GRUPO, _AO_EVAL, {
+      acuerdos: acuerdos, jefeEstudios: jefeEstudios, director: director, pendAnt: pendAnt
+    });
     if (btn) {
       var original = btn.textContent;
       btn.textContent = '✓ Guardado';
@@ -12767,8 +12969,18 @@ function _aoExportarWord() {
     span.textContent = inputs[m].value || '';
     inputs[m].parentNode.replaceChild(span, inputs[m]);
   }
+  // Word no interpreta los <select> (estado de las materias pendientes) como
+  // controles útiles: se sustituyen por el texto de la opción seleccionada.
+  var selects = clone.querySelectorAll('select');
+  for (var s = 0; s < selects.length; s++) {
+    var selSpan = document.createElement('span');
+    var opt = selects[s].options[selects[s].selectedIndex];
+    selSpan.textContent = opt ? opt.text : '';
+    selects[s].parentNode.replaceChild(selSpan, selects[s]);
+  }
   _aoWordifyGrid(clone.querySelector('.acta-meta'), '.acta-meta-cell', 3);
-  _aoWordifyGrid(clone.querySelector('.stats-grid'), '.stat-box', 4);
+  var statsGrids = clone.querySelectorAll('.stats-grid');
+  for (var g = 0; g < statsGrids.length; g++) { _aoWordifyGrid(statsGrids[g], '.stat-box', 4); }
   _aoWordifyGrid(clone.querySelector('.firmas-grid'), '.firma-block', 3);
   var styleEl = document.querySelector('style');
   var css = styleEl ? styleEl.textContent : '';
@@ -13896,6 +14108,56 @@ function exportConvivenciaInforme(evalKey) {
   }
 }
 
+// Pestaña "Actas no Oficiales": centraliza el acceso a las Actas I/II/Final
+// (editables) de todos los grupos, para no tener que ir grupo a grupo. El
+// punto verde junto a cada botón indica que ya existe una versión guardada.
+function renderActasNoOficiales() {
+  const mc = document.getElementById('mainContent');
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const nivelesConAlumnos = NIVELES.filter(n => (GRUPOS_POR_NIVEL[n]||[]).some(g => (data[n]?.[g]||[]).some(a=>a.nombre&&a.nombre.trim())));
+
+  const dot = (nivel, grupo, evalNum) => _actaGetGuardada(nivel, grupo, evalNum)
+    ? '<span title="Hay una versión guardada de esta acta" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2dd4a0;margin-left:5px;vertical-align:middle;"></span>'
+    : '';
+
+  const cards = nivelesConAlumnos.length ? nivelesConAlumnos.map(n => {
+    const grupos = (GRUPOS_POR_NIVEL[n]||[]).filter(g => (data[n]?.[g]||[]).some(a=>a.nombre&&a.nombre.trim()));
+    const rows = grupos.map(g => {
+      const tut = tutores[`${n}-${g}`] || '';
+      const ng = n.replace(/'/g,"\\'"), gg = g.replace(/'/g,"\\'");
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+        <div style="min-width:150px;">
+          <div style="font-weight:700;font-size:13px;color:var(--text)">${esc(n)} ${esc(g)}</div>
+          ${tut ? `<div style="font-size:10.5px;color:var(--text3)">${esc(tut)}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" style="background:rgba(79,142,247,0.15);color:var(--accent);border:1px solid var(--accent);" onclick="openInforme('${ng}','${gg}',1)">📄 Acta I${dot(n,g,1)}</button>
+          <button class="btn btn-sm" style="background:rgba(45,212,160,0.15);color:var(--green);border:1px solid var(--green);" onclick="openInforme('${ng}','${gg}',2)">📄 Acta II${dot(n,g,2)}</button>
+          <button class="btn btn-sm" style="background:rgba(124,92,252,0.15);color:var(--purple);border:1px solid var(--purple);" onclick="openInforme('${ng}','${gg}',3)">📄 Acta Final${dot(n,g,3)}</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:16px;box-shadow:var(--shadow)">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${esc(n)}</div>
+        ${rows}
+      </div>`;
+  }).join('') : `<div style="text-align:center;color:var(--text3);padding:30px">No hay niveles/grupos con alumnado registrado.</div>`;
+
+  mc.innerHTML = `
+    <div class="main dash-wrap" style="padding-bottom:40px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px">🗂️ Actas no Oficiales</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">Actas de sesión editables (I, II y Evaluación Final) de todos los grupos, en un único lugar · <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2dd4a0;vertical-align:middle;"></span> = ya guardada</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleActasNoOficialesTab()" title="Oculta esta pestaña de la barra superior (se puede volver a mostrar con el icono 🗂️👁️)">🙈 Ocultar esta pestaña</button>
+      </div>
+      ${cards}
+    </div>`;
+}
+
 function renderConvivencia() {
   const mc = document.getElementById('mainContent');
   const nivelesConv = NIVELES.filter(n => (GRUPOS_POR_NIVEL[n] || []).length);
@@ -13996,6 +14258,7 @@ const INFORME_FUENTES = {
   pendientesExtr: { label: 'Evaluación Extraordinaria', corto: 'Extraord.', campoPropuesta: null,        soloBach: true  },
 };
 let _informeFuente = 'pendientesIII';
+let _informeGrupoFiltro = 'todos'; // 'todos' o 'NIVEL::GRUPO'
 let _informeChartInstances = [];
 
 // Tramos para la distribución de alumnos según su nº de materias suspensas
@@ -14006,7 +14269,17 @@ const INFORME_BUCKETS = [
   { label: '5 o más',       test: n => n >= 5,             color: '#f76e6e' },
 ];
 
-function setInformeFuente(f) { _informeFuente = f; renderInformeAcademico(); }
+function setInformeFuente(f) {
+  _informeFuente = f;
+  const fcfg = INFORME_FUENTES[f];
+  if (fcfg && fcfg.soloBach && _informeGrupoFiltro !== 'todos') {
+    const [fNivel] = _informeGrupoFiltro.split('::');
+    if (!isBach(fNivel)) _informeGrupoFiltro = 'todos';
+  }
+  renderInformeAcademico();
+}
+
+function setInformeGrupo(v) { _informeGrupoFiltro = v; renderInformeAcademico(); }
 
 // Gráfico de barras apiladas con el estilo del tema (para la distribución por nivel).
 function _makeInformeStackedBar(canvasId, labels, datasets) {
@@ -14032,8 +14305,10 @@ function _makeInformeStackedBar(canvasId, labels, datasets) {
 }
 
 // Calcula las estadísticas por materia de un nivel para la fuente indicada.
-function _informeNivelStats(nivel, fuente) {
-  const grupos = GRUPOS_POR_NIVEL[nivel] || [];
+// grupoFiltro (opcional): restringe el cálculo a un único grupo del nivel.
+function _informeNivelStats(nivel, fuente, grupoFiltro) {
+  const gruposNivel = GRUPOS_POR_NIVEL[nivel] || [];
+  const grupos = grupoFiltro ? gruposNivel.filter(g => g === grupoFiltro) : gruposNivel;
   const alumnos = grupos.flatMap(g => (data[nivel]?.[g] || []).filter(a => a.nombre && a.nombre.trim()));
   const N = alumnos.length;
   // Universo de materias: las configuradas para el nivel + las que aparezcan en pendientes
@@ -14070,15 +14345,22 @@ function renderInformeAcademico() {
   const fcfg = INFORME_FUENTES[fuente] || INFORME_FUENTES.pendientesIII;
   const fuenteLabel = fcfg.soloBach ? `${fcfg.label} (solo 1º y 2º Bachillerato)` : fcfg.label;
 
+  // Filtro por grupo: '' = todos los grupos del centro; si no, restringe todo
+  // el informe (KPIs, ranking, distribución, tarjetas) a un único grupo.
+  const filtroActivo = _informeGrupoFiltro !== 'todos';
+  let filtroNivel = null, filtroGrupo = null;
+  if (filtroActivo) { [filtroNivel, filtroGrupo] = _informeGrupoFiltro.split('::'); }
+
   // La evaluación extraordinaria solo existe en 1º y 2º de Bachillerato
-  const nivelesFuente = fcfg.soloBach ? NIVELES.filter(n => isBach(n)) : NIVELES;
-  const allStats = nivelesFuente.map(n => _informeNivelStats(n, fuente)).filter(s => s.N > 0);
+  const nivelesFuente = (fcfg.soloBach ? NIVELES.filter(n => isBach(n)) : NIVELES)
+    .filter(n => !filtroActivo || n === filtroNivel);
+  const allStats = nivelesFuente.map(n => _informeNivelStats(n, fuente, filtroActivo ? filtroGrupo : null)).filter(s => s.N > 0);
   const totalAlumnos = allStats.reduce((s, x) => s + x.N, 0);
   const totalSuspCentro = allStats.reduce((s, x) => s + x.totalSusp, 0);
 
   // Alumnado agregado de la fuente seleccionada (para la distribución global y el PDF)
   const todosAlInforme = [];
-  nivelesFuente.forEach(n => (GRUPOS_POR_NIVEL[n]||[]).forEach(g =>
+  nivelesFuente.forEach(n => (GRUPOS_POR_NIVEL[n]||[]).filter(g => !filtroActivo || g === filtroGrupo).forEach(g =>
     (data[n]?.[g]||[]).filter(a=>a.nombre&&a.nombre.trim()).forEach(a => todosAlInforme.push({...a, _nivel:n, _grupo:g}))
   ));
 
@@ -14159,13 +14441,22 @@ function renderInformeAcademico() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:12px;">
         <div>
           <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px">🎓 Informe Académico</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px">Aprobados y suspensos por materia y nivel · ${fuenteLabel}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">Aprobados y suspensos por materia y nivel · ${fuenteLabel}${filtroActivo ? ` · <strong style="color:#22d3ee">${esc(filtroNivel)} ${esc(filtroGrupo)}</strong>` : ''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <button class="conviv-mbtn ${fuente === 'pendientes1' ? 'active' : ''}" onclick="setInformeFuente('pendientes1')">I Evaluación</button>
           <button class="conviv-mbtn ${fuente === 'pendientes2' ? 'active' : ''}" onclick="setInformeFuente('pendientes2')">II Evaluación</button>
           <button class="conviv-mbtn ${fuente === 'pendientesIII' ? 'active' : ''}" onclick="setInformeFuente('pendientesIII')">Evaluación Final</button>
           <button class="conviv-mbtn ${fuente === 'pendientesExtr' ? 'active' : ''}" onclick="setInformeFuente('pendientesExtr')">Evaluación Extraordinaria</button>
+          <select onchange="setInformeGrupo(this.value)" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;">
+            <option value="todos" ${!filtroActivo ? 'selected' : ''}>Todos los grupos</option>
+            ${(fcfg.soloBach ? NIVELES.filter(isBach) : NIVELES).flatMap(n => (GRUPOS_POR_NIVEL[n]||[])
+              .filter(g => (data[n]?.[g]||[]).some(a=>a.nombre&&a.nombre.trim()))
+              .map(g => {
+                const key = `${n}::${g}`;
+                return `<option value="${esc(key)}" ${_informeGrupoFiltro===key?'selected':''}>${esc(n)} ${esc(g)}</option>`;
+              })).join('')}
+          </select>
           <button class="export-pdf-btn" onclick="exportStatsPDF('${fuente}')" title="Exporta el PDF de estadísticas de la evaluación seleccionada, agrupado por nivel y grupo">📊 PDF Estadísticas</button>
         </div>
       </div>
@@ -14175,14 +14466,14 @@ function renderInformeAcademico() {
       ${allStats.length ? `
       <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.7px;margin:6px 0 12px;display:flex;align-items:center;gap:8px;">
         <span style="width:3px;height:14px;background:#22d3ee;border-radius:2px;display:inline-block"></span>
-        Resumen del centro
+        ${filtroActivo ? `Resumen de ${esc(filtroNivel)} ${esc(filtroGrupo)}` : 'Resumen del centro'}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:26px;">
         ${kpi('Alumnos', totalAlumnos, 'var(--accent)')}
-        ${kpi('% Aprobados (centro)', pctAprobCentro + '%', pctAprobCentro >= 80 ? 'var(--green)' : pctAprobCentro >= 60 ? 'var(--yellow)' : 'var(--red)')}
+        ${kpi(filtroActivo ? '% Aprobados (grupo)' : '% Aprobados (centro)', pctAprobCentro + '%', pctAprobCentro >= 80 ? 'var(--green)' : pctAprobCentro >= 60 ? 'var(--yellow)' : 'var(--red)')}
         ${kpi('Suspensos totales', totalSuspCentro, 'var(--red)')}
         ${kpi('Materias evaluadas', nMateriasCentro, 'var(--text)')}
-        ${kpi('Materia con más suspensos', materiaTopCentro ? esc(materiaTopCentro.materia) : '—', 'var(--red)', materiaTopCentro ? `${materiaTopCentro.susp} en todo el centro` : '')}
+        ${kpi('Materia con más suspensos', materiaTopCentro ? esc(materiaTopCentro.materia) : '—', 'var(--red)', materiaTopCentro ? `${materiaTopCentro.susp} en ${filtroActivo ? 'el grupo' : 'todo el centro'}` : '')}
       </div>
 
       <div class="dash-grid-2" style="margin-bottom:26px;align-items:start;">
@@ -14197,7 +14488,7 @@ function renderInformeAcademico() {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)">
           <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
             <span style="width:3px;height:14px;background:var(--red);border-radius:2px;display:inline-block"></span>
-            Materias con más suspensos (centro)
+            Materias con más suspensos ${filtroActivo ? '(grupo)' : '(centro)'}
           </div>
           ${(() => {
             const top = globalRanking.filter(x => x.susp > 0).slice(0, 8);
@@ -14226,7 +14517,7 @@ function renderInformeAcademico() {
 
       <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.7px;margin:6px 0 14px;display:flex;align-items:center;gap:8px;">
         <span style="width:3px;height:14px;background:#22d3ee;border-radius:2px;display:inline-block"></span>
-        Detalle por nivel
+        ${filtroActivo ? 'Detalle del grupo' : 'Detalle por nivel'}
       </div>
       ${nivelCards}
 
@@ -14904,6 +15195,7 @@ function guardarVersionCurso() {
     actasData:       JSON.parse(JSON.stringify(window._actasData || {})),
     actasOficialesData: JSON.parse(JSON.stringify(window._actasOficialesData || {})),
     vacantesCfg:     JSON.parse(JSON.stringify(typeof _vacantesCfg!=='undefined' ? _vacantesCfg : {})),
+    actasNoOficialesTabVisible: _actasNoOficialesTabVisible,
     fotoData:        cap(window._fotoData),
     horarioData:     cap(window._horarioData),
   };
@@ -14943,6 +15235,7 @@ window.__IS_SNAPSHOT_EXPORT__ = true;
       if(_s.actasData){ if(!window._actasData) window._actasData={}; Object.assign(window._actasData, _s.actasData); }
       if(_s.actasOficialesData){ if(!window._actasOficialesData) window._actasOficialesData={}; Object.assign(window._actasOficialesData, _s.actasOficialesData); }
       if(_s.vacantesCfg && typeof _vacantesCfg!=='undefined') Object.assign(_vacantesCfg, _s.vacantesCfg);
+      if(typeof _s.actasNoOficialesTabVisible === 'boolean' && typeof _actasNoOficialesTabVisible!=='undefined') _actasNoOficialesTabVisible = _s.actasNoOficialesTabVisible;
       if(_s.fotoData){ if(!window._fotoData) window._fotoData={}; Object.assign(window._fotoData, _s.fotoData); }
       if(_s.horarioData){ if(!window._horarioData) window._horarioData={}; Object.assign(window._horarioData, _s.horarioData); }
       if(_s.iesName){ var el=document.getElementById('headerIesName'); if(el) el.value=_s.iesName; }
@@ -15022,8 +15315,9 @@ function openGuide() {
           </ul>
           <div style="font-weight:700;color:var(--text);margin-bottom:4px">📋 Por grupo (cabecera de grupo)</div>
           <ul style="margin:0 0 12px 16px">
+            <li><strong>🗂️ Actas no Oficiales</strong> — Pestaña que centraliza el acceso a las Actas I/II/Final (editables) de todos los grupos; se puede ocultar/mostrar con el icono 🗂️👁️ junto a "＋ Nivel"</li>
             <li><strong>Acta I/II/Final</strong> — Actas de sesión de evaluación, editables y guardables; se pueden exportar a PDF, Word o HTML (esta última conserva la maquetación exacta)</li>
-            <li><strong>Acta Oficial</strong> — Genera el acta de sesión para I, II o Evaluación Final; permite guardar las anotaciones del grupo y exportar a PDF, Word o HTML</li>
+            <li><strong>Acta Oficial</strong> — Genera el acta de sesión para I, II o Evaluación Final, con estadísticas de materias suspendidas, pendientes de cursos anteriores, alumnado NESE/Compensatoria con leyenda de códigos, faltas/convivencia y evolución entre evaluaciones; permite guardar acuerdos, firmas y decisiones sobre pendientes, y exportar a PDF, Word o HTML</li>
             <li><strong>🖼️ Fotos del grupo</strong> — Galería de fotos del alumnado</li>
             <li><strong>🪑 Plano del grupo</strong> — Distribución de mesas: toca un alumno/a (de la lista o de una mesa) y luego una mesa; si está libre se sienta ahí, si está ocupada se intercambian. Tamaño de cuadrícula ajustable e imprimible</li>
             <li><strong>🕐 Horario del grupo</strong> — Horario semanal del grupo</li>
@@ -15484,7 +15778,8 @@ function buildState(includeImages = true, includeActas = true) {
     convivenciaData: window._convivenciaData || {},
     actasData: includeActas ? (window._actasData || {}) : {},
     actasOficialesData: includeActas ? (window._actasOficialesData || {}) : {},
-    vacantesCfg: _vacantesCfg
+    vacantesCfg: _vacantesCfg,
+    actasNoOficialesTabVisible: _actasNoOficialesTabVisible
   };
   if (includeImages) {
     // Las imágenes (base64) son lo más pesado; se capan a 2 MB por elemento.
@@ -15618,6 +15913,7 @@ function loadFromLocalStorage() {
       if (saved.planosGrupo) { if (!window._planosGrupo) window._planosGrupo = {}; Object.assign(window._planosGrupo, saved.planosGrupo); }
       if (saved.actasData)      { if (!window._actasData)      window._actasData      = {}; Object.assign(window._actasData,      saved.actasData); }
       if (saved.actasOficialesData) { if (!window._actasOficialesData) window._actasOficialesData = {}; Object.assign(window._actasOficialesData, saved.actasOficialesData); }
+      if (typeof saved.actasNoOficialesTabVisible === 'boolean') _actasNoOficialesTabVisible = saved.actasNoOficialesTabVisible;
       if (saved.fotoData)       { if (!window._fotoData)       window._fotoData       = {}; Object.assign(window._fotoData,       saved.fotoData); }
       if (saved.horarioData)    { if (!window._horarioData)    window._horarioData    = {}; Object.assign(window._horarioData,    saved.horarioData); }
       // Sync currentGrupos for all known niveles
