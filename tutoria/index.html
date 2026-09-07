@@ -9209,19 +9209,30 @@ function executeDeleteNivel() {
 }
 
 function exportJSON() {
-  const payload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    evalDates,
-    tutores,
-    GRUPOS_POR_NIVEL,
-    data,
-    convivenciaData: window._convivenciaData || {}
-  };
+  // Reutiliza exactamente el mismo "instantáneo" que usan el autoguardado
+  // y el archivo de "Guardar como" (buildState), así la copia de seguridad
+  // manual contiene SIEMPRE todo lo necesario para reconstruir el centro
+  // en otro dispositivo: alumnos, grupos, tutores, fechas de evaluación,
+  // calendario, planos de aula, observaciones de grupo, convivencia,
+  // asistencia/equipo docente, materias personalizadas, configuración de
+  // vacantes, actas (oficiales y no oficiales), fotos y horarios.
+  const payload = buildState(true, true);
+
+  // Metadatos propios de esta exportación manual (no confundir con el
+  // "savedAt" interno del autoguardado).
+  payload.exportVersion = 2;                 // v2 = exportación completa (ver executeJsonImport)
+  payload.exportedAt = new Date().toISOString();
+
+  // Preferencias de interfaz: se incluyen para que, al importar en modo
+  // "Sobrescribir todo" en otro dispositivo, la app quede visualmente
+  // igual (columnas visibles, tema claro/oscuro).
+  payload.colState = _colState || {};
+  payload.theme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const d = new Date();
   triggerDownload(blob, `evaluaciones_ies_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`);
-  showToast('✓ Datos exportados como JSON');
+  showToast('✓ Copia de seguridad completa exportada (JSON)');
 }
 
 // Holds parsed JSON pending user choice
@@ -9241,13 +9252,38 @@ function importJSON(input) {
       _pendingJson = parsed;
       // Show info in modal
       let totalAl = 0;
-      Object.values(parsed.data).forEach(nv => Object.values(nv).forEach(gr => totalAl += gr.length));
+      Object.values(parsed.data).forEach(nv => Object.values(nv).forEach(gr => totalAl += (gr||[]).length));
       const niveles = Object.keys(parsed.data).join(', ');
+      const totalGrupos = Object.values(parsed.GRUPOS_POR_NIVEL || {}).reduce((s, gs) => s + (gs||[]).length, 0);
+      const fechaExport = parsed.exportedAt || parsed.savedAt;
+      const esCompleto = (parsed.exportVersion || 0) >= 2;
+
+      // Piezas de datos "extra" que trae el archivo, para que quede claro
+      // qué se va a importar además de los alumnos.
+      const extras = [];
+      if (parsed.calEventos && parsed.calEventos.length) extras.push(`${parsed.calEventos.length} eventos de calendario`);
+      const nActas = Object.keys(parsed.actasData || {}).length + Object.keys(parsed.actasOficialesData || {}).length;
+      if (nActas) extras.push(`${nActas} actas`);
+      const nObs = Object.keys(parsed.obsGrupoData || {}).length;
+      if (nObs) extras.push(`observaciones de ${nObs} grupo(s)`);
+      const nPlanos = Object.keys(parsed.planosGrupo || {}).length;
+      if (nPlanos) extras.push(`${nPlanos} plano(s) de aula`);
+      const nFotos = Object.keys(parsed.fotoData || {}).length;
+      if (nFotos) extras.push(`${nFotos} foto(s)`);
+      const nHorarios = Object.keys(parsed.horarioData || {}).length;
+      if (nHorarios) extras.push(`${nHorarios} horario(s)`);
+      if (parsed.materiasCustom && Object.keys(parsed.materiasCustom).length) extras.push('materias personalizadas');
+      if (parsed.vacantesCfg) extras.push('configuración de vacantes');
+
       document.getElementById('jsonImportInfo').innerHTML =
         `<strong>Archivo:</strong> ${file.name}<br>` +
-        `<strong>Exportado el:</strong> ${parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-ES') : '—'}<br>` +
-        `<strong>Niveles:</strong> ${niveles}<br>` +
-        `<strong>Total alumnos:</strong> ${totalAl}`;
+        `<strong>Exportado el:</strong> ${fechaExport ? new Date(fechaExport).toLocaleString('es-ES') : '—'}<br>` +
+        `<strong>Centro:</strong> ${parsed.iesName ? parsed.iesName : '—'}<br>` +
+        `<strong>Niveles:</strong> ${niveles || '—'}<br>` +
+        `<strong>Grupos:</strong> ${totalGrupos}<br>` +
+        `<strong>Total alumnos:</strong> ${totalAl}` +
+        (extras.length ? `<br><strong>Incluye además:</strong> ${extras.join(', ')}` : '') +
+        (!esCompleto ? `<br><span style="color:var(--yellow)">⚠ Copia de seguridad de un formato anterior (sin calendario, actas, planos de aula, etc.)</span>` : '');
       // Highlight selected radio on click
       document.querySelectorAll('#jsonImportOverlay input[type=radio]').forEach(r => {
         r.onchange = () => {
@@ -9268,6 +9304,22 @@ function closeJsonImportModal() {
   document.getElementById('jsonImportOverlay').classList.remove('open');
 }
 
+// Sincroniza un "diccionario" (objeto plano clave→valor) del archivo importado
+// contra el estado en vivo de la app. En modo "overwrite" reemplaza el
+// contenido entero; en modo "merge" solo añade las claves que aún no existen
+// (no pisa nada de lo que ya había en este dispositivo).
+function _jsonSyncDict(target, src, mode) {
+  if (!src) return target;
+  if (!target) target = {};
+  if (mode === 'overwrite') {
+    Object.keys(target).forEach(k => delete target[k]);
+    Object.assign(target, src);
+  } else {
+    Object.keys(src).forEach(k => { if (!(k in target)) target[k] = src[k]; });
+  }
+  return target;
+}
+
 function executeJsonImport() {
   if (!_pendingJson) return;
   const mode = document.querySelector('#jsonImportOverlay input[name=jsonMode]:checked').value;
@@ -9275,11 +9327,11 @@ function executeJsonImport() {
 
   if (mode === 'overwrite') {
     // Full replace — sync NIVELES to match new file
-    const newNiveles = Object.keys(src.GRUPOS_POR_NIVEL);
-    // Remove niveles not in new file
-    NIVELES.slice().forEach(n => { if (!src.GRUPOS_POR_NIVEL[n]) NIVELES.splice(NIVELES.indexOf(n), 1); });
-    // Add new niveles from file
-    newNiveles.forEach(n => { if (!NIVELES.includes(n)) NIVELES.push(n); });
+    // Si el archivo trae el orden explícito de niveles (NIVELES), se respeta
+    // tal cual; si no (backups antiguos), se deduce del orden de GRUPOS_POR_NIVEL.
+    const newNiveles = Array.isArray(src.NIVELES) ? src.NIVELES.slice() : Object.keys(src.GRUPOS_POR_NIVEL);
+    NIVELES.length = 0;
+    newNiveles.forEach(n => NIVELES.push(n));
     // Replace GRUPOS_POR_NIVEL
     Object.keys(GRUPOS_POR_NIVEL).forEach(k => delete GRUPOS_POR_NIVEL[k]);
     Object.assign(GRUPOS_POR_NIVEL, src.GRUPOS_POR_NIVEL);
@@ -9289,14 +9341,41 @@ function executeJsonImport() {
       data[nivel] = {};
       Object.keys(src.data[nivel]).forEach(grupo => { data[nivel][grupo] = src.data[nivel][grupo]; });
     });
+    Object.keys(tutores).forEach(k => delete tutores[k]);
     Object.assign(tutores, src.tutores || {});
     if (src.evalDates) {
       if (src.evalDates.eval1 !== undefined) {
         // legacy: apply same dates to all niveles
         NIVELES.forEach(n => { evalDates[n] = {eval1:src.evalDates.eval1||'',eval2:src.evalDates.eval2||'',eval3:src.evalDates.eval3||''}; });
       } else {
+        Object.keys(evalDates).forEach(k => delete evalDates[k]);
         Object.assign(evalDates, src.evalDates);
       }
+    }
+    // Nombre del centro
+    if (src.iesName !== undefined) {
+      const el = document.getElementById('headerIesName');
+      if (el) el.value = src.iesName;
+    }
+    // Calendario: reemplazo completo
+    if (Array.isArray(src.calEventos)) {
+      calEventos.length = 0;
+      src.calEventos.forEach(e => calEventos.push(e));
+    }
+    // Configuración de vacantes: reemplazo completo
+    if (src.vacantesCfg) Object.assign(_vacantesCfg, src.vacantesCfg);
+    // Materias personalizadas: reemplazo completo
+    if (src.materiasCustom) {
+      Object.keys(_materiasCustom).forEach(k => delete _materiasCustom[k]);
+      Object.assign(_materiasCustom, src.materiasCustom);
+      try { localStorage.setItem('evalies_materias', JSON.stringify(_materiasCustom)); } catch(e) {}
+    }
+    if (typeof src.actasNoOficialesTabVisible === 'boolean') _actasNoOficialesTabVisible = src.actasNoOficialesTabVisible;
+    // Preferencias de interfaz (solo tiene sentido restaurarlas al sobrescribir)
+    if (src.colState) { Object.keys(_colState).forEach(k => delete _colState[k]); Object.assign(_colState, src.colState); saveColState(); }
+    if (src.theme === 'light' || src.theme === 'dark') {
+      localStorage.setItem('evalies_theme', src.theme);
+      document.documentElement.classList.toggle('light', src.theme === 'light');
     }
 
   } else {
@@ -9324,8 +9403,23 @@ function executeJsonImport() {
         });
       });
     });
-    // Merge tutores without overwriting
+    // Merge tutores sin sobrescribir los que ya hay
     Object.keys(src.tutores || {}).forEach(k => { if (!tutores[k]) tutores[k] = src.tutores[k]; });
+    // Nombre del centro: solo si aún no hay uno puesto
+    const iesEl = document.getElementById('headerIesName');
+    if (src.iesName && iesEl && !iesEl.value.trim()) iesEl.value = src.iesName;
+    // Calendario: añade solo los eventos con id nuevo
+    if (Array.isArray(src.calEventos)) {
+      const existingIds = new Set(calEventos.map(e => e.id));
+      src.calEventos.forEach(e => { if (!existingIds.has(e.id)) { calEventos.push(e); existingIds.add(e.id); } });
+    }
+    // Configuración de vacantes: combina campo a campo sin pisar lo existente
+    if (src.vacantesCfg) _vacMergeCfg(src.vacantesCfg);
+    // Materias personalizadas: combina por nivel sin pisar lo existente
+    if (src.materiasCustom) {
+      Object.keys(src.materiasCustom).forEach(k => { if (!(k in _materiasCustom)) _materiasCustom[k] = src.materiasCustom[k]; });
+      try { localStorage.setItem('evalies_materias', JSON.stringify(_materiasCustom)); } catch(e) {}
+    }
   }
 
   // Reset currentGrupos for any new niveles
@@ -9336,16 +9430,17 @@ function executeJsonImport() {
   });
   Object.keys(GRUPOS_POR_NIVEL).forEach(n => { if (!currentGrupos[n]) currentGrupos[n] = GRUPOS_POR_NIVEL[n][0]; });
 
-  // Convivencia: sobrescribir o combinar según el modo
-  if (src.convivenciaData) {
-    if (!window._convivenciaData) window._convivenciaData = {};
-    if (mode === 'overwrite') {
-      Object.keys(window._convivenciaData).forEach(k => delete window._convivenciaData[k]);
-      Object.assign(window._convivenciaData, src.convivenciaData);
-    } else {
-      Object.keys(src.convivenciaData).forEach(k => { if (!window._convivenciaData[k]) window._convivenciaData[k] = src.convivenciaData[k]; });
-    }
-  }
+  // Convivencia, equipo docente/asistencia, observaciones de grupo, planos
+  // de aula, actas (oficiales y no oficiales), fotos y horarios: todos son
+  // diccionarios clave→valor que se sincronizan igual, según el modo elegido.
+  window._convivenciaData     = _jsonSyncDict(window._convivenciaData,     src.convivenciaData,     mode);
+  window._asistenciaData      = _jsonSyncDict(window._asistenciaData,      src.asistenciaData,      mode);
+  window._obsGrupoData        = _jsonSyncDict(window._obsGrupoData,        src.obsGrupoData,         mode);
+  window._planosGrupo         = _jsonSyncDict(window._planosGrupo,         src.planosGrupo,          mode);
+  window._actasData           = _jsonSyncDict(window._actasData,          src.actasData,             mode);
+  window._actasOficialesData  = _jsonSyncDict(window._actasOficialesData, src.actasOficialesData,    mode);
+  window._fotoData            = _jsonSyncDict(window._fotoData,           src.fotoData,              mode);
+  window._horarioData         = _jsonSyncDict(window._horarioData,        src.horarioData,           mode);
 
   closeJsonImportModal();
   renderAll();
@@ -16321,6 +16416,11 @@ function applyFilePayload(parsed) {
     Object.assign(_materiasCustom, parsed.materiasCustom);
     try { localStorage.setItem('evalies_materias', JSON.stringify(_materiasCustom)); } catch(e) {}
   }
+  // Calendario del centro (antes se perdía al abrir un archivo)
+  if (Array.isArray(parsed.calEventos)) {
+    calEventos.length = 0;
+    parsed.calEventos.forEach(e => calEventos.push(e));
+  }
   if (parsed.obsGrupoData) {
     if (!window._obsGrupoData) window._obsGrupoData = {};
     Object.keys(window._obsGrupoData).forEach(k => delete window._obsGrupoData[k]);
@@ -16336,6 +16436,24 @@ function applyFilePayload(parsed) {
     Object.keys(window._convivenciaData).forEach(k => delete window._convivenciaData[k]);
     Object.assign(window._convivenciaData, parsed.convivenciaData);
   }
+  // Planos de aula (antes se perdían al abrir un archivo)
+  if (parsed.planosGrupo) {
+    if (!window._planosGrupo) window._planosGrupo = {};
+    Object.keys(window._planosGrupo).forEach(k => delete window._planosGrupo[k]);
+    Object.assign(window._planosGrupo, parsed.planosGrupo);
+  }
+  // Actas no oficiales y oficiales (antes se perdían al abrir un archivo)
+  if (parsed.actasData) {
+    if (!window._actasData) window._actasData = {};
+    Object.keys(window._actasData).forEach(k => delete window._actasData[k]);
+    Object.assign(window._actasData, parsed.actasData);
+  }
+  if (parsed.actasOficialesData) {
+    if (!window._actasOficialesData) window._actasOficialesData = {};
+    Object.keys(window._actasOficialesData).forEach(k => delete window._actasOficialesData[k]);
+    Object.assign(window._actasOficialesData, parsed.actasOficialesData);
+  }
+  if (typeof parsed.actasNoOficialesTabVisible === 'boolean') _actasNoOficialesTabVisible = parsed.actasNoOficialesTabVisible;
   if (parsed.fotoData) {
     if (!window._fotoData) window._fotoData = {};
     Object.assign(window._fotoData, parsed.fotoData);
