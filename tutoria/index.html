@@ -1801,11 +1801,11 @@ if ('serviceWorker' in navigator) {
   .pap-check-row:last-child { border-bottom: none; }
   .pap-check-row input[type=checkbox] { width: 16px; height: 16px; }
   .pap-check-label { font-size: 12px; color: var(--text); }
-  .pap-dyn-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  .pap-dyn-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
   .pap-dyn-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text2); text-align: left; padding: 4px 6px; }
   .pap-dyn-table td { padding: 3px; vertical-align: top; }
-  .pap-dyn-table input, .pap-dyn-table textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 5px 7px; color: var(--text); font-family: inherit; font-size: 12px; }
-  .pap-dyn-del { background: none; border: none; color: var(--red); cursor: pointer; font-size: 15px; padding: 2px 6px; }
+  .pap-dyn-table input, .pap-dyn-table textarea { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 5px 7px; color: var(--text); font-family: inherit; font-size: 12px; box-sizing: border-box; }
+  .pap-dyn-del { background: none; border: none; color: var(--red); cursor: pointer; font-size: 15px; padding: 2px 6px; display: block; margin: 0 auto; } .pap-dyn-table th:last-child, .pap-dyn-table td:last-child { width: 44px !important; text-align: center; vertical-align: middle; }
   .pap-add-btn { font-size: 11px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: 6px; background: none; color: var(--text2); cursor: pointer; }
   .pap-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 
@@ -1821,6 +1821,12 @@ if ('serviceWorker' in navigator) {
   .ac-check-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }
   .ac-check-row input[type=checkbox] { width: 16px; height: 16px; flex-shrink: 0; }
   .ac-check-label { font-size: 12px; color: var(--text); }
+  .ac-enr-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  .ac-enr-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text2); text-align: left; padding: 4px 6px; }
+  .ac-enr-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .ac-enr-table tr:last-child td { border-bottom: none; }
+  .ac-enr-materia { font-size: 12.5px; color: var(--text); }
+  .ac-enr-table select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-family: inherit; font-size: 12px; }
 
   /* ===== Pestaña de grupo "NESE" (acceso a PAP / EC) ===== */
   .nese-tab-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 4px 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
@@ -6250,7 +6256,8 @@ function acDefault() {
     _touched:false,
     cursoEscolar:'', fechaInicio:'', centroCodigo:'', centroNombre:'', centroLocalidad:'', nia:'', nivelDoc:'',
     fechaInformeSociopsico:'', fechaInformeMedidas:'',
-    areaMateriaAmbito:'',
+    enriquecimientoMaterias:{}, // { 'Nombre materia': 'horizontal' | 'vertical' }
+    areaMateriaAmbito:'', // observaciones adicionales sobre el ámbito / conexiones concretas
     estrategias, otrasEstrategias:'',
     tareasAgentes:[{agente:'',tareas:''}],
     horarioNota:'',
@@ -6264,6 +6271,7 @@ function _acAlumno(nivel,grupo,idx){ return data[nivel][grupo][idx]; }
 window.openAcModal = function(nivel, grupo, idx) {
   const a = _acAlumno(nivel,grupo,idx);
   if (!a.ac) a.ac = acDefault();
+  if (!a.ac.enriquecimientoMaterias) a.ac.enriquecimientoMaterias = {}; // compat. EC guardados antes de este campo
   document.getElementById('acModalBox').innerHTML = renderAcFormHTML(nivel, grupo, idx, a);
   document.getElementById('acOverlay').classList.add('open');
 };
@@ -6279,6 +6287,19 @@ window.acToggleEstrategia = function(nivel, grupo, idx, key, checked) {
   const a = _acAlumno(nivel,grupo,idx);
   a.ac.estrategias[key] = checked; a.ac._touched = true;
   markDirty();
+};
+// mi = índice de la materia dentro de getMateriasParaNivel(nivel,grupo) (evita problemas
+// de escapado de comillas con nombres de materia dentro del atributo onchange).
+window.acSetEnriquecimiento = function(nivel, grupo, idx, mi, tipo) {
+  const a = _acAlumno(nivel,grupo,idx);
+  const materia = getMateriasParaNivel(nivel, grupo)[mi];
+  if (!materia) return;
+  if (!a.ac.enriquecimientoMaterias) a.ac.enriquecimientoMaterias = {};
+  if (tipo) a.ac.enriquecimientoMaterias[materia] = tipo;
+  else delete a.ac.enriquecimientoMaterias[materia];
+  a.ac._touched = true;
+  markDirty();
+  document.getElementById('acModalBox').innerHTML = renderAcFormHTML(nivel, grupo, idx, a);
 };
 window.acAddFila = function(nivel, grupo, idx, arrKey, plantilla) {
   const a = _acAlumno(nivel,grupo,idx);
@@ -6298,6 +6319,41 @@ window.acSetFilaCampo = function(nivel, grupo, idx, arrKey, rowIdx, campo, value
   a.ac[arrKey][rowIdx][campo] = value; a.ac._touched = true;
   markDirty();
 };
+
+// Tabla de materias del curso del alumno/a con selector de tipo de enriquecimiento.
+// Reutiliza el catálogo de materias por nivel/grupo ya existente en la app (⚙ Materias),
+// de modo que la lista siempre coincide con lo que realmente se imparte en su curso.
+function renderAcEnriquecimientoTabla(nivel, grupo, idx, p) {
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const materiasNivel = getMateriasParaNivel(nivel, grupo);
+  const enr = p.enriquecimientoMaterias || (p.enriquecimientoMaterias = {});
+
+  if (!materiasNivel.length) {
+    return `<p class="pap-hint" style="color:var(--yellow)">No hay materias configuradas para ${esc(nivel)}${grupo?' '+esc(grupo):''}. Puedes añadirlas desde la pestaña ⚙ Materias.</p>`;
+  }
+
+  const rows = materiasNivel.map((m, mi) => {
+    const tipo = enr[m] || '';
+    const rowBg = tipo === 'horizontal' ? 'background:rgba(79,142,247,0.08);'
+                : tipo === 'vertical'   ? 'background:rgba(124,92,252,0.08);' : '';
+    return `<tr style="${rowBg}">
+      <td class="ac-enr-materia">${esc(m)}</td>
+      <td>
+        <select onchange="acSetEnriquecimiento('${nivel}','${grupo}',${idx},${mi},this.value)">
+          <option value="" ${tipo===''?'selected':''}>— Sin enriquecimiento —</option>
+          <option value="horizontal" ${tipo==='horizontal'?'selected':''}>Enriquecimiento horizontal</option>
+          <option value="vertical" ${tipo==='vertical'?'selected':''}>Enriquecimiento vertical</option>
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <table class="ac-enr-table">
+      <thead><tr><th>Materia</th><th style="width:230px">Tipo de enriquecimiento</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
 
 function renderAcFormHTML(nivel, grupo, idx, a) {
   const p = a.ac;
@@ -6366,8 +6422,12 @@ function renderAcFormHTML(nivel, grupo, idx, a) {
       <div class="pap-section">
         <div class="pap-section-head"><span class="pap-section-letter">C</span><span class="pap-section-title">Concreción del programa de enriquecimiento</span></div>
         <div class="pap-section-body">
-          <p class="pap-hint">Área — Materia — Ámbito: especificar en qué áreas/asignaturas/materias se realizará el enriquecimiento y el tipo (Enriquecimiento horizontal: profundizar en las competencias específicas trabajadas dentro del aula, estableciendo relaciones y conexiones con otros temas. Enriquecimiento vertical: aumentar la cantidad de saberes y aprender avanzando competencias específicas de un curso superior).</p>
-          ${T('ac_areaMateriaAmbito','Área — Materia — Ámbito',p.areaMateriaAmbito)}
+          <p class="pap-hint">Área — Materia — Ámbito: para cada materia que se imparte en el curso del alumno/a, indica si se realiza enriquecimiento y de qué tipo. <strong>Horizontal</strong>: profundizar en las competencias específicas trabajadas dentro del aula, estableciendo relaciones y conexiones con otros temas. <strong>Vertical</strong>: aumentar la cantidad de saberes y aprender avanzando competencias específicas de un curso superior.</p>
+          ${renderAcEnriquecimientoTabla(nivel, grupo, idx, p)}
+          <div class="pap-field" style="margin-top:12px">
+            <label>Observaciones adicionales sobre el ámbito (conexiones concretas, temas, saberes de curso superior…)</label>
+            <textarea id="ac_areaMateriaAmbito" onchange="saveAcField('${nivel}','${grupo}',${idx},'areaMateriaAmbito',this.value)">${esc(p.areaMateriaAmbito)}</textarea>
+          </div>
         </div>
       </div>
 
@@ -6455,6 +6515,12 @@ function _acDocBodyHTML(nivel, grupo, idx) {
     `<tr><td>${esc(s.medida)}</td><td>${esc(s.t1)}</td><td>${esc(s.t2)}</td><td>${esc(s.t3)}</td></tr>`
   ).join('') || `<tr><td colspan="4" style="color:#999;font-style:italic">Sin seguimiento registrado.</td></tr>`;
 
+  const _enrMaterias = p.enriquecimientoMaterias || {};
+  const enriquecimientoRows = getMateriasParaNivel(nivel, grupo)
+    .filter(m => _enrMaterias[m])
+    .map(m => `<tr><td>${esc(m)}</td><td>${_enrMaterias[m]==='horizontal'?'Enriquecimiento horizontal':'Enriquecimiento vertical'}</td></tr>`)
+    .join('') || `<tr><td colspan="2" style="color:#999;font-style:italic">Sin materias con enriquecimiento asignado.</td></tr>`;
+
   return `
   <h1>Programa de Enriquecimiento Curricular</h1>
   <div class="subtitle">${esc(a.nombre)} · ${esc(nivel)} ${esc(grupo)} · Altas Capacidades · Generado el ${new Date().toLocaleDateString('es-ES')}</div>
@@ -6475,7 +6541,8 @@ function _acDocBodyHTML(nivel, grupo, idx) {
   </table>
 
   <h2>C · Concreción del programa de enriquecimiento</h2>
-  <p class="txt">${esc(p.areaMateriaAmbito)||'—'}</p>
+  <table><thead><tr><th>Área / Materia / Ámbito</th><th>Tipo de enriquecimiento</th></tr></thead><tbody>${enriquecimientoRows}</tbody></table>
+  ${p.areaMateriaAmbito?`<p><strong>Observaciones adicionales:</strong></p><p class="txt">${esc(p.areaMateriaAmbito)}</p>`:''}
 
   <h2>D · Estrategias metodológicas empleadas y recursos</h2>
   <table><thead><tr><th>Estrategia</th></tr></thead><tbody>${estrategiasRows}</tbody></table>
@@ -7708,7 +7775,18 @@ function getMateriasParaNivel(nivel, grupo) {
       if (MATERIAS_POR_NIVEL[pdcKey]) return MATERIAS_POR_NIVEL[pdcKey];
     }
   }
-  return _materiasCustom[nivel] || MATERIAS_POR_NIVEL[nivel] || [];
+  if (_materiasCustom[nivel]) return _materiasCustom[nivel];
+  if (MATERIAS_POR_NIVEL[nivel]) return MATERIAS_POR_NIVEL[nivel];
+  // Fallback: el nombre de la pestaña de grupo puede no coincidir literalmente
+  // con la clave canónica del catálogo (p. ej. "2º Bachillerato Científico" o
+  // "2º Bachillerato HS" en vez de "2º Bach."). Se reintenta con el nivel
+  // académico normalizado, igual que ya hace getMateriasCursosAnteriores().
+  const claveCanonica = _normalizarNivelAcademico(nivel);
+  if (claveCanonica) {
+    if (_materiasCustom[claveCanonica]) return _materiasCustom[claveCanonica];
+    if (MATERIAS_POR_NIVEL[claveCanonica]) return MATERIAS_POR_NIVEL[claveCanonica];
+  }
+  return [];
 }
 
 // Materias de CURSOS ANTERIORES: unión (sin duplicados) de las materias de TODOS
