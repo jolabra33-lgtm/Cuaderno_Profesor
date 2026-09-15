@@ -112,7 +112,7 @@ if ('serviceWorker' in navigator) {
   /* Safari (iPad/iPhone) calcula el ancho del input de fecha con su propia UI
      interna (icono + selectores), ignorando el ancho fijado por CSS, y en
      un .grid/.flex el min-width:auto por defecto agrava el problema. */
-  input[type="date"].in{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;overflow:hidden;min-height:38px}
+  input[type="date"].in{min-width:0;max-width:100%;min-height:38px}
   .grid input[type="date"],.flex input[type="date"]{min-width:0}
   .in:focus{outline:none;border-color:var(--accent-2);background:var(--card);box-shadow:0 0 0 3px var(--accent-soft)}
   .tab{padding:8px 16px;border-radius:999px;border:1px solid transparent;background:var(--surface-2);color:var(--mut);font-size:13.5px;font-weight:700;letter-spacing:-.005em;transition:.15s}
@@ -9404,18 +9404,17 @@ function renderAjustes(grupo){
   <div class="card">
     <h2>Fechas de cada evaluación</h2>
     <p class="sub">Marca cuándo empieza y termina cada trimestre. Se usa para poder filtrar la Asistencia y la Convivencia por evaluación en la pestaña Resumen.</p>
-    <div class="flex" style="flex-wrap:wrap;gap:16px">
+    <style>@media(max-width:460px){.ajustesFechasGrid{grid-template-columns:1fr!important}}</style>
+    <div class="ajustesFechasGrid" style="display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:12px">
       ${[0,1,2].map(t=>`
-        <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
           <span style="font-size:13px;font-weight:600">${TRIMESTRES[t]}</span>
-          <div class="flex" style="gap:6px">
-            <label style="font-size:12px;color:var(--mut)">Inicio
-              <input type="date" class="in" style="width:100%;margin-top:2px" value="${grupo.fechasTrimestre[t].inicio||''}" onchange="setFechaTrimestre(${t},'inicio',this.value)">
-            </label>
-            <label style="font-size:12px;color:var(--mut)">Fin
-              <input type="date" class="in" style="width:100%;margin-top:2px" value="${grupo.fechasTrimestre[t].fin||''}" onchange="setFechaTrimestre(${t},'fin',this.value)">
-            </label>
-          </div>
+          <label style="font-size:12px;color:var(--mut)">Inicio
+            <input type="date" class="in" style="width:100%;margin-top:2px" value="${grupo.fechasTrimestre[t].inicio||''}" onchange="setFechaTrimestre(${t},'inicio',this.value)">
+          </label>
+          <label style="font-size:12px;color:var(--mut)">Fin
+            <input type="date" class="in" style="width:100%;margin-top:2px" value="${grupo.fechasTrimestre[t].fin||''}" onchange="setFechaTrimestre(${t},'fin',this.value)">
+          </label>
         </div>`).join("")}
     </div>
   </div>
@@ -9538,7 +9537,7 @@ window.borrarGrupo=()=>{ const grupo=grupoActual(); if(grupo) borrarGrupoId(grup
 window.setBloqueW=(i,v)=>{ const grupo=grupoActual(); grupo.bloques[i].peso=Number(v)||0; save(); };
 window.setUmbral=(k,v)=>{ grupoActual().umbrales[k]=Number(v)||0; save(); };
 window.setPesoTrim=(t,v)=>{ const g=grupoActual(); if(!g.pesosTrim) g.pesosTrim={}; g.pesosTrim[t]=v; save(); };
-window.setFechaTrimestre=(t,campo,v)=>{ const g=grupoActual(); if(!g.fechasTrimestre) g.fechasTrimestre=[{inicio:"",fin:""},{inicio:"",fin:""},{inicio:"",fin:""}]; g.fechasTrimestre[t][campo]=v; save(); render(); };
+window.setFechaTrimestre=(t,campo,v)=>{ const g=grupoActual(); if(!g.fechasTrimestre) g.fechasTrimestre=[{inicio:"",fin:""},{inicio:"",fin:""},{inicio:"",fin:""}]; g.fechasTrimestre[t][campo]=v; save(); };
 window.setProgramacionGrupo=(id)=>{ const g=grupoActual(); g.programacionId=id; save(); render(); };
 window.irAProgramacion=()=>{ state.ui.appMode="programacion"; state.ui.progTab="lista"; save(); render(); };
 window.setCeCc=(ce,cc,v)=>{ grupoActual().pesos.ceCc[ce+"|"+cc]=v; save(); };
