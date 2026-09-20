@@ -137,6 +137,13 @@ if ('serviceWorker' in navigator) {
   .critbox:hover{border-color:var(--muted-border)}
   .critbox.sel{border-color:var(--accent-2);background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent-2)}
   .miniw{width:62px;padding:5px 7px}
+  .rte-toolbar{border:1px solid var(--line);border-bottom:none;border-radius:10px 10px 0 0;background:var(--surface-2)}
+  .rte-toolbar button{cursor:pointer}
+  .rte-editable{border-radius:0 0 10px 10px!important;border-top:none!important;line-height:1.5;cursor:text}
+  .rte-editable:focus{outline:none;border-color:var(--accent-2);background:var(--card);box-shadow:0 0 0 3px var(--accent-soft)}
+  .rte-editable:empty:before{content:attr(data-placeholder);color:var(--mut)}
+  .rte-editable ul,.rte-editable ol{margin:4px 0 4px 22px;padding:0}
+  .rte-editable li{margin:2px 0}
   label.file{cursor:pointer;font-weight:600}
   .big{font-size:34px;font-weight:800;line-height:1;letter-spacing:-.03em}
   .flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -1644,8 +1651,11 @@ state.programaciones.forEach(p=>{
   if(typeof p.cursoEscolar!=="string") p.cursoEscolar=cursoAcademicoActual();
   if(typeof p.profesorNombre!=="string") p.profesorNombre="";
   if(typeof p.metodologia!=="string") p.metodologia="";
+  else p.metodologia=progTextoAHTML(p.metodologia);
   if(typeof p.criteriosCalifCualitativa!=="string") p.criteriosCalifCualitativa="";
+  else p.criteriosCalifCualitativa=progTextoAHTML(p.criteriosCalifCualitativa);
   if(typeof p.criteriosCalifCuantitativa!=="string") p.criteriosCalifCuantitativa="";
+  else p.criteriosCalifCuantitativa=progTextoAHTML(p.criteriosCalifCuantitativa);
   (p.sdas||[]).forEach(s=>{
     if(!Array.isArray(s.saberesIds)) s.saberesIds=[];
     if(typeof s.saberesOtros!=="string") s.saberesOtros = (typeof s.saberes==="string" ? s.saberes : "");
@@ -8630,7 +8640,7 @@ window.progImportarArchivo=inp=>{
       sdas:nuevasSdas, actividades:nuevasActividades,
       recursos:{...(original.recursos||progRecursosDefault())}, cursoEscolar:original.cursoEscolar||cursoAcademicoActual(),
       profesorNombre:original.profesorNombre||"",
-      metodologia:original.metodologia||"", criteriosCalifCualitativa:original.criteriosCalifCualitativa||"", criteriosCalifCuantitativa:original.criteriosCalifCuantitativa||""};
+      metodologia:progTextoAHTML(original.metodologia||""), criteriosCalifCualitativa:progTextoAHTML(original.criteriosCalifCualitativa||""), criteriosCalifCuantitativa:progTextoAHTML(original.criteriosCalifCuantitativa||"")};
     if(!Array.isArray(state.programaciones)) state.programaciones=[];
     state.programaciones.push(copia);
     save(); render();
@@ -8779,6 +8789,107 @@ window.progSetRecursoOtros=(valor)=>{
   if(!p.recursos) p.recursos=progRecursosDefault();
   p.recursos.otros=valor; save();
 };
+
+/* ---- Editor de texto enriquecido (negrita, color, viñetas y subviñetas) para los
+   campos generales de la Programación (metodología y criterios de calificación).
+   Se guarda como HTML saneado (solo unas pocas etiquetas seguras).
+   Nota: RTE_COLORES/RTE_ETIQUETAS_PERMITIDAS/RTE_ELIMINAR_ENTERO se declaran DENTRO
+   de las funciones (no como const de módulo) para que progSanitizarHTML pueda
+   invocarse de forma segura desde la migración de datos, que corre muy pronto
+   al cargar la página — antes de que un "const" a nivel de módulo definido más
+   abajo en el archivo esté disponible (zona muerta temporal). ---- */
+function progSanitizarHTML(html){
+  if(!html) return "";
+  const permitidas=new Set(["B","STRONG","I","EM","U","UL","OL","LI","BR","SPAN","DIV","P","FONT"]);
+  const eliminarEntero=new Set(["SCRIPT","STYLE","TEMPLATE","IFRAME","OBJECT","EMBED","SVG","NOSCRIPT","LINK","META"]);
+  const tmp=document.createElement("div");
+  tmp.innerHTML=html;
+  (function limpiar(nodo){
+    [...nodo.childNodes].forEach(hijo=>{
+      if(hijo.nodeType===1){
+        if(eliminarEntero.has(hijo.tagName)){ nodo.removeChild(hijo); return; }
+        if(!permitidas.has(hijo.tagName)){
+          while(hijo.firstChild) nodo.insertBefore(hijo.firstChild,hijo);
+          nodo.removeChild(hijo);
+          return;
+        }
+        [...hijo.attributes].forEach(attr=>{
+          const n=attr.name.toLowerCase();
+          if(hijo.tagName==="FONT" && n==="color"){
+            if(!/^#[0-9a-f]{3,8}$|^[a-z]+$/i.test(attr.value.trim())) hijo.removeAttribute("color");
+            return;
+          }
+          if(n==="style"){
+            const m=attr.value.match(/color\s*:\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\)|[a-z]+)/i);
+            if(m) hijo.setAttribute("style",`color:${m[1]}`); else hijo.removeAttribute("style");
+            return;
+          }
+          hijo.removeAttribute(attr.name);
+        });
+        limpiar(hijo);
+      } else if(hijo.nodeType!==3){
+        nodo.removeChild(hijo);
+      }
+    });
+  })(tmp);
+  return tmp.innerHTML;
+}
+function progTextoAHTML(valor){
+  if(!valor) return "";
+  if(/<\s*(b|strong|i|em|u|ul|ol|li|br|span|div|p)[\s>]/i.test(valor)) return progSanitizarHTML(valor);
+  return esc(valor).replace(/\n/g,"<br>");
+}
+let progRTEUltimaSeleccion={};
+function progRTEGuardar(campo,el){
+  const p=progPorId(state.ui.progId); if(!p) return;
+  p[campo]=progSanitizarHTML(el.innerHTML);
+  save();
+}
+window.progRTEInput=(campo,el)=>{ progRTEGuardar(campo,el); };
+window.progRTECmd=(campo,cmd,valor)=>{
+  const el=document.getElementById("rte_"+campo); if(!el) return;
+  el.focus();
+  document.execCommand(cmd,false,valor||null);
+  progRTEGuardar(campo,el);
+};
+window.progRTEGuardarSeleccion=(campo)=>{
+  const sel=window.getSelection();
+  if(sel && sel.rangeCount>0){
+    const el=document.getElementById("rte_"+campo);
+    if(el && el.contains(sel.anchorNode)) progRTEUltimaSeleccion[campo]=sel.getRangeAt(0).cloneRange();
+  }
+};
+window.progRTEColorCustom=(campo,input)=>{
+  const el=document.getElementById("rte_"+campo); if(!el) return;
+  const rango=progRTEUltimaSeleccion[campo];
+  el.focus();
+  if(rango){ const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(rango); }
+  document.execCommand("foreColor",false,input.value);
+  progRTEGuardar(campo,el);
+};
+window.progRTEPegar=(ev,campo)=>{
+  ev.preventDefault();
+  const texto=(ev.clipboardData||window.clipboardData).getData("text/plain");
+  document.execCommand("insertText",false,texto);
+  const el=document.getElementById("rte_"+campo); if(el) progRTEGuardar(campo,el);
+};
+function progRTEToolbarHTML(campo){
+  const colores=["#1f2937","#b91c1c","#b45309","#047857","#1d4ed8","#7c3aed"];
+  return `<div class="flex rte-toolbar" style="gap:4px;flex-wrap:wrap;padding:5px 6px">
+    <button type="button" class="ghost small" style="font-weight:800" title="Negrita" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','bold')">N</button>
+    <button type="button" class="ghost small" title="Viñetas" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','insertUnorderedList')">• Viñetas</button>
+    <button type="button" class="ghost small" title="Subviñeta (aumentar sangría)" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','indent')">→ Subviñeta</button>
+    <button type="button" class="ghost small" title="Reducir sangría" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','outdent')">← Sangría</button>
+    <span style="display:inline-flex;align-items:center;gap:4px;padding:0 2px">
+      ${colores.map(c=>`<button type="button" title="Color de fuente" style="width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:${c};padding:0" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','foreColor','${c}')"></button>`).join("")}
+      <input type="color" title="Color personalizado" style="width:22px;height:22px;padding:0;border:1px solid var(--line);border-radius:6px;background:none" onmousedown="progRTEGuardarSeleccion('${campo}')" onchange="progRTEColorCustom('${campo}',this)">
+    </span>
+    <button type="button" class="ghost small" title="Quitar formato" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','removeFormat')">✕ Formato</button>
+  </div>`;
+}
+function progRTEEditorHTML(campo,valorHTML,placeholder){
+  return `${progRTEToolbarHTML(campo)}<div id="rte_${campo}" class="in rte-editable" contenteditable="true" data-placeholder="${esc(placeholder||"")}" style="width:100%;min-height:90px" oninput="progRTEInput('${campo}',this)" onblur="progRTEInput('${campo}',this)" onpaste="progRTEPegar(event,'${campo}')">${valorHTML||""}</div>`;
+}
 window.progToggleSaberesAbierto=(sdaId)=>{ state.ui.progSaberesAbierto = state.ui.progSaberesAbierto===sdaId?null:sdaId; save(); render(); };
 window.progToggleSaberSda=(sdaId,saberId,checked)=>{
   const p=progPorId(state.ui.progId); if(!p) return;
@@ -8926,16 +9037,16 @@ function progDetalleHTML(root){
   <div class="card">
     <h2 style="font-size:15px">Metodología y criterios de calificación</h2>
     <p class="sub" style="margin:0 0 8px">Contenido general de la programación, común a todas las Situaciones de Aprendizaje.</p>
-    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block">Metodología
-      <textarea class="in" style="width:100%;margin-top:4px;min-height:90px;resize:vertical" placeholder="Enfoque metodológico, principios pedagógicos, agrupamientos, papel del alumnado y del profesorado…" onchange="progSetCampo('metodologia',this.value)">${esc(p.metodologia||"")}</textarea>
-    </label>
+    <div style="font-size:12.5px;color:var(--mut);font-weight:500">Metodología
+      <div style="margin-top:4px">${progRTEEditorHTML("metodologia",p.metodologia,"Enfoque metodológico, principios pedagógicos, agrupamientos, papel del alumnado y del profesorado…")}</div>
+    </div>
     <div class="section-eyebrow" style="margin-top:14px">Criterios de calificación</div>
-    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;margin-top:8px">Valoración cualitativa
-      <textarea class="in" style="width:100%;margin-top:4px;min-height:80px;resize:vertical" placeholder="Cómo se valoran los aprendizajes de forma cualitativa (rúbricas, escalas de logro, observación directa…)" onchange="progSetCampo('criteriosCalifCualitativa',this.value)">${esc(p.criteriosCalifCualitativa||"")}</textarea>
-    </label>
-    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;margin-top:10px">Valoración cuantitativa
-      <textarea class="in" style="width:100%;margin-top:4px;min-height:80px;resize:vertical" placeholder="Cómo se traduce a una nota numérica (ponderaciones, pesos por instrumento o competencia específica…)" onchange="progSetCampo('criteriosCalifCuantitativa',this.value)">${esc(p.criteriosCalifCuantitativa||"")}</textarea>
-    </label>
+    <div style="font-size:12.5px;color:var(--mut);font-weight:500;margin-top:8px">Valoración cualitativa
+      <div style="margin-top:4px">${progRTEEditorHTML("criteriosCalifCualitativa",p.criteriosCalifCualitativa,"Cómo se valoran los aprendizajes de forma cualitativa (rúbricas, escalas de logro, observación directa…)")}</div>
+    </div>
+    <div style="font-size:12.5px;color:var(--mut);font-weight:500;margin-top:10px">Valoración cuantitativa
+      <div style="margin-top:4px">${progRTEEditorHTML("criteriosCalifCuantitativa",p.criteriosCalifCuantitativa,"Cómo se traduce a una nota numérica (ponderaciones, pesos por instrumento o competencia específica…)")}</div>
+    </div>
   </div>
   ${[0,1,2].map(t=>`
     <button class="home-seccion-header" onclick="progToggleTrim(${t})" aria-expanded="${progTrimAbiertos[t]}" style="margin-top:10px">
@@ -9084,13 +9195,14 @@ window.progImprimir=(id)=>{
     ${recursosMarcados.length?`<ul style="margin:4px 0 0 18px">${recursosMarcados.map(r=>`<li>${esc(r.label)}</li>`).join("")}</ul>`:""}
     ${p.recursos&&p.recursos.otros?`<p style="font-size:13px;margin:6px 0 0">${esc(p.recursos.otros)}</p>`:""}
   ` : "";
-  const hayMetodologia=(p.metodologia||"").trim();
-  const hayCriteriosCalif=(p.criteriosCalifCualitativa||"").trim()||(p.criteriosCalifCuantitativa||"").trim();
+  const textoPlano=html=>{ const t=document.createElement("div"); t.innerHTML=html||""; return (t.textContent||"").trim(); };
+  const hayMetodologia=textoPlano(p.metodologia);
+  const hayCriteriosCalif=textoPlano(p.criteriosCalifCualitativa)||textoPlano(p.criteriosCalifCuantitativa);
   const metodologiaCalifHTML = (hayMetodologia||hayCriteriosCalif) ? `
-    ${hayMetodologia?`<h2>Metodología</h2><p style="font-size:13px;white-space:pre-wrap">${esc(p.metodologia)}</p>`:""}
+    ${hayMetodologia?`<h2>Metodología</h2><div style="font-size:13px">${progSanitizarHTML(p.metodologia)}</div>`:""}
     ${hayCriteriosCalif?`<h2>Criterios de calificación</h2>
-      ${(p.criteriosCalifCualitativa||"").trim()?`<h3>Valoración cualitativa</h3><p style="font-size:13px;white-space:pre-wrap">${esc(p.criteriosCalifCualitativa)}</p>`:""}
-      ${(p.criteriosCalifCuantitativa||"").trim()?`<h3>Valoración cuantitativa</h3><p style="font-size:13px;white-space:pre-wrap">${esc(p.criteriosCalifCuantitativa)}</p>`:""}
+      ${textoPlano(p.criteriosCalifCualitativa)?`<h3>Valoración cualitativa</h3><div style="font-size:13px">${progSanitizarHTML(p.criteriosCalifCualitativa)}</div>`:""}
+      ${textoPlano(p.criteriosCalifCuantitativa)?`<h3>Valoración cuantitativa</h3><div style="font-size:13px">${progSanitizarHTML(p.criteriosCalifCuantitativa)}</div>`:""}
     `:""}
   ` : "";
   const indiceItems=["Leyenda de competencias específicas y criterios de evaluación"];
