@@ -1643,6 +1643,9 @@ state.programaciones.forEach(p=>{
   else Object.keys(progRecursosDefault()).forEach(k=>{ if(p.recursos[k]===undefined) p.recursos[k]=(k==="otros"?"":false); });
   if(typeof p.cursoEscolar!=="string") p.cursoEscolar=cursoAcademicoActual();
   if(typeof p.profesorNombre!=="string") p.profesorNombre="";
+  if(typeof p.metodologia!=="string") p.metodologia="";
+  if(typeof p.criteriosCalifCualitativa!=="string") p.criteriosCalifCualitativa="";
+  if(typeof p.criteriosCalifCuantitativa!=="string") p.criteriosCalifCuantitativa="";
   (p.sdas||[]).forEach(s=>{
     if(!Array.isArray(s.saberesIds)) s.saberesIds=[];
     if(typeof s.saberesOtros!=="string") s.saberesOtros = (typeof s.saberes==="string" ? s.saberes : "");
@@ -8502,7 +8505,7 @@ window.diarioImprimir=()=>{
    criterios dos veces. Una actividad puede pertenecer a varias SdA a la
    vez (típico de un examen que agrupa varios temas).
    ================================================================= */
-function progNueva(nombre,catalogoKey){ return {id:uid(), nombre, catalogoKey, sdas:[], actividades:[], recursos:progRecursosDefault(), cursoEscolar:"", profesorNombre:""}; }
+function progNueva(nombre,catalogoKey){ return {id:uid(), nombre, catalogoKey, sdas:[], actividades:[], recursos:progRecursosDefault(), cursoEscolar:"", profesorNombre:"", metodologia:"", criteriosCalifCualitativa:"", criteriosCalifCuantitativa:""}; }
 function progRecursosDefault(){ return {libroTexto:false, presentaciones:false, fichasDossieres:false, mapasAtlas:false, documentalesVideo:false, recursosTIC:false, salidasCampo:false, prensaActualidad:false, otros:""}; }
 const PROG_RECURSOS_OPCIONES=[
   {id:"libroTexto", label:"Libro de texto"},
@@ -8626,7 +8629,8 @@ window.progImportarArchivo=inp=>{
     const copia={id:uid(), nombre:original.nombre||"Programación importada", catalogoKey:original.catalogoKey,
       sdas:nuevasSdas, actividades:nuevasActividades,
       recursos:{...(original.recursos||progRecursosDefault())}, cursoEscolar:original.cursoEscolar||cursoAcademicoActual(),
-      profesorNombre:original.profesorNombre||""};
+      profesorNombre:original.profesorNombre||"",
+      metodologia:original.metodologia||"", criteriosCalifCualitativa:original.criteriosCalifCualitativa||"", criteriosCalifCuantitativa:original.criteriosCalifCuantitativa||""};
     if(!Array.isArray(state.programaciones)) state.programaciones=[];
     state.programaciones.push(copia);
     save(); render();
@@ -8641,7 +8645,8 @@ window.progDuplicar=(id)=>{
   const nuevasSdas=orig.sdas.map(s=>{ const nid=uid(); mapaIds[s.id]=nid; return {...s,id:nid}; });
   const nuevasActividades=orig.actividades.map(a=>({...a, id:uid(), sdaIds:(a.sdaIds||[]).map(sid=>mapaIds[sid]).filter(Boolean), criterios:(a.criterios||[]).map(c=>({...c}))}));
   const copia={id:uid(), nombre:orig.nombre+" (copia)", catalogoKey:orig.catalogoKey, sdas:nuevasSdas, actividades:nuevasActividades,
-    recursos:{...(orig.recursos||progRecursosDefault())}, cursoEscolar:"", profesorNombre:orig.profesorNombre||""};
+    recursos:{...(orig.recursos||progRecursosDefault())}, cursoEscolar:"", profesorNombre:orig.profesorNombre||"",
+    metodologia:orig.metodologia||"", criteriosCalifCualitativa:orig.criteriosCalifCualitativa||"", criteriosCalifCuantitativa:orig.criteriosCalifCuantitativa||""};
   if(!Array.isArray(state.programaciones)) state.programaciones=[];
   state.programaciones.push(copia);
   save(); render();
@@ -8918,6 +8923,20 @@ function progDetalleHTML(root){
       <input class="in" style="width:100%;margin-top:4px" placeholder="Ej. cuadernos de campo, prensa local…" value="${esc(p.recursos.otros)}" onchange="progSetRecursoOtros(this.value)">
     </label>
   </div>
+  <div class="card">
+    <h2 style="font-size:15px">Metodología y criterios de calificación</h2>
+    <p class="sub" style="margin:0 0 8px">Contenido general de la programación, común a todas las Situaciones de Aprendizaje.</p>
+    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block">Metodología
+      <textarea class="in" style="width:100%;margin-top:4px;min-height:90px;resize:vertical" placeholder="Enfoque metodológico, principios pedagógicos, agrupamientos, papel del alumnado y del profesorado…" onchange="progSetCampo('metodologia',this.value)">${esc(p.metodologia||"")}</textarea>
+    </label>
+    <div class="section-eyebrow" style="margin-top:14px">Criterios de calificación</div>
+    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;margin-top:8px">Valoración cualitativa
+      <textarea class="in" style="width:100%;margin-top:4px;min-height:80px;resize:vertical" placeholder="Cómo se valoran los aprendizajes de forma cualitativa (rúbricas, escalas de logro, observación directa…)" onchange="progSetCampo('criteriosCalifCualitativa',this.value)">${esc(p.criteriosCalifCualitativa||"")}</textarea>
+    </label>
+    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;margin-top:10px">Valoración cuantitativa
+      <textarea class="in" style="width:100%;margin-top:4px;min-height:80px;resize:vertical" placeholder="Cómo se traduce a una nota numérica (ponderaciones, pesos por instrumento o competencia específica…)" onchange="progSetCampo('criteriosCalifCuantitativa',this.value)">${esc(p.criteriosCalifCuantitativa||"")}</textarea>
+    </label>
+  </div>
   ${[0,1,2].map(t=>`
     <button class="home-seccion-header" onclick="progToggleTrim(${t})" aria-expanded="${progTrimAbiertos[t]}" style="margin-top:10px">
       <span class="home-seccion-chevron">${progTrimAbiertos[t]?"▾":"▸"}</span>
@@ -9065,8 +9084,19 @@ window.progImprimir=(id)=>{
     ${recursosMarcados.length?`<ul style="margin:4px 0 0 18px">${recursosMarcados.map(r=>`<li>${esc(r.label)}</li>`).join("")}</ul>`:""}
     ${p.recursos&&p.recursos.otros?`<p style="font-size:13px;margin:6px 0 0">${esc(p.recursos.otros)}</p>`:""}
   ` : "";
+  const hayMetodologia=(p.metodologia||"").trim();
+  const hayCriteriosCalif=(p.criteriosCalifCualitativa||"").trim()||(p.criteriosCalifCuantitativa||"").trim();
+  const metodologiaCalifHTML = (hayMetodologia||hayCriteriosCalif) ? `
+    ${hayMetodologia?`<h2>Metodología</h2><p style="font-size:13px;white-space:pre-wrap">${esc(p.metodologia)}</p>`:""}
+    ${hayCriteriosCalif?`<h2>Criterios de calificación</h2>
+      ${(p.criteriosCalifCualitativa||"").trim()?`<h3>Valoración cualitativa</h3><p style="font-size:13px;white-space:pre-wrap">${esc(p.criteriosCalifCualitativa)}</p>`:""}
+      ${(p.criteriosCalifCuantitativa||"").trim()?`<h3>Valoración cuantitativa</h3><p style="font-size:13px;white-space:pre-wrap">${esc(p.criteriosCalifCuantitativa)}</p>`:""}
+    `:""}
+  ` : "";
   const indiceItems=["Leyenda de competencias específicas y criterios de evaluación"];
   if(hayRecursos) indiceItems.push("Recursos didácticos");
+  if(hayMetodologia) indiceItems.push("Metodología");
+  if(hayCriteriosCalif) indiceItems.push("Criterios de calificación");
   [0,1,2].forEach(t=>indiceItems.push(TRIMESTRES[t]));
   const portada=`
     <div style="min-height:85vh;display:flex;flex-direction:column;justify-content:center;page-break-after:always">
@@ -9094,6 +9124,7 @@ window.progImprimir=(id)=>{
     ${portada}
     ${progLeyendaCEHTML(idx)}
     ${recursosHTML}
+    ${metodologiaCalifHTML}
     ${[0,1,2].map(t=>`<h2>${TRIMESTRES[t]}</h2>${filasTrim(t)}`).join("")}
     <div style="margin-top:40px;display:flex;justify-content:flex-end">
       <div style="text-align:center;font-size:13px;color:#444">
