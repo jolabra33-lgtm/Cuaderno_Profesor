@@ -1470,6 +1470,10 @@ function normalizarAlumno(a){
   if(a.repetidor===undefined) a.repetidor=false;
   if(!Array.isArray(a.pendientes)) a.pendientes=[];
   if(a.fechaNacimiento===undefined) a.fechaNacimiento="";
+  // v7: dos contactos de la familia (parentesco, nombre y correo)
+  if(!Array.isArray(a.familia)) a.familia=[];
+  while(a.familia.length<2) a.familia.push({parentesco:"",nombre:"",email:""});
+  a.familia=a.familia.slice(0,2).map(f=>({parentesco:(f&&f.parentesco)||"",nombre:(f&&f.nombre)||"",email:(f&&f.email)||""}));
   return a;
 }
 function calcularEdad(fechaNacimiento){
@@ -1490,6 +1494,7 @@ const ALUM_COLUMNAS_OPCIONALES=[
   {id:"pendientes",label:"Pendientes"},
   {id:"nacimiento",label:"Nacimiento",sortKey:"nacimiento"},
   {id:"edad",label:"Edad"},
+  {id:"familia",label:"Correo familia"},
 ];
 function alumColVisible(colId){ return !(state.ui.alumColumnasOcultas||[]).includes(colId); }
 
@@ -1497,7 +1502,7 @@ function alumColVisible(colId){ return !(state.ui.alumColumnasOcultas||[]).inclu
 // arrastrando el borde derecho de cualquier cabecera; lo elegido se recuerda.
 const ALUM_COL_ANCHO_DEFECTO={
   apellidos:170, nombre:130, nese:55, nivelNese:115, plan:110,
-  repite:65, pendientes:105, nacimiento:130, edad:65
+  repite:65, pendientes:105, nacimiento:130, edad:65, familia:90
 };
 function alumColAncho(colId){
   const guardado=(state.ui.alumColAnchos||{})[colId];
@@ -7001,6 +7006,7 @@ function renderAlumnos(grupo){
         ${alumColVisible("pendientes")?`<col data-alumcol="pendientes" style="width:${alumColAncho("pendientes")}px">`:""}
         ${alumColVisible("nacimiento")?`<col data-alumcol="nacimiento" style="width:${alumColAncho("nacimiento")}px">`:""}
         ${alumColVisible("edad")?`<col data-alumcol="edad" style="width:${alumColAncho("edad")}px">`:""}
+        ${alumColVisible("familia")?`<col data-alumcol="familia" style="width:${alumColAncho("familia")}px">`:""}
         <col style="width:66px"><col style="width:74px"><col style="width:78px">
       </colgroup>
       <thead><tr>
@@ -7013,6 +7019,7 @@ function renderAlumnos(grupo){
         ${alumColVisible("pendientes")?alumThHTML("pendientes","Pendientes",{small:true}):""}
         ${alumColVisible("nacimiento")?alumThHTML("nacimiento","Nacimiento",{small:true,sortKey:"nacimiento"}):""}
         ${alumColVisible("edad")?alumThHTML("edad","Edad",{small:true}):""}
+        ${alumColVisible("familia")?alumThHTML("familia","Familia",{small:true}):""}
         <th></th><th></th><th></th>
       </tr></thead>
       <tbody>
@@ -7034,6 +7041,7 @@ function renderAlumnos(grupo){
             <input type="text" class="in" placeholder="o DD/MM/AAAA" title="Escribe la fecha completa (o solo pégala) y pulsa Intro o sal del campo" style="width:100%;font-size:11px;padding:3px 8px;margin-top:3px;border-color:transparent;background:transparent" onkeydown="if(event.key==='Enter'){ if(setFechaNacimientoTexto('${a.id}',this.value)) this.blur(); }" onblur="if(this.value){ setFechaNacimientoTexto('${a.id}',this.value); this.value=''; }">
           </td>`:""}
           ${alumColVisible("edad")?`<td style="text-align:center;font-size:12.5px;color:${edad==null?"var(--mut)":"var(--ink)"}">${edad==null?"—":edad+" años"}</td>`:""}
+          ${alumColVisible("familia")?(()=>{ const ok=familiaCorreos(a).length, mal=(a.familia||[]).some(f=>f.email&&!emailValido(f.email)); return `<td style="text-align:center;font-size:12.5px"><button class="ghost small" style="padding:3px 7px;${mal?"color:#dc2626":""}" title="${mal?"Hay un correo mal escrito":ok?familiaCorreos(a).join(", "):"Sin correo de la familia"}" onclick="abrirFichaAlumno('${a.id}')">${mal?"⚠️":ok?"✉️ "+ok:"—"}</button></td>`; })():""}
           <td><button class="ghost" onclick="abrirFichaAlumno('${a.id}')">Editar</button></td>
           <td><button class="ghost" onclick="toggleObservacion('${a.id}')">${abierto===a.id?"Ocultar obs.":(a.observaciones?"Ver obs.":"+ Obs.")}</button></td>
           <td><button class="ghost" onclick="delAlumno('${a.id}')">Eliminar</button></td>
@@ -7379,6 +7387,7 @@ function fichaAlumnoModalHTML(grupo,alumnoId){
             </label>`).join("")}
           </div>
         </div>
+        ${familiaFichaHTML(a)}
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Observaciones (uso interno, no se imprime)
           <textarea class="in" style="width:100%;margin-top:4px;min-height:70px;resize:vertical" onchange="setObservacion('${a.id}',this.value)">${esc(a.observaciones||"")}</textarea>
         </label>
@@ -7401,6 +7410,56 @@ window.toggleAlumnoPendiente=(alId,curso,checked)=>{
     a.pendientes=a.pendientes.filter(c=>c!==curso);
     save(); render();
   }
+};
+/* =================================================================
+   v7 · CORREOS DE LA FAMILIA EN LA FICHA DEL ALUMNO/A
+   Dos contactos por alumno/a (parentesco, nombre y correo). Se guardan,
+   como todo lo demás, solo en este dispositivo y en tus copias (para
+   sacarlas del dispositivo, mejor la copia cifrada). Un correo mal
+   escrito se marca en la ficha y en 🩺 Revisar mis datos.
+   ================================================================= */
+const FAMILIA_PARENTESCOS=["Madre","Padre","Tutor/a legal","Otro familiar"];
+function emailValido(e){ return /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(String(e||"").trim()); }
+function familiaCorreos(a){ return (a.familia||[]).map(f=>String(f.email||"").trim()).filter(e=>e&&emailValido(e)); }
+function familiaFichaHTML(a){
+  if(!Array.isArray(a.familia)||a.familia.length<2) normalizarAlumno(a);
+  const filas=(a.familia||[]).map((f,i)=>{
+    const e=String(f.email||"").trim(); const mal=e && !emailValido(e);
+    return `<div class="grid" style="grid-template-columns:minmax(120px,1fr) minmax(120px,1.2fr);gap:8px;padding:8px 0;${i?"border-top:1px dashed var(--line)":""}">
+      <label style="font-size:12px;color:var(--mut)">Parentesco
+        <select class="in" style="width:100%;margin-top:3px" onchange="setFamilia('${a.id}',${i},'parentesco',this.value)">
+          <option value="" ${!f.parentesco?"selected":""}>—</option>
+          ${FAMILIA_PARENTESCOS.map(p=>`<option ${f.parentesco===p?"selected":""}>${p}</option>`).join("")}
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--mut)">Nombre (opcional)
+        <input class="in" style="width:100%;margin-top:3px" autocomplete="off" value="${esc(f.nombre||"")}" onchange="setFamilia('${a.id}',${i},'nombre',this.value)">
+      </label>
+      <label style="font-size:12px;color:var(--mut);grid-column:1/-1">Correo electrónico
+        <span class="flex" style="gap:6px;margin-top:3px;flex-wrap:nowrap">
+          <input class="in" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1;min-width:0${mal?";border-color:#dc2626":""}" placeholder="nombre@ejemplo.com" value="${esc(e)}" onchange="setFamilia('${a.id}',${i},'email',this.value)" aria-invalid="${mal?"true":"false"}">
+          ${e&&!mal?`<a class="ghost small" href="mailto:${encodeURIComponent(e).replace(/%40/g,"@")}" style="text-decoration:none;border:1px solid var(--line);display:inline-flex;align-items:center" title="Escribir a ${esc(e)}" aria-label="Escribir a ${esc(e)}">✉️</a>`:""}
+        </span>
+        ${mal?`<span style="color:#dc2626;font-size:12px">⚠️ Este correo no parece válido. Revísalo.</span>`:""}
+      </label>
+    </div>`;
+  }).join("");
+  return `<div style="border-top:1px solid var(--line);padding-top:8px">
+    <div style="font-size:12.5px;color:var(--mut);font-weight:600">👪 Contacto de la familia</div>
+    ${filas}
+    <div style="font-size:11.5px;color:var(--mut)">Datos personales: se guardan solo en este dispositivo y en tus copias de seguridad.</div>
+  </div>`;
+}
+window.setFamilia=(alId,i,campo,valor)=>{
+  const g=grupoActual(); const a=g&&g.alumnos.find(x=>x.id===alId); if(!a) return;
+  normalizarAlumno(a);
+  let v=String(valor||"").trim();
+  if(campo==="email"){
+    v=v.replace(/^mailto:/i,"").replace(/\s+/g,"").toLowerCase();
+    if(v && !emailValido(v)) mostrarToast("⚠️ Ese correo no parece válido: revísalo","info");
+  }
+  a.familia[i][campo]=v;
+  save(); render();
 };
 window.setObservacion=(id,v)=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id); if(a){ a.observaciones=v; save(); } };
 window.delAlumno=async id=>{ const g=grupoActual(); const a=g.alumnos.find(x=>x.id===id);
@@ -8782,6 +8841,8 @@ function diagnosticarDatos(){
     // 9. Nombres
     const vistos={}, dup=new Set(); g.alumnos.forEach(a=>{ const k=normalizarTexto(a.nombre||""); if(!k) return; if(vistos[k]) dup.add(a.nombre); vistos[k]=1; });
     if(dup.size) add("aviso",donde,`Nombres repetidos en el grupo: ${[...dup].join(", ")}. Puede confundir en listas, informes y al pasar datos a Tutoría.`);
+    const correosMal=g.alumnos.filter(a=>(a.familia||[]).some(f=>f.email&&!emailValido(f.email)));
+    if(correosMal.length) add("aviso",donde,`Correo de la familia mal escrito en: ${correosMal.map(a=>a.nombre).join(", ")}. Revísalo en su ficha (Alumnado → Editar).`);
     const sinNombre=g.alumnos.filter(a=>!(a.nombre||"").trim());
     if(sinNombre.length) add("aviso",donde,`${sinNombre.length} alumno(s) sin nombre.`);
     // 10. Plano
@@ -8840,7 +8901,7 @@ window.aplicarArreglosDiagnostico=async()=>{
 };
 
 /* v3 · Tarjeta de novedades: se ve una vez tras actualizar, y se cierra. */
-const NOVEDADES_VERSION="mejorada-v6";
+const NOVEDADES_VERSION="mejorada-v7";
 window.cerrarNovedades=()=>{ state.novedadesVistas=NOVEDADES_VERSION; save(); render(); };
 function novedadesHTML(){
   if(state.novedadesVistas===NOVEDADES_VERSION) return "";
@@ -8855,6 +8916,7 @@ function novedadesHTML(){
       <li><strong>📌 Hoy</strong> con tus clases, <strong>franjas horarias</strong> editables, <strong>Intro</strong> y <strong>pegar desde Excel</strong> al calificar.</li>
       <li>Plano: <strong>pasar lista</strong> tocando mesas y <strong>🎲 alumno al azar</strong>. <strong>🧭 Cobertura</strong> antes del cierre y <strong>💬 comentarios sugeridos</strong> (castellano/valencià).</li>
       <li><strong>Imprimir</strong> sin ventanas emergentes (vista previa dentro de la app, también en iPad) y <strong>↶ deshacer / ↷ rehacer</strong> cualquier cambio (Ctrl/Cmd+Z).</li>
+      <li><strong>👪 Correos de la familia</strong> en la ficha de cada alumno/a (Alumnado → Editar), con la columna «Familia» para ver de un vistazo a quién le falta.</li>
       <li><strong>🩺 Revisar mis datos</strong> (Inicio): comprueba que todo cuadra y arregla solo lo seguro. Más rápida con muchos grupos y mejor en modo oscuro.</li>
       <li><strong>👥 Para la tutoría</strong> (Resultados): pasa tus suspensos de cada evaluación al Gestor de Tutoría del tutor/a, que ahora también arranca en blanco, sin ventanas emergentes y con el curso escolar correcto en las actas.</li>
     </ul>
