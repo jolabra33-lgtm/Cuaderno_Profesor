@@ -114,6 +114,11 @@ if ('serviceWorker' in navigator) {
      un .grid/.flex el min-width:auto por defecto agrava el problema. */
   input[type="date"].in{min-width:0;max-width:100%;min-height:38px}
   .grid input[type="date"],.flex input[type="date"]{min-width:0}
+  /* Campo de fecha "dual": texto editable a mano + icono que abre el calendario nativo.
+     El input[type=date] real queda invisible (opacity:0) mientras el 📅 es solo decoración;
+     así el icono siempre se ve igual en cualquier navegador, incluido Safari/iPad. */
+  .date-icon-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;flex-shrink:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);font-size:16px}
+  .date-icon-wrap input[type="date"]{position:absolute;inset:0;opacity:0;width:100%;height:100%;border:0;padding:0;margin:0;cursor:pointer}
   .in:focus{outline:none;border-color:var(--accent-2);background:var(--card);box-shadow:0 0 0 3px var(--accent-soft)}
   .tab{padding:8px 16px;border-radius:999px;border:1px solid transparent;background:var(--surface-2);color:var(--mut);font-size:13.5px;font-weight:700;letter-spacing:-.005em;transition:.15s}
   .tab:hover{background:var(--line)}
@@ -247,7 +252,7 @@ if ('serviceWorker' in navigator) {
   .gcard-actions{display:flex;gap:8px;margin-top:14px}
   /* v4 · vista previa de impresión dentro de la app */
   .print-overlay{position:fixed;inset:0;z-index:70;display:flex!important;flex-direction:column;align-items:stretch!important;justify-content:flex-start!important;padding:0!important;background:rgba(40,44,52,.92)!important}
-  .print-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;background:#0f1a2c;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+  .print-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));background:#0f1a2c;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3)}
   .print-titulo{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw}
   .print-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:22px 12px 60px}
   .print-hoja{max-width:1100px;margin:0 auto}
@@ -1431,6 +1436,13 @@ function nombreCompleto(apellidos,nombreP){
 function normalizarTexto(str){
   return String(str||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim().replace(/\s+/g," ");
 }
+/* Normaliza un nombre de curso ("2\u00ba ESO", "2.\u00ba ESO", "2 eso"\u2026) a una forma
+   comparable, quitando ordinales y puntuaci\u00f3n pero conservando el n\u00famero y
+   la etapa, para poder casar el texto libre de "curso que repite" con el
+   campo "curso" de los cat\u00e1logos de materias. */
+function normalizarCurso(str){
+  return normalizarTexto(str).replace(/[.\u00ba\u00aa]/g,"").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+}
 const collatorEs=new Intl.Collator("es",{sensitivity:"base"});
 function ordenarAlumnos(grupo){
   grupo.alumnos.sort((a,b)=>
@@ -2267,6 +2279,98 @@ function catIndex(catalogoKey){
   const cat=getCatalogo(catalogoKey); const ceMap={}, critMap={};
   cat.ces.forEach(ce=>{ ceMap[ce.id]=ce; ce.criterios.forEach(c=>{ critMap[c.id]={...c,ceId:ce.id}; }); });
   const idx={cat,ceMap,critMap}; CAT_CACHE[catalogoKey]=idx; return idx;
+}
+/* =================================================================
+   Autocarga del currículo (CE, criterios, competencias clave y saberes
+   básicos) de un catálogo a partir de un texto libre de "curso" (p. ej.
+   el "curso que repite" de un Plan de Repetición). Se usa para no tener
+   que volver a teclear a mano el currículo del curso que el alumno/a
+   está repitiendo.
+   ================================================================= */
+function catalogosDisponiblesParaCurso(){
+  const claves=[...new Set([...ORDEN_CATALOGOS, ...Object.keys(state.catalogosPersonalizados||{})])];
+  return claves.map(k=>({key:k,cat:getCatalogo(k)})).filter(x=>x.cat && !catalogoEstaOculto(x.key));
+}
+/* Catálogo(s) cuyo campo "curso" casa con el texto libre dado. Si se indica
+   una materia preferida (normalmente la del grupo actual del alumno/a) y
+   hay coincidencias en esa materia, se devuelven solo esas para evitar
+   ambigüedad entre materias distintas que comparten nombre de curso
+   (p. ej. varias materias de 2.º de Bachillerato). */
+function catalogosPosiblesParaCurso(cursoTexto,materiaPreferida){
+  const objetivo=normalizarCurso(cursoTexto||"");
+  if(!objetivo) return [];
+  const todos=catalogosDisponiblesParaCurso().filter(x=>normalizarCurso(x.cat.curso)===objetivo);
+  if(materiaPreferida){
+    const enMateria=todos.filter(x=>normalizarTexto(x.cat.materia)===normalizarTexto(materiaPreferida));
+    if(enMateria.length) return enMateria;
+  }
+  return todos;
+}
+/* Catálogo único (sin ambigüedad) que corresponde al "curso que repite" de
+   un Plan de Repetición, o null si no hay ninguno o hay varios candidatos
+   distintos sin forma de elegir entre ellos automáticamente. */
+function materiaDelGrupo(grupoId){
+  const g=state.grupos.find(x=>x.id===grupoId);
+  const cat=g?getCatalogo(g.catalogoKey):null;
+  return cat?cat.materia:null;
+}
+function rpCatalogoParaCursoRepite(p){
+  if(p.cursoRepiteCatalogoKey && getCatalogo(p.cursoRepiteCatalogoKey)) return p.cursoRepiteCatalogoKey;
+  // Compatibilidad con planes creados antes del selector: intenta adivinarlo
+  // a partir del texto libre que se guardó entonces en "cursoRepite".
+  const posibles=catalogosPosiblesParaCurso(p.cursoRepite,materiaDelGrupo(p.grupoId));
+  return posibles.length===1?posibles[0].key:null;
+}
+/* Opciones <optgroup>/<option> (agrupadas por materia) para elegir con un
+   clic el curso y la materia que se repite, a partir de todos los catálogos
+   disponibles. La materia del grupo actual del alumno/a (si se conoce) se
+   muestra primero para que sea la opción más a mano. */
+function catalogoSelectOptionsHTML(seleccionKey,materiaPreferida){
+  const todos=catalogosDisponiblesParaCurso();
+  const porMateria={};
+  todos.forEach(x=>{ (porMateria[x.cat.materia]=porMateria[x.cat.materia]||[]).push(x); });
+  const materias=Object.keys(porMateria).sort((a,b)=>{
+    if(materiaPreferida){ if(a===materiaPreferida) return -1; if(b===materiaPreferida) return 1; }
+    return collatorEs.compare(a,b);
+  });
+  return materias.map(m=>`<optgroup label="${esc(m)}">${porMateria[m]
+    .slice().sort((a,b)=>collatorEs.compare(a.cat.curso,b.cat.curso))
+    .map(x=>`<option value="${esc(x.key)}" ${x.key===seleccionKey?"selected":""}>${esc(x.cat.curso)}</option>`).join("")}</optgroup>`).join("");
+}
+/* Construye, a partir de un catálogo, la tabla de "competencias específicas /
+   criterios de evaluación / competencias clave no conseguidas" ya rellena
+   con TODO el currículo de ese curso (una fila por criterio), lista para que
+   el profesor/a marque cuáles se han trabajado y quite los que no apliquen,
+   en lugar de tener que escribirlos a mano uno a uno. */
+function gruposCEDesdeCatalogo(catalogoKey){
+  const idx=catIndex(catalogoKey);
+  return idx.cat.ces.map(ce=>({
+    ce: ce.id,
+    cc: (ce.cc||[]).join(", "),
+    criterios: ce.criterios.map(c=>({id:c.id, texto:`${c.id}. ${c.texto}`, trabajado:false}))
+  }));
+}
+/* Tabla de referencia (CE, competencias clave, criterios y saberes básicos)
+   de un catálogo completo, en el mismo formato de tabla usado en el resto
+   de la aplicación. Se usa tanto en pantalla (dentro de una .card) como en
+   los documentos imprimibles. */
+function referenciaCurricularTablaHTML(catalogoKey){
+  const idx=catIndex(catalogoKey); const cat=idx.cat;
+  const saberes=progSaberesDelCatalogo(catalogoKey)||{};
+  const filas=cat.ces.map(ce=>{
+    const sab=saberes[ce.id]||[];
+    const criteriosHTML=ce.criterios.map(c=>`${c.id} ${esc(c.texto)}`).join("<br>");
+    const saberesHTML=sab.length?`<ul style="margin:0 0 0 16px;padding:0">${sab.map(s=>`<li>${esc(s)}</li>`).join("")}</ul>`:"—";
+    return `<tr>
+      <td style="min-width:150px"><strong>${esc(ce.id)}</strong><br><span style="font-size:11.5px">${esc(ce.titulo)}</span></td>
+      <td style="min-width:90px;font-size:12px">${(ce.cc||[]).join(", ")||"—"}</td>
+      <td style="min-width:220px;font-size:12px">${criteriosHTML}</td>
+      <td style="min-width:180px;font-size:12px">${saberesHTML}</td>
+    </tr>`;
+  }).join("");
+  return `<h2 style="font-size:15px">📘 Currículo de referencia — ${esc(cat.materia)} · ${esc(cat.curso)}</h2>
+  <div style="overflow-x:auto"><table><thead><tr><th>Competencia específica</th><th>Comp. clave</th><th>Criterios de evaluación</th><th>Saberes básicos</th></tr></thead>
+  <tbody>${filas}</tbody></table></div>`;
 }
 
 /* =================================================================
@@ -4549,6 +4653,38 @@ window.reSetFirmante=(i,campo,v)=>{ const r=(state.reuniones||[]).find(x=>x.id==
 
 /* ---------- Acta imprimible ---------- */
 function fmt2(d){ if(!d) return "—"; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y}`; }
+/* Convierte una fecha escrita a mano (dd/mm/aaaa, dd-mm-aaaa, dd.mm.aaaa, con año de 2 o 4
+   cifras, o ya en formato ISO aaaa-mm-dd) a ISO. Devuelve null si no es una fecha válida
+   (incluye la comprobación de que el día/mes/año coincidan tras construir la fecha, para
+   rechazar cosas como 31/02/2024). */
+function parseFechaFlexible(str){
+  if(!str) return null;
+  str=String(str).trim();
+  let m=str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m){
+    const d=new Date(str+"T00:00:00");
+    return isNaN(d.getTime())?null:str;
+  }
+  m=str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(!m) return null;
+  let [,dd,mm,yy]=m;
+  dd=dd.padStart(2,"0"); mm=mm.padStart(2,"0");
+  if(yy.length===2) yy=(Number(yy)<70?"20":"19")+yy;
+  const iso=`${yy}-${mm}-${dd}`;
+  const d=new Date(iso+"T00:00:00");
+  if(isNaN(d.getTime())||d.getFullYear()!==Number(yy)||d.getMonth()+1!==Number(mm)||d.getDate()!==Number(dd)) return null;
+  return iso;
+}
+/* Campo de fecha combinado: input de texto libre (para escribir la fecha a mano) + icono
+   de calendario nativo (para elegirla como hasta ahora). onChangeTexto/onChangeCalendario
+   son fragmentos JS ya listos para usar como atributo onchange. */
+function campoFechaDualHTML(dateId,isoValue,onChangeTexto,onChangeCalendario){
+  const txt=isoValue?fmt2(isoValue):"";
+  return `<div class="flex" style="gap:6px;align-items:center;flex-wrap:nowrap">
+    <input type="text" class="in" style="flex:1;min-width:0" inputmode="numeric" autocomplete="off" placeholder="dd/mm/aaaa" value="${txt==="—"?"":esc(txt)}" onchange="${onChangeTexto}">
+    <div class="date-icon-wrap" title="Elegir en el calendario" aria-label="Elegir fecha en el calendario">📅<input type="date" id="${dateId}" value="${isoValue||""}" onchange="${onChangeCalendario}"></div>
+  </div>`;
+}
 window.reExportarCSV=()=>{
   const lista=reListaFiltrada();
   if(!lista.length){ mostrarAviso("No hay reuniones para exportar"+(state.ui.reFiltroTipo||state.ui.reBusqueda?" con este filtro/búsqueda.":".")); return; }
@@ -4603,7 +4739,10 @@ window.reImprimirActa=id=>{
     <h2>Firmas de los asistentes</h2>
     ${firmasBoxes?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:8px">${firmasBoxes}</div>`:'<p style="color:#999;font-style:italic">Sin firmantes definidos.</p>'}
   `;
-  abrirVentanaInforme(`Acta — ${r.titulo||"reunión"}`, body);
+  const portada=generarPortadaHTML(`Acta — ${r.titulo||"reunión"}`,
+    [info.label, `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`, profesorNombreEfectivo(null)?`Elaborada por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    ["Asistentes","Orden del día","Desarrollo de la reunión","Acuerdos y compromisos adoptados",(r.observaciones||r.proximaFecha)?"Observaciones":"","Firmas de los asistentes"]);
+  abrirVentanaInforme(`Acta — ${r.titulo||"reunión"}`, body, {portada});
 };
 
 /* =================================================================
@@ -5113,7 +5252,12 @@ window.rfImprimirInforme=id=>{
     ${p.observacionesFinales?`<h2>Observaciones finales</h2><p style="white-space:pre-wrap;line-height:1.6">${esc(p.observacionesFinales)}</p>`:""}
     ${rfrpCeLegendPrintHTML()}
   `;
-  abrirVentanaInforme(`Plan de refuerzo — ${p.titulo||"plan"}`, body);
+  const portada=generarPortadaHTML(`Plan de refuerzo — ${p.titulo||"plan"}`,
+    [alV?`Alumno/a: <strong>${esc(alV.al.nombre)}</strong> · ${esc(alV.g.nombre)}`:`Alumno/a: <strong>${esc(p.alumnoNombre||"—")}</strong>`,
+     `Curso escolar: <strong>${esc(p.cursoAcademico||cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    ["Motivos de la no superación",TRIMESTRES[0],TRIMESTRES[1],TRIMESTRES[2],"Valoración final del plan","Diario de seguimiento",p.observacionesFinales?"Observaciones finales":"","Leyenda de competencias clave"]);
+  abrirVentanaInforme(`Plan de refuerzo — ${p.titulo||"plan"}`, body, {portada});
 };
 
 /* =================================================================
@@ -5168,6 +5312,7 @@ function renderRepeticionApp(){
   if(state.ui.rpModalNueva){ root.insertAdjacentHTML("beforeend", rpRenderModalNuevaHTML()); rpRefrescarAlumnoSel(); }
   if(state.ui.prepModal) root.insertAdjacentHTML("beforeend", prepararModalHTML());
   if(state.ui.prepNuevoModal) root.insertAdjacentHTML("beforeend", prepararNuevoModalHTML());
+  if(state.ui.rpModalElegirCE) root.insertAdjacentHTML("beforeend", rpModalElegirCEHTML());
 }
 
 function renderRpListaHTML(root){
@@ -5238,8 +5383,11 @@ function rpRenderModalNuevaHTML(){
           </select>
         </label>
         <div id="rpNAlumnoWrap"></div>
-        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Curso que repite
-          <input class="in" style="width:100%;margin-top:4px" id="rpNCurso" placeholder="Ej. 2º ESO (repite por primera vez)">
+        <label style="font-size:12.5px;color:var(--mut);font-weight:500">Curso y materia que repite
+          <select class="in" style="width:100%;margin-top:4px" id="rpNCurso">
+            <option value="">— Selecciona curso y materia —</option>
+            ${catalogoSelectOptionsHTML("",null)}
+          </select>
         </label>
         <label style="font-size:12.5px;color:var(--mut);font-weight:500">Curso académico
           <input class="in" style="width:100%;margin-top:4px" id="rpNCursoAcademico" placeholder="2026-2027">
@@ -5256,7 +5404,7 @@ function rpRenderModalNuevaHTML(){
             <option value="4">4.º ESO</option>
           </select>
         </label>
-        <p class="sub" style="margin:-4px 0 0;font-size:11.5px">Rellena las tres evaluaciones con las competencias específicas, criterios de evaluación, saberes básicos y competencias clave no conseguidas del curso <strong>que repite</strong>, más el dossier de actividades por defecto. Queda todo editable después.</p>
+        <p class="sub" style="margin:-4px 0 0;font-size:11.5px">Rellena las tres evaluaciones con el dossier de actividades por defecto de ese nivel. Una vez creado el plan, podrás elegir con un clic —desde una lista emergente— las competencias específicas, criterios y competencias clave no conseguidas del curso que repite.</p>
       </div>
       <div class="flex" style="justify-content:flex-end;margin-top:18px">
         <button class="ghost" onclick="rpCerrarModalNueva()">Cancelar</button>
@@ -5275,10 +5423,12 @@ window.rpRefrescarAlumnoSel=()=>{
       ${g.alumnos.map(al=>`<option value="${al.id}">${esc(al.nombre)}</option>`).join("")}
     </select>
   </label>`;
-  const cursoInput=document.getElementById("rpNCurso");
-  if(cursoInput && !cursoInput.value.trim()){
-    const cat=getCatalogo(g.catalogoKey);
-    if(cat && cat.curso) cursoInput.value=cat.curso+" (repite)";
+  // Preselecciona, como opción más probable, la propia materia+curso del
+  // grupo (lo habitual es repetir el mismo curso); el profesor/a puede
+  // elegir otra cosa en el desplegable si no es el caso.
+  const cursoSel=document.getElementById("rpNCurso");
+  if(cursoSel && !cursoSel.value){
+    cursoSel.innerHTML=`<option value="">— Selecciona curso y materia —</option>${catalogoSelectOptionsHTML(g.catalogoKey,getCatalogo(g.catalogoKey)?getCatalogo(g.catalogoKey).materia:null)}`;
   }
 };
 window.rpCrearPlan=()=>{
@@ -5286,12 +5436,14 @@ window.rpCrearPlan=()=>{
   const alumnoId=document.getElementById("rpNAlumno")?.value;
   if(!alumnoId){ mostrarAviso("Este grupo no tiene alumnado."); return; }
   const g=state.grupos.find(x=>x.id===grupoId); const al=g.alumnos.find(x=>x.id===alumnoId);
-  const cursoRepite=document.getElementById("rpNCurso").value.trim();
+  const cursoRepiteCatalogoKey=document.getElementById("rpNCurso").value;
+  const catCursoRepite=cursoRepiteCatalogoKey?getCatalogo(cursoRepiteCatalogoKey):null;
+  const cursoRepite=catCursoRepite?catCursoRepite.curso:"";
   const cursoAcademico=document.getElementById("rpNCursoAcademico").value.trim();
   const fechaInicio=document.getElementById("rpNFecha").value;
   const nivelModelo=document.getElementById("rpNModelo").value;
   const trimestres=rfrpTrimestresIniciales(nivelModelo);
-  const p={ id:uid(), grupoId, alumnoId, alumnoNombre:al.nombre, cursoRepite, cursoAcademico,
+  const p={ id:uid(), grupoId, alumnoId, alumnoNombre:al.nombre, cursoRepite, cursoRepiteCatalogoKey, cursoAcademico,
     motivos:rfrpMotivosDefault(), medidasNivelII:rpMedidasDefault(RP_MEDIDAS_II), medidasNivelIII:rpMedidasDefault(RP_MEDIDAS_III),
     fechaInicio, estado:"activo", trimestres, valoracionFinal:"",
     observacionesFinales:"", planOrigenId:"", planOrigenTipo:"" };
@@ -5309,7 +5461,12 @@ function renderRpDetalleHTML(root){
   if(!p.medidasNivelIII) p.medidasNivelIII=rpMedidasDefault(RP_MEDIDAS_III);
   if(p.valoracionFinal===undefined) p.valoracionFinal="";
   if(p.cursoAcademico===undefined) p.cursoAcademico="";
+  if(p.cursoRepiteCatalogoKey===undefined) p.cursoRepiteCatalogoKey="";
   const alV=rpAlumno(p);
+  const catalogoCursoKey=rpCatalogoParaCursoRepite(p);
+  const referenciaCurricularHTML=catalogoCursoKey?`<div class="card">${referenciaCurricularTablaHTML(catalogoCursoKey)}
+    <p class="sub" style="margin-top:8px">Currículo cargado automáticamente a partir del curso y la materia que repite. Usa el botón «🔍 Elegir de las competencias cargadas» en cada evaluación para marcar cuáles no se han conseguido: se añaden solas a la tabla, sin tener que escribirlas a mano.</p>
+  </div>`:"";
   const motivosHTML=`<div class="card">
     <h2 style="font-size:15px">Motivos de la no superación de la materia</h2>
     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;max-width:760px;margin-top:8px">
@@ -5342,6 +5499,8 @@ function renderRpDetalleHTML(root){
     return `<div class="card">
       <h2 style="font-size:15px">${TRIMESTRES[idx]}</h2>
       <div class="section-eyebrow" style="margin-top:8px">Competencias específicas, criterios de evaluación y competencias clave no conseguidas</div>
+      ${catalogoCursoKey?`<button class="ghost" style="border:1px solid var(--line);margin-bottom:8px" onclick="rpAbrirModalElegirCE(${idx})">🔍 Elegir de las competencias cargadas</button>`
+        :`<p class="sub" style="margin:0 0 8px">Selecciona arriba el curso y la materia que repite para poder elegirlas de una lista en vez de escribirlas a mano.</p>`}
       ${rfrpTablaCEHTML("rp",idx,trim.gruposCE)}
       <div class="section-eyebrow" style="margin-top:16px">Actividades de evaluación</div>
       <div>${actividadesHtml}</div>
@@ -5389,9 +5548,16 @@ function renderRpDetalleHTML(root){
     ${p.planOrigenId?`<p class="sub" style="margin:10px 0 0">➜ Continuación de un plan de ${p.planOrigenTipo==="repeticion"?"repetición":"refuerzo"} del curso anterior.</p>`:""}
     <div class="grid" style="gap:12px;margin-top:14px">
       <div style="font-size:14px"><strong>${esc(rpNombre(p))}</strong>${alV?neseBadgeHTML(alV.al)+planBadgeHTML(alV.al)+repetidorBadgeHTML(alV.al)+` <span class="sub">· ${esc(alV.g.nombre)}</span>`:""}</div>
-      <label style="font-size:12.5px;color:var(--mut);font-weight:500">Curso que repite
-        <input class="in" style="width:100%;margin-top:4px;font-size:15px;font-weight:600" id="rpDCurso" value="${esc(p.cursoRepite||"")}">
+      <label style="font-size:12.5px;color:var(--mut);font-weight:500">Curso y materia que repite
+        <select class="in" style="width:100%;margin-top:4px;font-size:15px;font-weight:600" id="rpDCurso" onchange="rpSetCursoRepiteCatalogo(this.value)">
+          <option value="" ${!catalogoCursoKey?"selected":""}>${(!catalogoCursoKey && p.cursoRepite)?"— "+esc(p.cursoRepite)+" (elige de la lista) —":"— Selecciona curso y materia —"}</option>
+          ${catalogoSelectOptionsHTML(catalogoCursoKey||"",materiaDelGrupo(p.grupoId))}
+        </select>
       </label>
+      <div class="flex" style="align-items:center;gap:8px;flex-wrap:wrap">
+        ${catalogoCursoKey?`<span class="sub" style="margin:0">📘 ${esc(getCatalogo(catalogoCursoKey).materia)} · <strong>${esc(getCatalogo(catalogoCursoKey).curso)}</strong> — currículo cargado más abajo.</span>`
+        :`<span class="sub" style="margin:0">Elige el curso y la materia que repite para cargar sus competencias, criterios y saberes básicos.</span>`}
+      </div>
       <div class="flex">
         <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1">Curso académico
           <input class="in" style="width:100%;margin-top:4px" id="rpDCursoAcademico" value="${esc(p.cursoAcademico||"")}" placeholder="2026-2027">
@@ -5402,6 +5568,7 @@ function renderRpDetalleHTML(root){
       </div>
     </div>
   </div>
+  ${referenciaCurricularHTML}
   ${motivosHTML}
   ${medidasHTML("Medidas propuestas — Nivel II", RP_MEDIDAS_II, "medidasNivelII")}
   ${medidasHTML("Medidas propuestas — Nivel III", RP_MEDIDAS_III, "medidasNivelIII")}
@@ -5431,7 +5598,6 @@ function renderRpDetalleHTML(root){
   </div>`;
   const campo=(id,fn)=>document.getElementById(id).addEventListener("change",e=>{ fn(e.target.value); save(); });
   campo("rpDEstado",v=>p.estado=v);
-  campo("rpDCurso",v=>p.cursoRepite=v.trim());
   campo("rpDCursoAcademico",v=>p.cursoAcademico=v.trim());
   campo("rpDFechaInicio",v=>p.fechaInicio=v);
   campo("rpDObservaciones",v=>p.observacionesFinales=v);
@@ -5439,6 +5605,131 @@ function renderRpDetalleHTML(root){
   if(document.getElementById("rpD_medidasNivelII_Otros")) campo("rpD_medidasNivelII_Otros",v=>p.medidasNivelII.otrosTexto=v);
   if(document.getElementById("rpD_medidasNivelIII_Otros")) campo("rpD_medidasNivelIII_Otros",v=>p.medidasNivelIII.otrosTexto=v);
 }
+/* Al elegir en el desplegable el curso y la materia que repite, guarda la
+   clave exacta del catálogo (sin ambigüedad posible, ya que se elige con un
+   clic) y el texto del curso para mostrarlo en cabeceras e informes. No
+   toca la tabla de competencias: eso se hace aparte, a demanda, con el
+   selector emergente de cada evaluación. */
+window.rpSetCursoRepiteCatalogo=(key)=>{
+  const p=(state.planesRepeticion||[]).find(x=>x.id===state.ui.rpId); if(!p) return;
+  p.cursoRepiteCatalogoKey=key||"";
+  const cat=key?getCatalogo(key):null;
+  p.cursoRepite=cat?cat.curso:"";
+  save(); render();
+};
+/* ---- Selector emergente de competencias específicas / criterios / saberes
+   básicos no conseguidos, a partir del catálogo ya cargado, para una
+   evaluación concreta de un Plan de Repetición. ---- */
+window.rpAbrirModalElegirCE=(trimIdx)=>{
+  const p=(state.planesRepeticion||[]).find(x=>x.id===state.ui.rpId); if(!p) return;
+  if(!rpCatalogoParaCursoRepite(p)){ mostrarAviso("Elige primero, arriba, el curso y la materia que repite."); return; }
+  state.ui.rpModalElegirCE={trimIdx};
+  save(); render();
+};
+window.rpCerrarModalElegirCE=()=>{ state.ui.rpModalElegirCE=null; save(); render(); };
+function rpModalElegirCEHTML(){
+  const {trimIdx}=state.ui.rpModalElegirCE;
+  const p=(state.planesRepeticion||[]).find(x=>x.id===state.ui.rpId); if(!p) return "";
+  const key=rpCatalogoParaCursoRepite(p); if(!key) return "";
+  const idx=catIndex(key); const cat=idx.cat;
+  const saberes=progSaberesDelCatalogo(key)||{};
+  const trim=p.trimestres[trimIdx];
+  const marcados=new Set();
+  (trim.gruposCE||[]).forEach(g=>(g.criterios||[]).forEach(c=>{ if(c.id) marcados.add(c.id); }));
+  const bloques=cat.ces.map(ce=>{
+    const sab=saberes[ce.id]||[];
+    const filasCrit=ce.criterios.map(c=>`
+      <label class="row" style="cursor:pointer;gap:8px;align-items:flex-start;padding:4px 0">
+        <input type="checkbox" class="rpElegirCrit" data-ce="${esc(ce.id)}" data-crit="${esc(c.id)}" ${marcados.has(c.id)?"checked":""} style="margin-top:3px">
+        <span style="font-size:13px"><strong>${esc(c.id)}</strong> ${esc(c.texto)}</span>
+      </label>`).join("");
+    return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)">
+      <div class="flex" style="justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-weight:700;font-size:13.5px">${esc(ce.id)} · ${esc(ce.titulo)}</div>
+        <button type="button" class="ghost small" style="border:1px solid var(--line);flex-shrink:0" onclick="rpToggleTodosCE('${esc(ce.id)}')">Marcar/desmarcar</button>
+      </div>
+      <div class="sub" style="margin:2px 0 6px">Competencias clave: ${(ce.cc||[]).join(", ")||"—"}</div>
+      ${sab.length?`<details style="margin:0 0 8px"><summary class="sub" style="cursor:pointer">Saberes básicos (${sab.length})</summary><ul style="margin:4px 0 0 18px;font-size:12px">${sab.map(s=>`<li>${esc(s)}</li>`).join("")}</ul></details>`:""}
+      ${filasCrit}
+    </div>`;
+  }).join("");
+  return `<div class="modal-overlay" onclick="if(event.target===this) rpCerrarModalElegirCE()">
+    <div class="modal-box" style="max-width:680px;max-height:82vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+      <div style="padding:16px 22px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div class="flex" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <h2 style="font-size:17px;margin:0">Elegir competencias no conseguidas</h2>
+            <p class="sub" style="margin:4px 0 0">${TRIMESTRES[trimIdx]} · ${esc(cat.materia)} · ${esc(cat.curso)}</p>
+          </div>
+          <button class="modal-close" onclick="rpCerrarModalElegirCE()">×</button>
+        </div>
+      </div>
+      <div style="overflow-y:auto;padding:16px 22px;flex:1">
+        <div class="flex" style="gap:6px;margin-bottom:12px">
+          <button type="button" class="ghost small" style="border:1px solid var(--line)" onclick="rpMarcarTodosModal(true)">Seleccionar todo</button>
+          <button type="button" class="ghost small" style="border:1px solid var(--line)" onclick="rpMarcarTodosModal(false)">Vaciar selección</button>
+        </div>
+        ${bloques}
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--line);flex-shrink:0">
+        <label class="row" style="cursor:pointer;gap:8px;margin-bottom:10px">
+          <input type="checkbox" id="rpElegirTodosTrim">
+          <span style="font-size:12.5px">Aplicar esta misma selección a las tres evaluaciones</span>
+        </label>
+        <div class="flex" style="justify-content:flex-end">
+          <button class="ghost" onclick="rpCerrarModalElegirCE()">Cancelar</button>
+          <button class="btn" onclick="rpAplicarSeleccionCE()">Aplicar selección</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+window.rpToggleTodosCE=(ceId)=>{
+  const boxes=[...document.querySelectorAll(".rpElegirCrit")].filter(b=>b.dataset.ce===ceId);
+  const todosMarcados=boxes.every(b=>b.checked);
+  boxes.forEach(b=>{ b.checked=!todosMarcados; });
+};
+window.rpMarcarTodosModal=(marcar)=>{
+  document.querySelectorAll(".rpElegirCrit").forEach(b=>{ b.checked=marcar; });
+};
+window.rpAplicarSeleccionCE=()=>{
+  const {trimIdx}=state.ui.rpModalElegirCE;
+  const p=(state.planesRepeticion||[]).find(x=>x.id===state.ui.rpId); if(!p) return;
+  const key=rpCatalogoParaCursoRepite(p); if(!key) return;
+  const idx=catIndex(key); const cat=idx.cat;
+  const trim=p.trimestres[trimIdx];
+  const catalogIds=new Set(cat.ces.map(ce=>ce.id));
+  // Conserva el estado de "trabajado" de los criterios que ya estaban.
+  const trabajadoPrevio={};
+  (trim.gruposCE||[]).forEach(g=>(g.criterios||[]).forEach(c=>{ if(c.id) trabajadoPrevio[c.id]=!!c.trabajado; }));
+  // Los grupos con una CE que no pertenece a este catálogo (añadidos a mano
+  // con otro código) se dejan intactos.
+  const gruposManuales=(trim.gruposCE||[]).filter(g=>!catalogIds.has(g.ce));
+  // Dentro de una CE del catálogo puede haber además criterios añadidos a
+  // mano (sin id de catálogo): también se conservan.
+  const manualesEnCatalogo={};
+  (trim.gruposCE||[]).forEach(g=>{ if(catalogIds.has(g.ce)) manualesEnCatalogo[g.ce]=(g.criterios||[]).filter(c=>!c.id); });
+  const nuevosGrupos=[];
+  cat.ces.forEach(ce=>{
+    const marcados=[...document.querySelectorAll(".rpElegirCrit")].filter(b=>b.dataset.ce===ce.id && b.checked);
+    const seleccionados=marcados.map(chk=>{
+      const c=ce.criterios.find(x=>x.id===chk.dataset.crit);
+      return c?{id:c.id, texto:`${c.id}. ${c.texto}`, trabajado:!!trabajadoPrevio[c.id]}:null;
+    }).filter(Boolean);
+    const manuales=manualesEnCatalogo[ce.id]||[];
+    if(seleccionados.length||manuales.length) nuevosGrupos.push({ce:ce.id, cc:(ce.cc||[]).join(", "), criterios:[...seleccionados,...manuales]});
+  });
+  trim.gruposCE=[...nuevosGrupos,...gruposManuales];
+  const aplicarTodos=document.getElementById("rpElegirTodosTrim");
+  if(aplicarTodos && aplicarTodos.checked){
+    [0,1,2].filter(i=>i!==trimIdx).forEach(i=>{
+      p.trimestres[i].gruposCE=trim.gruposCE.map(g=>({ce:g.ce,cc:g.cc,criterios:g.criterios.map(c=>({...c}))}));
+    });
+  }
+  state.ui.rpModalElegirCE=null;
+  save(); render();
+  mostrarToast("✓ Competencias actualizadas");
+};
 window.rpSetMedida=(campo,id,checked)=>{
   const p=(state.planesRepeticion||[]).find(x=>x.id===state.ui.rpId);
   p[campo][id]=checked; save(); render();
@@ -5476,9 +5767,10 @@ window.rpImprimirInforme=id=>{
   const p=(state.planesRepeticion||[]).find(x=>x.id===id); if(!p) return;
   const alV=rpAlumno(p);
   const vfinal=rfrpValoracionPNInfo(p.valoracionFinal);
+  const catalogoCursoKey=rpCatalogoParaCursoRepite(p);
   const body=`
     <h1>Plan de repetición</h1>
-    <div class="meta">${esc(rpNombre(p))}${alV?" · "+esc(alV.g.nombre):""}${p.cursoRepite?" · "+esc(p.cursoRepite):""} · Geografía e Historia · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
+    <div class="meta">${esc(rpNombre(p))}${alV?" · "+esc(alV.g.nombre):""}${p.cursoRepite?" · "+esc(p.cursoRepite):""} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
     <table>
       <tr><th style="width:170px">Curso académico</th><td>${esc(p.cursoAcademico)||"—"}</td></tr>
       <tr><th>Fecha de inicio</th><td>${fmt2(p.fechaInicio)}</td></tr>
@@ -5487,6 +5779,7 @@ window.rpImprimirInforme=id=>{
       <tr><th>Medidas Nivel II</th><td>${rpMedidasResumenHTML(p.medidasNivelII,RP_MEDIDAS_II)}</td></tr>
       <tr><th>Medidas Nivel III</th><td>${rpMedidasResumenHTML(p.medidasNivelIII,RP_MEDIDAS_III)}</td></tr>
     </table>
+    ${catalogoCursoKey?referenciaCurricularTablaHTML(catalogoCursoKey):""}
     ${rfrpTrimBodyHTML(0,p.trimestres[0])}
     ${rfrpTrimBodyHTML(1,p.trimestres[1])}
     ${rfrpTrimBodyHTML(2,p.trimestres[2])}
@@ -5495,7 +5788,13 @@ window.rpImprimirInforme=id=>{
     ${p.observacionesFinales?`<h2>Observaciones finales</h2><p style="white-space:pre-wrap;line-height:1.6">${esc(p.observacionesFinales)}</p>`:""}
     ${rfrpCeLegendPrintHTML()}
   `;
-  abrirVentanaInforme(`Plan de repetición — ${rpNombre(p)}`, body);
+  const portada=generarPortadaHTML(`Plan de repetición — ${rpNombre(p)}`,
+    [alV?`Alumno/a: <strong>${esc(alV.al.nombre)}</strong> · ${esc(alV.g.nombre)}`:`Alumno/a: <strong>${esc(p.alumnoNombre||"—")}</strong>`,
+     p.cursoRepite?`Curso que repite: <strong>${esc(p.cursoRepite)}</strong>`:"",
+     `Curso escolar: <strong>${esc(p.cursoAcademico||cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    ["Motivos de la no superación","Medidas propuestas",catalogoCursoKey?"Currículo de referencia":"",TRIMESTRES[0],TRIMESTRES[1],TRIMESTRES[2],"Valoración final del plan",p.observacionesFinales?"Observaciones finales":"","Leyenda de competencias clave"]);
+  abrirVentanaInforme(`Plan de repetición — ${rpNombre(p)}`, body, {portada});
 };
 
 /* ---------- Compartido: preparar el plan del curso siguiente ---------- */
@@ -5834,7 +6133,7 @@ function renderNeDetalleHTML(root){
   const valoracionesHTML=`<div class="card">
     <h2 style="font-size:15px">Valoración del aprovechamiento del plan</h2>
     <p class="sub" style="margin:0 0 8px">Valoración global de cómo avanza el plan en cada evaluación, además del detalle fila a fila de arriba.</p>
-    <div class="grid" style="gap:12px;max-width:640px">
+    <div class="grid" style="gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
       <label style="font-size:12.5px;color:var(--mut);font-weight:500">Valoración 1ª evaluación
         <textarea class="in" style="width:100%;margin-top:4px;min-height:60px;resize:vertical" id="neDVal1T" placeholder="Cómo avanza el plan en la 1ª evaluación…">${esc(p.valoracion1T||"")}</textarea>
       </label>
@@ -5968,7 +6267,13 @@ window.neImprimirInforme=(id,alcance)=>{
     ${cuerpoBloques}
     ${valoracionesBody}
   `;
-  abrirVentanaInforme(`Plan NESE — ${neNombre(p)} · ${etiquetaEv}`, body);
+  const portada=generarPortadaHTML(`Plan NESE — ${neNombre(p)}`,
+    [alV?`Alumno/a: <strong>${esc(alV.al.nombre)}</strong> · ${esc(alV.g.nombre)}`:`Alumno/a: <strong>${esc(p.alumnoNombre||neNombre(p))}</strong>`,
+     `${etiquetaEv}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    [ceTabla?"Competencias específicas":"", ...bloquesAgrupados.map(b=>b.titulo), valoracionesBody?"Valoración del aprovechamiento del plan":""]);
+  abrirVentanaInforme(`Plan NESE — ${neNombre(p)} · ${etiquetaEv}`, body, {portada});
 };
 
 /* =================================================================
@@ -8461,7 +8766,13 @@ window.exportarInformeDetallado=(alId,periodo)=>{
   const al=grupo.alumnos.find(a=>a.id===alId); if(!al) return;
   const p=(periodo==="final")?"final":Number(periodo);
   const periodoLabel=p==="final"?"final de curso":TRIMESTRES[p];
-  abrirVentanaInforme(`Informe detallado · ${al.nombre} · ${periodoLabel}`, dsgReportCSS()+informeDetalladoBodyHTML(grupo,al,p));
+  const cat=getCatalogo(grupo.catalogoKey);
+  const portada=generarPortadaHTML(`Informe detallado — ${al.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)} · Grupo ${esc(grupo.nombre)}`,
+     `<strong>${esc(p==="final"?"Evaluación final":periodoLabel)}</strong>`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Informe detallado · ${al.nombre} · ${periodoLabel}`, dsgReportCSS()+informeDetalladoBodyHTML(grupo,al,p), {portada});
 };
 function informesDetalladosPortadaHTML(grupo,alumnos,periodo){
   const cat=getCatalogo(grupo.catalogoKey);
@@ -8486,9 +8797,15 @@ window.exportarInformesDetalladosTodos=periodo=>{
   const conNota=grupo.alumnos.filter(al=>(p==="final"?notaFinal(grupo,al.id):notaTrimestre(grupo,al.id,p))!=null);
   if(!conNota.length){ mostrarAviso("Todavía no hay ningún alumno o alumna con nota en este periodo."); return; }
   const periodoLabel=p==="final"?"final de curso":TRIMESTRES[p];
-  const portada=informesDetalladosPortadaHTML(grupo,conNota,p);
+  const cat=getCatalogo(grupo.catalogoKey);
+  const portadaResumen=informesDetalladosPortadaHTML(grupo,conNota,p);
   const partes=conNota.map(al=>informeDetalladoBodyHTML(grupo,al,p,{pageBreak:true}));
-  abrirVentanaInforme(`Informes detallados · ${grupo.nombre} · ${periodoLabel}`, dsgReportCSS()+portada+partes.join(""));
+  const portada=generarPortadaHTML(`Informes detallados — ${grupo.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)}`,
+     `<strong>${esc(p==="final"?"Evaluación final (curso completo)":periodoLabel)}</strong>`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Informes detallados · ${grupo.nombre} · ${periodoLabel}`, dsgReportCSS()+portadaResumen+partes.join(""), {portada});
 };
 
 
@@ -9195,7 +9512,14 @@ window.asistRangoRapido=(tipo)=>{
   }else if(tipo==="mes"){
     desde=iso(new Date(hoy.getFullYear(),hoy.getMonth(),1));
     hasta=iso(new Date(hoy.getFullYear(),hoy.getMonth()+1,0));
-  }else{ desde="2000-01-01"; hasta="2099-12-31"; }
+  }else{
+    // "Curso completo": del inicio de la 1ª Evaluación al fin de la 3ª (Ajustes). Si el
+    // grupo todavía no tiene esas fechas configuradas, se mantiene el rango abierto de antes.
+    const g=grupoActual();
+    const ft=Array.isArray(g&&g.fechasTrimestre)?g.fechasTrimestre:[];
+    const inicioCurso=ft[0]&&ft[0].inicio, finCurso=ft[2]&&ft[2].fin;
+    desde=inicioCurso||"2000-01-01"; hasta=finCurso||"2099-12-31";
+  }
   state.ui.asistDesde=desde; state.ui.asistHasta=hasta;
   save(); render();
 };
@@ -9204,11 +9528,40 @@ window.asistActualizarRango=()=>{
   state.ui.asistHasta=document.getElementById("asistHasta").value;
   save(); render();
 };
+/* Escritura manual de las fechas de asistencia (además del calendario). Si el texto no se
+   reconoce como una fecha válida, se avisa y se vuelve a pintar con el valor anterior. */
+window.asistFechaTextoChange=(txt)=>{
+  const iso=parseFechaFlexible(txt);
+  if(!iso){ mostrarToast("Fecha no válida. Usa el formato dd/mm/aaaa."); render(); return; }
+  asistSeleccionarFecha(iso);
+};
+window.asistDesdeTextoChange=(txt)=>{
+  const iso=parseFechaFlexible(txt);
+  if(!iso){ mostrarToast("Fecha no válida. Usa el formato dd/mm/aaaa."); render(); return; }
+  const inp=document.getElementById("asistDesde"); if(inp) inp.value=iso;
+  asistActualizarRango();
+};
+window.asistHastaTextoChange=(txt)=>{
+  const iso=parseFechaFlexible(txt);
+  if(!iso){ mostrarToast("Fecha no válida. Usa el formato dd/mm/aaaa."); render(); return; }
+  const inp=document.getElementById("asistHasta"); if(inp) inp.value=iso;
+  asistActualizarRango();
+};
+/* Rango por defecto de la pestaña de Asistencia cuando el profesor/a todavía no ha tocado
+   Desde/Hasta: el curso completo, tomado de las fechas de evaluación (Ajustes) — el inicio
+   de curso coincide con el inicio de la 1ª Evaluación y el final con el fin de la 3ª. Si esas
+   fechas no están configuradas, se mantiene el comportamiento anterior (hoy). */
+function asistRangoPorDefecto(grupo){
+  const ft=Array.isArray(grupo&&grupo.fechasTrimestre)?grupo.fechasTrimestre:[];
+  const inicioCurso=ft[0]&&ft[0].inicio, finCurso=ft[2]&&ft[2].fin;
+  return { desde: inicioCurso||agHoyStr(), hasta: finCurso||agHoyStr() };
+}
 function renderAsistencia(grupo){
   const c=document.getElementById("tabContent");
   const fecha=state.ui.asistFecha||agHoyStr();
-  const desde=state.ui.asistDesde||agHoyStr();
-  const hasta=state.ui.asistHasta||agHoyStr();
+  const rangoDef=asistRangoPorDefecto(grupo);
+  const desde=state.ui.asistDesde||rangoDef.desde;
+  const hasta=state.ui.asistHasta||rangoDef.hasta;
   const filasLista=grupo.alumnos.length?grupo.alumnos.map(al=>{
     const reg=asistDelDia(grupo,fecha,al.id);
     return `<div class="row" style="flex-wrap:wrap;gap:8px;align-items:center">
@@ -9233,8 +9586,8 @@ function renderAsistencia(grupo){
   <div class="card">
     <h2 style="font-size:15px">📋 Pasar lista</h2>
     <p class="sub" style="margin:0 0 10px">Cualquier fecha, sin relación con tu horario semanal. Por defecto, todo el alumnado está "Presente" — solo marca las excepciones.</p>
-    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;max-width:220px;margin-bottom:10px">Fecha
-      <input type="date" class="in" style="width:100%;margin-top:4px" id="asistFechaInput" value="${fecha}" onchange="asistSeleccionarFecha(this.value)">
+    <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;max-width:260px;margin-bottom:10px">Fecha
+      <div style="margin-top:4px">${campoFechaDualHTML("asistFechaInput",fecha,"asistFechaTextoChange(this.value)","asistSeleccionarFecha(this.value)")}</div>
     </label>
     <div class="grid" style="gap:8px">${filasLista}</div>
     ${grupo.alumnos.length?`<button class="ghost" style="border:1px solid var(--line);margin-top:10px" onclick="asistMarcarTodosPresentes()">Marcar todos presentes este día</button>`:""}
@@ -9249,12 +9602,12 @@ function renderAsistencia(grupo){
       <button class="chip" onclick="asistRangoRapido('mes')">Este mes</button>
       <button class="chip" onclick="asistRangoRapido('curso')">Curso completo</button>
     </div>
-    <div class="flex" style="margin-top:8px">
-      <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1">Desde
-        <input type="date" class="in" style="width:100%;margin-top:4px" id="asistDesde" value="${desde}" onchange="asistActualizarRango()">
+    <div class="flex" style="margin-top:8px;flex-wrap:wrap">
+      <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1;min-width:180px">Desde
+        <div style="margin-top:4px">${campoFechaDualHTML("asistDesde",desde,"asistDesdeTextoChange(this.value)","asistActualizarRango()")}</div>
       </label>
-      <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1">Hasta
-        <input type="date" class="in" style="width:100%;margin-top:4px" id="asistHasta" value="${hasta}" onchange="asistActualizarRango()">
+      <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1;min-width:180px">Hasta
+        <div style="margin-top:4px">${campoFechaDualHTML("asistHasta",hasta,"asistHastaTextoChange(this.value)","asistActualizarRango()")}</div>
       </label>
     </div>
     ${grupo.alumnos.length?`<div style="overflow-x:auto;margin-top:12px"><table>
@@ -9341,18 +9694,24 @@ window.asistImprimirAlumno=alId=>{
   const grupo=grupoActual(); if(!grupo) return;
   const al=grupo.alumnos.find(a=>a.id===alId); if(!al) return;
   const cat=getCatalogo(grupo.catalogoKey);
-  const desde=state.ui.asistDesde||agHoyStr(), hasta=state.ui.asistHasta||agHoyStr();
+  const rangoDef=asistRangoPorDefecto(grupo);
+  const desde=state.ui.asistDesde||rangoDef.desde, hasta=state.ui.asistHasta||rangoDef.hasta;
   const body=`
     <h1>Informe de asistencia</h1>
     <div class="meta">${esc(al.nombre)} · ${esc(grupo.nombre)} · ${esc(cat.materia)} · Del ${fmt2(desde)} al ${fmt2(hasta)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
     ${asistInformeAlumnoBodyHTML(grupo,al,desde,hasta)}
   `;
-  abrirVentanaInforme(`Asistencia · ${al.nombre}`, body);
+  const portada=generarPortadaHTML(`Informe de asistencia — ${al.nombre}`,
+    [`${esc(grupo.nombre)} · ${esc(cat.materia)}`, `Del ${fmt2(desde)} al ${fmt2(hasta)}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Asistencia · ${al.nombre}`, body, {portada});
 };
 window.asistImprimirResumen=()=>{
   const grupo=grupoActual();
   const cat=getCatalogo(grupo.catalogoKey);
-  const desde=state.ui.asistDesde||agHoyStr(), hasta=state.ui.asistHasta||agHoyStr();
+  const rangoDef=asistRangoPorDefecto(grupo);
+  const desde=state.ui.asistDesde||rangoDef.desde, hasta=state.ui.asistHasta||rangoDef.hasta;
   const filas=grupo.alumnos.map(al=>{
     const cnt=asistContarPeriodo(grupo,al.id,desde,hasta);
     return `<tr><td>${esc(al.nombre)}</td><td style="text-align:center">${cnt.falta_justificada}</td><td style="text-align:center">${cnt.falta_no_justificada}</td><td style="text-align:center">${cnt.retraso}</td></tr>`;
@@ -9362,7 +9721,11 @@ window.asistImprimirResumen=()=>{
     <div class="meta">${esc(grupo.nombre)} · ${esc(cat.materia)} · Del ${fmt2(desde)} al ${fmt2(hasta)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
     <table><thead><tr><th>Alumno/a</th><th>Faltas justificadas</th><th>Faltas no justificadas</th><th>Retrasos</th></tr></thead><tbody>${filas}</tbody></table>
   `;
-  abrirVentanaInforme(`Resumen de asistencia — ${grupo.nombre}`, body);
+  const portada=generarPortadaHTML(`Resumen de asistencia — ${grupo.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)}`, `Del ${fmt2(desde)} al ${fmt2(hasta)}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Resumen de asistencia — ${grupo.nombre}`, body, {portada});
 };
 /* ---- Helpers de datos ---- */
 function convEntradasAlumno(grupo,alumnoId,desde,hasta){
@@ -9604,7 +9967,11 @@ window.convImprimirAlumno=alId=>{
     <div class="meta">${esc(al.nombre)} · ${esc(grupo.nombre)} · ${esc(cat.materia)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
     ${convInformeAlumnoBodyHTML(grupo,al)}
   `;
-  abrirVentanaInforme(`Convivencia · ${al.nombre}`, body);
+  const portada=generarPortadaHTML(`Informe de convivencia — ${al.nombre}`,
+    [`${esc(grupo.nombre)} · ${esc(cat.materia)}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Convivencia · ${al.nombre}`, body, {portada});
 };
 
 /* ---- Vista detalle (AC/RC simple, o formulario PA completo) ---- */
@@ -9909,7 +10276,10 @@ window.famImprimirHistorial=()=>{
     <div class="meta">${esc(grupo.nombre)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
     <table><thead><tr><th style="width:90px">Fecha</th><th>Alumno/a</th><th>Medio</th><th>Asunto</th><th>Notas</th></tr></thead><tbody>${filas}</tbody></table>
   `;
-  abrirVentanaInforme(`Contacto con familias — ${grupo.nombre}`, body);
+  const portada=generarPortadaHTML(`Contacto con familias — ${grupo.nombre}`,
+    [`Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Contacto con familias — ${grupo.nombre}`, body, {portada});
 };
 
 /* =================================================================
@@ -10098,7 +10468,11 @@ window.diarioImprimir=()=>{
     <div class="meta">${esc(grupo.nombre)} · ${esc(cat.materia)} · ${esc(cat.curso)} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
     <table><thead><tr><th style="width:110px">Fecha</th><th style="width:160px">Situación de Aprendizaje</th><th>¿Qué se ha dado?</th><th>Incidencias</th></tr></thead><tbody>${filas}</tbody></table>
   `;
-  abrirVentanaInforme(`Diario de clase — ${grupo.nombre}`, body);
+  const portada=generarPortadaHTML(`Diario de clase — ${grupo.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Diario de clase — ${grupo.nombre}`, body, {portada});
 };
 
 /* =================================================================
@@ -11696,6 +12070,29 @@ function cerrarImprimible(){
   _imprimibleActual=null;
 }
 window.cerrarImprimible=cerrarImprimible;
+/* Portada estándar (mismo estilo que la de Memoria/Programación de Aula) para
+   cualquier documento imprimible: cabecera con el centro, título del
+   documento, curso escolar y profesor/a, y opcionalmente un índice de
+   contenidos. "subtitulos" es un array de fragmentos HTML ya construidos
+   (no se escapan) y "indiceItems" un array de textos planos (sí se escapan). */
+function generarPortadaHTML(titulo,subtitulos,indiceItems){
+  const subt=(subtitulos||[]).filter(Boolean).map(s=>`<div style="font-size:1rem;color:rgba(255,255,255,.9);margin-top:8px">${s}</div>`).join("");
+  const indice=(indiceItems||[]).filter(Boolean);
+  return `<div style="min-height:85vh;display:flex;flex-direction:column;justify-content:center;page-break-after:always">
+    <div style="background:linear-gradient(135deg,#152a44,#25456b);color:#fff;padding:26px 30px;border-radius:12px;text-align:center">
+      <div style="font-size:1.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${esc(state.centroNombre)||"Cuaderno del profesor"}</div>
+      ${state.centroCodigo?`<div style="font-size:.8rem;color:rgba(255,255,255,.7);margin-top:2px">Cód. Centro: ${esc(state.centroCodigo)}</div>`:""}
+      <div style="margin-top:22px;font-size:1.6rem;font-weight:700">${esc(titulo)}</div>
+      ${subt}
+    </div>
+    ${indice.length?`<div style="margin-top:40px">
+      <h2 style="border-bottom:1px solid #ccc;padding-bottom:6px">Índice</h2>
+      <ul style="list-style:none;padding:0;margin:10px 0 0">
+        ${indice.map(t=>`<li style="padding:6px 0;border-bottom:1px dotted #ccc;font-size:14px">${esc(t)}</li>`).join("")}
+      </ul>
+    </div>`:""}
+  </div>`;
+}
 function abrirVentanaInforme(titulo,bodyHtml,opts){
   opts=opts||{};
   const paisaje=!!opts.landscape;
@@ -11722,6 +12119,7 @@ function abrirVentanaInforme(titulo,bodyHtml,opts){
     @media print{ .btnbar{display:none} ${centrado?"body{margin:0 auto}":""} }
   </style></head><body>
   <div class="btnbar"><button onclick="window.print()">Imprimir / Guardar como PDF</button> <button onclick="window.close()" style="background:#eee;color:#333">✕ Cerrar</button></div>
+  ${opts.portada||""}
   ${bodyHtml}
   </body></html>`, titulo);
 }
@@ -11808,13 +12206,26 @@ function informeAlumnoBodyHTML(grupo,al,opts){
 window.exportarInformeAlumno=alId=>{
   const grupo=grupoActual();
   const al=grupo.alumnos.find(a=>a.id===alId);
-  abrirVentanaInforme(`Informe · ${al.nombre}`, informeAlumnoBodyHTML(grupo,al));
+  const cat=getCatalogo(grupo.catalogoKey);
+  const portada=generarPortadaHTML(`Informe individual — ${al.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)} · Grupo ${esc(grupo.nombre)}`,
+     `<strong>${esc(TRIMESTRES[state.ui.trim])}</strong>`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Informe · ${al.nombre}`, informeAlumnoBodyHTML(grupo,al), {portada});
 };
 window.exportarInformesTodos=()=>{
   const grupo=grupoActual();
   if(!grupo.alumnos.length){ mostrarAviso("Este grupo todavía no tiene alumnado."); return; }
+  const cat=getCatalogo(grupo.catalogoKey);
   const partes=grupo.alumnos.map((al,i)=>informeAlumnoBodyHTML(grupo,al,{pageBreak:i>0}));
-  abrirVentanaInforme(`Informes individuales · ${grupo.nombre}`, partes.join(""));
+  const portada=generarPortadaHTML(`Informes individuales — ${grupo.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)}`,
+     `<strong>${esc(TRIMESTRES[state.ui.trim])}</strong>`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    grupo.alumnos.map(al=>al.nombre));
+  abrirVentanaInforme(`Informes individuales · ${grupo.nombre}`, partes.join(""), {portada});
 };
 
 /* -----------------------------------------------------------------
@@ -11893,13 +12304,24 @@ function informeFinalAlumnoBodyHTML(grupo,al,opts){
 window.exportarInformeFinalAlumno=alId=>{
   const grupo=grupoActual();
   const al=grupo.alumnos.find(a=>a.id===alId);
-  abrirVentanaInforme(`Informe final · ${al.nombre}`, informeFinalAlumnoBodyHTML(grupo,al));
+  const cat=getCatalogo(grupo.catalogoKey);
+  const portada=generarPortadaHTML(`Informe final de curso — ${al.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)} · Grupo ${esc(grupo.nombre)}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""], []);
+  abrirVentanaInforme(`Informe final · ${al.nombre}`, informeFinalAlumnoBodyHTML(grupo,al), {portada});
 };
 window.exportarInformesFinalesTodos=()=>{
   const grupo=grupoActual();
   if(!grupo.alumnos.length){ mostrarAviso("Este grupo todavía no tiene alumnado."); return; }
+  const cat=getCatalogo(grupo.catalogoKey);
   const partes=grupo.alumnos.map((al,i)=>informeFinalAlumnoBodyHTML(grupo,al,{pageBreak:i>0}));
-  abrirVentanaInforme(`Informes finales de curso · ${grupo.nombre}`, partes.join(""));
+  const portada=generarPortadaHTML(`Informes finales de curso — ${grupo.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)}`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    grupo.alumnos.map(al=>al.nombre));
+  abrirVentanaInforme(`Informes finales de curso · ${grupo.nombre}`, partes.join(""), {portada});
 };
 
 window.exportarInformeGrupo=(modo)=>{
@@ -11967,7 +12389,13 @@ window.exportarInformeGrupo=(modo)=>{
     <h2>${asistConvTitulo}</h2>
     ${resumenAsistConvGrupoHTML(grupo,asistConvDesde,asistConvHasta)}
   `;
-  abrirVentanaInforme(`Informe de grupo · ${grupo.nombre} · ${tituloPeriodo}`,body);
+  const portada=generarPortadaHTML(`Informe de grupo — ${grupo.nombre}`,
+    [`${esc(cat.materia)} · ${esc(cat.curso)}`,
+     `<strong>${esc(tituloPeriodo)}</strong>`,
+     `Curso escolar: <strong>${esc(cursoEscolarEfectivo(null))}</strong>`,
+     profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
+    ["Calificación cuantitativa","Media del grupo · competencias clave","Media del grupo · competencias específicas",asistConvTitulo]);
+  abrirVentanaInforme(`Informe de grupo · ${grupo.nombre} · ${tituloPeriodo}`,body,{portada});
 };
 
 /* =================================================================
