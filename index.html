@@ -2354,7 +2354,7 @@ function gruposCEDesdeCatalogo(catalogoKey){
    de un catálogo completo, en el mismo formato de tabla usado en el resto
    de la aplicación. Se usa tanto en pantalla (dentro de una .card) como en
    los documentos imprimibles. */
-function referenciaCurricularTablaHTML(catalogoKey){
+function referenciaCurricularTablaHTML(catalogoKey,comoColapsable){
   const idx=catIndex(catalogoKey); const cat=idx.cat;
   const saberes=progSaberesDelCatalogo(catalogoKey)||{};
   const filas=cat.ces.map(ce=>{
@@ -2368,9 +2368,13 @@ function referenciaCurricularTablaHTML(catalogoKey){
       <td style="min-width:180px;font-size:12px">${saberesHTML}</td>
     </tr>`;
   }).join("");
-  return `<h2 style="font-size:15px">📘 Currículo de referencia — ${esc(cat.materia)} · ${esc(cat.curso)}</h2>
-  <div style="overflow-x:auto"><table><thead><tr><th>Competencia específica</th><th>Comp. clave</th><th>Criterios de evaluación</th><th>Saberes básicos</th></tr></thead>
+  const titulo=`📘 Currículo de referencia — ${esc(cat.materia)} · ${esc(cat.curso)}`;
+  const tabla=`<div style="overflow-x:auto"><table><thead><tr><th>Competencia específica</th><th>Comp. clave</th><th>Criterios de evaluación</th><th>Saberes básicos</th></tr></thead>
   <tbody>${filas}</tbody></table></div>`;
+  if(comoColapsable){
+    return `<details><summary style="cursor:pointer;font-size:15px;font-weight:700">${titulo}</summary><div style="margin-top:10px">${tabla}</div></details>`;
+  }
+  return `<h2 style="font-size:15px">${titulo}</h2>${tabla}`;
 }
 
 /* =================================================================
@@ -5464,8 +5468,8 @@ function renderRpDetalleHTML(root){
   if(p.cursoRepiteCatalogoKey===undefined) p.cursoRepiteCatalogoKey="";
   const alV=rpAlumno(p);
   const catalogoCursoKey=rpCatalogoParaCursoRepite(p);
-  const referenciaCurricularHTML=catalogoCursoKey?`<div class="card">${referenciaCurricularTablaHTML(catalogoCursoKey)}
-    <p class="sub" style="margin-top:8px">Currículo cargado automáticamente a partir del curso y la materia que repite. Usa el botón «🔍 Elegir de las competencias cargadas» en cada evaluación para marcar cuáles no se han conseguido: se añaden solas a la tabla, sin tener que escribirlas a mano.</p>
+  const referenciaCurricularHTML=catalogoCursoKey?`<div class="card">${referenciaCurricularTablaHTML(catalogoCursoKey,true)}
+    <p class="sub" style="margin-top:8px">Currículo cargado automáticamente a partir del curso y la materia que repite. Usa el botón «🔍 Elegir de las competencias cargadas» en cada evaluación para marcar cuáles no se han conseguido: se añaden solas a la tabla, sin tener que escribirlas a mano. No se imprime en el informe.</p>
   </div>`:"";
   const motivosHTML=`<div class="card">
     <h2 style="font-size:15px">Motivos de la no superación de la materia</h2>
@@ -5767,7 +5771,6 @@ window.rpImprimirInforme=id=>{
   const p=(state.planesRepeticion||[]).find(x=>x.id===id); if(!p) return;
   const alV=rpAlumno(p);
   const vfinal=rfrpValoracionPNInfo(p.valoracionFinal);
-  const catalogoCursoKey=rpCatalogoParaCursoRepite(p);
   const body=`
     <h1>Plan de repetición</h1>
     <div class="meta">${esc(rpNombre(p))}${alV?" · "+esc(alV.g.nombre):""}${p.cursoRepite?" · "+esc(p.cursoRepite):""} · Generado el ${new Date().toLocaleDateString("es-ES")}</div>
@@ -5779,7 +5782,6 @@ window.rpImprimirInforme=id=>{
       <tr><th>Medidas Nivel II</th><td>${rpMedidasResumenHTML(p.medidasNivelII,RP_MEDIDAS_II)}</td></tr>
       <tr><th>Medidas Nivel III</th><td>${rpMedidasResumenHTML(p.medidasNivelIII,RP_MEDIDAS_III)}</td></tr>
     </table>
-    ${catalogoCursoKey?referenciaCurricularTablaHTML(catalogoCursoKey):""}
     ${rfrpTrimBodyHTML(0,p.trimestres[0])}
     ${rfrpTrimBodyHTML(1,p.trimestres[1])}
     ${rfrpTrimBodyHTML(2,p.trimestres[2])}
@@ -5793,7 +5795,7 @@ window.rpImprimirInforme=id=>{
      p.cursoRepite?`Curso que repite: <strong>${esc(p.cursoRepite)}</strong>`:"",
      `Curso escolar: <strong>${esc(p.cursoAcademico||cursoEscolarEfectivo(null))}</strong>`,
      profesorNombreEfectivo(null)?`Elaborado por: <strong>${esc(profesorNombreEfectivo(null))}</strong>`:""],
-    ["Motivos de la no superación","Medidas propuestas",catalogoCursoKey?"Currículo de referencia":"",TRIMESTRES[0],TRIMESTRES[1],TRIMESTRES[2],"Valoración final del plan",p.observacionesFinales?"Observaciones finales":"","Leyenda de competencias clave"]);
+    ["Motivos de la no superación","Medidas propuestas",TRIMESTRES[0],TRIMESTRES[1],TRIMESTRES[2],"Valoración final del plan",p.observacionesFinales?"Observaciones finales":"","Leyenda de competencias clave"]);
   abrirVentanaInforme(`Plan de repetición — ${rpNombre(p)}`, body, {portada});
 };
 
