@@ -10975,6 +10975,24 @@ window.progEliminarActividad=async (actId)=>{
   p.actividades=p.actividades.filter(a=>a.id!==actId);
   save(); render();
 };
+/* Reordena una actividad dentro del listado de una SdA concreta (o de las
+   "sin SdA" si grupoId es ""), moviéndola un puesto arriba/abajo (dir=-1/1).
+   Las actividades se guardan en una única lista p.actividades (una misma
+   actividad puede pertenecer a varias SdA a la vez), así que se busca su
+   posición dentro del subconjunto que comparte esa SdA y se intercambia con
+   la vecina en ese mismo subconjunto, igual que ya se hace con progMoverSda. */
+window.progMoverActividad=(actId,grupoId,dir)=>{
+  const p=progPorId(state.ui.progId); if(!p) return;
+  const enGrupo=grupoId? (a=>(a.sdaIds||[]).includes(grupoId)) : (a=>!(a.sdaIds||[]).length);
+  const mismos=p.actividades.filter(enGrupo);
+  const posSub=mismos.findIndex(a=>a.id===actId); if(posSub===-1) return;
+  const posVecinoSub=posSub+dir;
+  if(posVecinoSub<0||posVecinoSub>=mismos.length) return;
+  const act=mismos[posSub], vecino=mismos[posVecinoSub];
+  const i1=p.actividades.indexOf(act), i2=p.actividades.indexOf(vecino);
+  [p.actividades[i1],p.actividades[i2]]=[p.actividades[i2],p.actividades[i1]];
+  save(); render();
+};
 window.progSetActividadCampo=(actId,campo,valor)=>{
   const p=progPorId(state.ui.progId); if(!p) return;
   const a=p.actividades.find(x=>x.id===actId); if(!a) return;
@@ -11006,11 +11024,16 @@ window.progSetActividadCriterioPeso=(actId,critId,peso)=>{
   save();
 };
 window.progToggleActividadAbierta=(actId)=>{ state.ui.progActividadAbierta = state.ui.progActividadAbierta===actId?null:actId; save(); render(); };
-function progActividadCardHTML(idx,a,p){
+function progActividadCardHTML(idx,a,p,grupoId,iAct,totalGrupo){
   const abierta=state.ui.progActividadAbierta===a.id;
   const nCrit=(a.criterios||[]).length;
+  const conOrden=typeof iAct==="number";
   return `<div class="card" style="margin-top:8px">
     <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      ${conOrden?`<span style="display:inline-flex;gap:2px">
+        <button class="ghost" style="padding:2px 8px;min-width:0" title="Subir un puesto" ${iAct===0?"disabled":""} onclick="progMoverActividad('${a.id}','${grupoId}',-1)">▲</button>
+        <button class="ghost" style="padding:2px 8px;min-width:0" title="Bajar un puesto" ${iAct===totalGrupo-1?"disabled":""} onclick="progMoverActividad('${a.id}','${grupoId}',1)">▼</button>
+      </span>`:""}
       <input class="in" style="flex:2;min-width:180px;font-weight:600" placeholder="Nombre de la actividad…" value="${esc(a.nombre)}" onchange="progSetActividadCampo('${a.id}','nombre',this.value)">
       <select class="in" style="flex:1;min-width:120px" onchange="progSetActividadCampo('${a.id}','tipo',this.value)">
         ${TIPOS.map(t=>`<option value="${t}" ${a.tipo===t?"selected":""}>${t}</option>`).join("")}
@@ -11196,7 +11219,7 @@ function progDetalleHTML(root){
           <button class="ghost" style="border:1px solid var(--line)" onclick="progAnadirRecurso('${s.id}')">+ Añadir recurso</button>
         </div>
         <div class="section-eyebrow" style="margin-top:12px">Actividades de esta SdA</div>
-        ${p.actividades.filter(a=>(a.sdaIds||[]).includes(s.id)).map(a=>progActividadCardHTML(idx,a,p)).join("")}
+        ${(()=>{ const actsSda=p.actividades.filter(a=>(a.sdaIds||[]).includes(s.id)); return actsSda.map((a,iAct)=>progActividadCardHTML(idx,a,p,s.id,iAct,actsSda.length)).join(""); })()}
         <button class="ghost" style="border:1px solid var(--line);margin-top:8px" onclick="progAnadirActividad('${s.id}')">+ Añadir actividad a esta SdA</button>
         `:""}
       </div>`;
@@ -11207,7 +11230,7 @@ function progDetalleHTML(root){
   `).join("")}
   <div class="card">
     <div class="section-eyebrow" style="margin:0 0 8px">Actividades sin ninguna SdA asignada</div>
-    ${p.actividades.filter(a=>!(a.sdaIds||[]).length).map(a=>progActividadCardHTML(idx,a,p)).join("")||'<p class="sub" style="margin:0">Ninguna.</p>'}
+    ${(()=>{ const actsSinSda=p.actividades.filter(a=>!(a.sdaIds||[]).length); return actsSinSda.map((a,iAct)=>progActividadCardHTML(idx,a,p,"",iAct,actsSinSda.length)).join(""); })()||'<p class="sub" style="margin:0">Ninguna.</p>'}
     <button class="ghost" style="border:1px solid var(--line);margin-top:8px" onclick="progAnadirActividad('')">+ Añadir actividad sin SdA</button>
   </div>`}`;
   if(state.ui.progDetTab==="planificacion") planTempMontar(p);
