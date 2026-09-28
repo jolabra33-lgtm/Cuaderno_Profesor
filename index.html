@@ -2371,6 +2371,14 @@ function rpCatalogoParaCursoRepite(p){
   const posibles=catalogosPosiblesParaCurso(p.cursoRepite,materiaDelGrupo(p.grupoId));
   return posibles.length===1?posibles[0].key:null;
 }
+/* Igual que rpCatalogoParaCursoRepite, pero para el "curso a reforzar" de un
+   Plan de Refuerzo (el curso/materia cuyo currículo se quiere cargar para
+   elegir de él las competencias específicas no conseguidas). */
+function rfCatalogoParaCursoRefuerza(p){
+  if(p.cursoRefuerzaCatalogoKey && getCatalogo(p.cursoRefuerzaCatalogoKey)) return p.cursoRefuerzaCatalogoKey;
+  const posibles=catalogosPosiblesParaCurso(p.cursoRefuerza,materiaDelGrupo(p.grupoId));
+  return posibles.length===1?posibles[0].key:null;
+}
 /* Opciones <optgroup>/<option> (agrupadas por materia) para elegir con un
    clic el curso y la materia que se repite, a partir de todos los catálogos
    disponibles. La materia del grupo actual del alumno/a (si se conoce) se
@@ -4877,6 +4885,7 @@ function renderRefuerzoApp(){
   if(state.ui.rfModalNueva){ root.insertAdjacentHTML("beforeend", rfRenderModalNuevaHTML()); rfRefrescarAlumnoSel(); }
   if(state.ui.prepModal) root.insertAdjacentHTML("beforeend", prepararModalHTML());
   if(state.ui.prepNuevoModal) root.insertAdjacentHTML("beforeend", prepararNuevoModalHTML());
+  if(state.ui.rfModalElegirCE) root.insertAdjacentHTML("beforeend", rfModalElegirCEHTML());
 }
 
 function renderRfListaHTML(root){
@@ -5039,7 +5048,12 @@ function renderRfDetalleHTML(root){
   if(!p.motivos) p.motivos=rfrpMotivosDefault();
   if(p.valoracionFinal===undefined) p.valoracionFinal="";
   if(p.cursoAcademico===undefined) p.cursoAcademico="";
+  if(p.cursoRefuerzaCatalogoKey===undefined) p.cursoRefuerzaCatalogoKey="";
   const alV=rfAlumno(p);
+  const catalogoCursoKey=rfCatalogoParaCursoRefuerza(p);
+  const referenciaCurricularHTML=catalogoCursoKey?`<div class="card">${referenciaCurricularTablaHTML(catalogoCursoKey,true)}
+    <p class="sub" style="margin-top:8px">Currículo cargado automáticamente a partir del curso y la materia a reforzar. Usa el botón «🔍 Elegir de las competencias cargadas» en cada evaluación para marcar cuáles no se han conseguido: se añaden solas a la tabla, sin tener que escribirlas a mano. No se imprime en el informe.</p>
+  </div>`:"";
   const motivosHTML=`<div class="card">
     <h2 style="font-size:15px">Motivos de la no superación de la materia</h2>
     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;max-width:760px;margin-top:8px">
@@ -5062,6 +5076,8 @@ function renderRfDetalleHTML(root){
     return `<div class="card">
       <h2 style="font-size:15px">${TRIMESTRES[idx]}</h2>
       <div class="section-eyebrow" style="margin-top:8px">Competencias específicas, criterios de evaluación y competencias clave no conseguidas</div>
+      ${catalogoCursoKey?`<button class="ghost" style="border:1px solid var(--line);margin-bottom:8px" onclick="rfAbrirModalElegirCE(${idx})">🔍 Elegir de las competencias cargadas</button>`
+        :`<p class="sub" style="margin:0 0 8px">Selecciona arriba el curso y la materia a reforzar para poder elegirlas de una lista en vez de escribirlas a mano.</p>`}
       ${rfrpTablaCEHTML("rf",idx,trim.gruposCE)}
       <div class="section-eyebrow" style="margin-top:16px">Actividades de evaluación</div>
       <div>${actividadesHtml}</div>
@@ -5122,6 +5138,16 @@ function renderRfDetalleHTML(root){
       <label style="font-size:12.5px;color:var(--mut);font-weight:500">Título del plan
         <input class="in" style="width:100%;margin-top:4px;font-size:15px;font-weight:600" id="rfDTitulo" value="${esc(p.titulo||"")}">
       </label>
+      <label style="font-size:12.5px;color:var(--mut);font-weight:500">Curso y materia a reforzar
+        <select class="in" style="width:100%;margin-top:4px;font-size:15px;font-weight:600" id="rfDCurso" onchange="rfSetCursoRefuerzaCatalogo(this.value)">
+          <option value="" ${!catalogoCursoKey?"selected":""}>${(!catalogoCursoKey && p.cursoRefuerza)?"— "+esc(p.cursoRefuerza)+" (elige de la lista) —":"— Selecciona curso y materia —"}</option>
+          ${catalogoSelectOptionsHTML(catalogoCursoKey||"",materiaDelGrupo(p.grupoId))}
+        </select>
+      </label>
+      <div class="flex" style="align-items:center;gap:8px;flex-wrap:wrap">
+        ${catalogoCursoKey?`<span class="sub" style="margin:0">📘 ${esc(getCatalogo(catalogoCursoKey).materia)} · <strong>${esc(getCatalogo(catalogoCursoKey).curso)}</strong> — currículo cargado más abajo.</span>`
+        :`<span class="sub" style="margin:0">Elige el curso y la materia a reforzar para cargar sus competencias, criterios y saberes básicos.</span>`}
+      </div>
       <div class="flex">
         <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1">Curso académico
           <input class="in" style="width:100%;margin-top:4px" id="rfDCursoAcademico" value="${esc(p.cursoAcademico||"")}" placeholder="2026-2027">
@@ -5134,6 +5160,7 @@ function renderRfDetalleHTML(root){
         </label>
       </div>
   </div>
+  ${referenciaCurricularHTML}
   ${motivosHTML}
   ${trimestreHTML(0)}
   ${trimestreHTML(1)}
@@ -5181,6 +5208,130 @@ function renderRfDetalleHTML(root){
 window.rfSetMotivo=(id,checked)=>{
   const p=(state.planesRefuerzo||[]).find(x=>x.id===state.ui.rfId);
   p.motivos[id]=checked; save(); render();
+};
+/* Al elegir en el desplegable el curso y la materia a reforzar, guarda la
+   clave exacta del catálogo y el texto del curso para mostrarlo en
+   cabeceras e informes. No toca la tabla de competencias: eso se hace
+   aparte, a demanda, con el selector emergente de cada evaluación. */
+window.rfSetCursoRefuerzaCatalogo=(key)=>{
+  const p=(state.planesRefuerzo||[]).find(x=>x.id===state.ui.rfId); if(!p) return;
+  p.cursoRefuerzaCatalogoKey=key||"";
+  const cat=key?getCatalogo(key):null;
+  p.cursoRefuerza=cat?cat.curso:"";
+  save(); render();
+};
+/* ---- Selector emergente de competencias específicas / criterios / saberes
+   básicos no conseguidos, a partir del catálogo ya cargado, para una
+   evaluación concreta de un Plan de Refuerzo (igual que el de Repetición). ---- */
+window.rfAbrirModalElegirCE=(trimIdx)=>{
+  const p=(state.planesRefuerzo||[]).find(x=>x.id===state.ui.rfId); if(!p) return;
+  if(!rfCatalogoParaCursoRefuerza(p)){ mostrarAviso("Elige primero, arriba, el curso y la materia a reforzar."); return; }
+  state.ui.rfModalElegirCE={trimIdx};
+  save(); render();
+};
+window.rfCerrarModalElegirCE=()=>{ state.ui.rfModalElegirCE=null; save(); render(); };
+function rfModalElegirCEHTML(){
+  const {trimIdx}=state.ui.rfModalElegirCE;
+  const p=(state.planesRefuerzo||[]).find(x=>x.id===state.ui.rfId); if(!p) return "";
+  const key=rfCatalogoParaCursoRefuerza(p); if(!key) return "";
+  const idx=catIndex(key); const cat=idx.cat;
+  const saberes=progSaberesDelCatalogo(key)||{};
+  const trim=p.trimestres[trimIdx];
+  const marcados=new Set();
+  (trim.gruposCE||[]).forEach(g=>(g.criterios||[]).forEach(c=>{ if(c.id) marcados.add(c.id); }));
+  const bloques=cat.ces.map(ce=>{
+    const sab=saberes[ce.id]||[];
+    const filasCrit=ce.criterios.map(c=>`
+      <label class="row" style="cursor:pointer;gap:8px;align-items:flex-start;padding:4px 0">
+        <input type="checkbox" class="rfElegirCrit" data-ce="${esc(ce.id)}" data-crit="${esc(c.id)}" ${marcados.has(c.id)?"checked":""} style="margin-top:3px">
+        <span style="font-size:13px"><strong>${esc(c.id)}</strong> ${esc(c.texto)}</span>
+      </label>`).join("");
+    return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)">
+      <div class="flex" style="justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-weight:700;font-size:13.5px">${esc(ce.id)} · ${esc(ce.titulo)}</div>
+        <button type="button" class="ghost small" style="border:1px solid var(--line);flex-shrink:0" onclick="rfToggleTodosCE('${esc(ce.id)}')">Marcar/desmarcar</button>
+      </div>
+      <div class="sub" style="margin:2px 0 6px">Competencias clave: ${(ce.cc||[]).join(", ")||"—"}</div>
+      ${sab.length?`<details style="margin:0 0 8px"><summary class="sub" style="cursor:pointer">Saberes básicos (${sab.length})</summary><ul style="margin:4px 0 0 18px;font-size:12px">${sab.map(s=>`<li>${esc(s)}</li>`).join("")}</ul></details>`:""}
+      ${filasCrit}
+    </div>`;
+  }).join("");
+  return `<div class="modal-overlay" onclick="if(event.target===this) rfCerrarModalElegirCE()">
+    <div class="modal-box" style="max-width:680px;max-height:82vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+      <div style="padding:16px 22px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div class="flex" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <h2 style="font-size:17px;margin:0">Elegir competencias no conseguidas</h2>
+            <p class="sub" style="margin:4px 0 0">${TRIMESTRES[trimIdx]} · ${esc(cat.materia)} · ${esc(cat.curso)}</p>
+          </div>
+          <button class="modal-close" onclick="rfCerrarModalElegirCE()">×</button>
+        </div>
+      </div>
+      <div style="overflow-y:auto;padding:16px 22px;flex:1">
+        <div class="flex" style="gap:6px;margin-bottom:12px">
+          <button type="button" class="ghost small" style="border:1px solid var(--line)" onclick="rfMarcarTodosModal(true)">Seleccionar todo</button>
+          <button type="button" class="ghost small" style="border:1px solid var(--line)" onclick="rfMarcarTodosModal(false)">Vaciar selección</button>
+        </div>
+        ${bloques}
+      </div>
+      <div style="padding:14px 22px;border-top:1px solid var(--line);flex-shrink:0">
+        <label class="row" style="cursor:pointer;gap:8px;margin-bottom:10px">
+          <input type="checkbox" id="rfElegirTodosTrim">
+          <span style="font-size:12.5px">Aplicar esta misma selección a las tres evaluaciones</span>
+        </label>
+        <div class="flex" style="justify-content:flex-end">
+          <button class="ghost" onclick="rfCerrarModalElegirCE()">Cancelar</button>
+          <button class="btn" onclick="rfAplicarSeleccionCE()">Aplicar selección</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+window.rfToggleTodosCE=(ceId)=>{
+  const boxes=[...document.querySelectorAll(".rfElegirCrit")].filter(b=>b.dataset.ce===ceId);
+  const todosMarcados=boxes.every(b=>b.checked);
+  boxes.forEach(b=>{ b.checked=!todosMarcados; });
+};
+window.rfMarcarTodosModal=(marcar)=>{
+  document.querySelectorAll(".rfElegirCrit").forEach(b=>{ b.checked=marcar; });
+};
+window.rfAplicarSeleccionCE=()=>{
+  const {trimIdx}=state.ui.rfModalElegirCE;
+  const p=(state.planesRefuerzo||[]).find(x=>x.id===state.ui.rfId); if(!p) return;
+  const key=rfCatalogoParaCursoRefuerza(p); if(!key) return;
+  const idx=catIndex(key); const cat=idx.cat;
+  const trim=p.trimestres[trimIdx];
+  const catalogIds=new Set(cat.ces.map(ce=>ce.id));
+  // Conserva el estado de "trabajado" de los criterios que ya estaban.
+  const trabajadoPrevio={};
+  (trim.gruposCE||[]).forEach(g=>(g.criterios||[]).forEach(c=>{ if(c.id) trabajadoPrevio[c.id]=!!c.trabajado; }));
+  // Los grupos con una CE que no pertenece a este catálogo (añadidos a mano
+  // con otro código) se dejan intactos.
+  const gruposManuales=(trim.gruposCE||[]).filter(g=>!catalogIds.has(g.ce));
+  // Dentro de una CE del catálogo puede haber además criterios añadidos a
+  // mano (sin id de catálogo): también se conservan.
+  const manualesEnCatalogo={};
+  (trim.gruposCE||[]).forEach(g=>{ if(catalogIds.has(g.ce)) manualesEnCatalogo[g.ce]=(g.criterios||[]).filter(c=>!c.id); });
+  const nuevosGrupos=[];
+  cat.ces.forEach(ce=>{
+    const marcados=[...document.querySelectorAll(".rfElegirCrit")].filter(b=>b.dataset.ce===ce.id && b.checked);
+    const seleccionados=marcados.map(chk=>{
+      const c=ce.criterios.find(x=>x.id===chk.dataset.crit);
+      return c?{id:c.id, texto:`${c.id}. ${c.texto}`, trabajado:!!trabajadoPrevio[c.id]}:null;
+    }).filter(Boolean);
+    const manuales=manualesEnCatalogo[ce.id]||[];
+    if(seleccionados.length||manuales.length) nuevosGrupos.push({ce:ce.id, cc:(ce.cc||[]).join(", "), criterios:[...seleccionados,...manuales]});
+  });
+  trim.gruposCE=[...nuevosGrupos,...gruposManuales];
+  const aplicarTodos=document.getElementById("rfElegirTodosTrim");
+  if(aplicarTodos && aplicarTodos.checked){
+    [0,1,2].filter(i=>i!==trimIdx).forEach(i=>{
+      p.trimestres[i].gruposCE=trim.gruposCE.map(g=>({ce:g.ce,cc:g.cc,criterios:g.criterios.map(c=>({...c}))}));
+    });
+  }
+  state.ui.rfModalElegirCE=null;
+  save(); render();
+  mostrarToast("✓ Competencias actualizadas");
 };
 function rfrpPlanActual(tipo){
   return tipo==="rf" ? (state.planesRefuerzo||[]).find(x=>x.id===state.ui.rfId) : (state.planesRepeticion||[]).find(x=>x.id===state.ui.rpId);
