@@ -336,6 +336,7 @@ if ('serviceWorker' in navigator) {
     .modal-box{max-width:calc(100vw - 20px)!important;width:auto}
     .hero{padding:18px!important}
   }
+  .act-row.act-drop{box-shadow:0 0 0 2px var(--accent-2)} .act-row.act-arrastrando{opacity:.45}
   .alert-box{background:var(--warning-soft);border:1px solid var(--warning);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--warning-ink);display:block;line-height:1.5}
   @media(max-width:560px){ h1{font-size:17px} main{padding:14px} .hero-title{font-size:27px} .hero{padding:22px 20px 18px} }
 
@@ -8074,14 +8075,21 @@ function renderActividades(grupo){
   c.innerHTML=(editando||!prog?formularioLibreHTML:selectorProgramacionHTML)+`
   <div class="card">
     <h2>Actividades de ${TRIMESTRES[state.ui.trim]}</h2>
-    ${actsTrim(grupo).length? `<div class="grid" style="margin-top:8px">${actsTrim(grupo).map(a=>{
+    ${actsTrim(grupo).length>1?`<p class="sub" style="margin:4px 0 0">Ordénalas a tu gusto: arrastra una actividad por ⠿ o usa ▲▼. El orden se usa también en Calificar, Resultados e informes.</p>`:""}
+    ${actsTrim(grupo).length? `<div class="grid" style="margin-top:8px">${actsTrim(grupo).map((a,iAct,lista)=>{
       const b=grupo.bloques.find(x=>x.id===a.bloqueId);
       const pctEnBloque=pesoActividadEnBloque(grupo,a).toFixed(0);
       const tipoDesc = a.rubrica ? "examen con rúbrica: nota cuantitativa + % por criterio (gestionado desde el Corrector)"
         : a.esExamen ? "examen: nota cuantitativa + escala de 4 niveles por criterio" : "escala de 4 niveles";
-      return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+      const nAct=lista.length;
+      return `<div class="act-row" ${nAct>1?`draggable="true" ondragstart="actDragStart(event,'${a.id}')" ondragend="actDragEnd()" ondragover="actDragOver(event,this)" ondragleave="this.classList.remove('act-drop')" ondrop="actDrop(event,'${a.id}')"`:""} data-actid="${a.id}" style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
-          <div>
+          ${nAct>1?`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0">
+            <span style="cursor:grab;color:var(--mut);font-size:17px;user-select:none;line-height:1" title="Arrastra para reordenar">⠿</span>
+            <button class="ghost" style="padding:2px 8px;min-width:0" title="Subir un puesto" aria-label="Subir ${esc(a.nombre)}" ${iAct===0?"disabled":""} onclick="moverActividad('${a.id}',-1)">▲</button>
+            <button class="ghost" style="padding:2px 8px;min-width:0" title="Bajar un puesto" aria-label="Bajar ${esc(a.nombre)}" ${iAct===nAct-1?"disabled":""} onclick="moverActividad('${a.id}',1)">▼</button>
+          </div>`:""}
+          <div style="flex:1;min-width:0">
             <div style="font-size:14.5px;font-weight:500">${esc(a.nombre)} ${a.sda ? `<span class="badge" style="vertical-align:middle;margin-left:6px">${esc(a.sda)}</span>` : ''}</div>
             <div style="font-size:12.5px;color:var(--mut);margin-top:2px">${a.tipo} · ${b?esc(b.label):""} · ${tipoDesc}</div>
             ${a.recupera?`<div style="font-size:12.5px;margin-top:2px;color:var(--accent-2,#8a5a12);font-weight:600">🔁 ${recResumenTexto(grupo,a)}</div>`:`<div style="font-size:12.5px;color:var(--mut);margin-top:2px">Peso dentro del bloque: ${pctEnBloque} %${(a.pesoBloque==null||a.pesoBloque==="")?" (automático)":""}</div>`}
@@ -8153,6 +8161,56 @@ window.actAnadirDesdeProgramacion=()=>{
     trimestre:state.ui.trim, criterios:(progAct.criterios||[]).map(c=>({...c})), sda:"" });
   save(); render();
   mostrarToast("✓ Actividad añadida — "+progAct.nombre);
+};
+/* Orden manual de las actividades de un trimestre: se reordenan dentro de
+   grupo.actividades ocupando los mismos huecos que ya tenían las de ese
+   trimestre, así que las de otros trimestres no se mueven. */
+function actReordenarTrim(grupo,trim,fn){
+  const acts=grupo.actividades;
+  const huecos=[]; acts.forEach((x,k)=>{ if(x.trimestre===trim) huecos.push(k); });
+  const orden=huecos.map(k=>acts[k]);
+  if(fn(orden)===false) return false;
+  orden.forEach((x,k)=>{ acts[huecos[k]]=x; });
+  return true;
+}
+window.moverActividad=(id,dir)=>{
+  const grupo=grupoActual(); const a=grupo&&grupo.actividades.find(x=>x.id===id); if(!a) return;
+  const ok=actReordenarTrim(grupo,a.trimestre,orden=>{
+    const i=orden.indexOf(a), j=i+dir;
+    if(j<0||j>=orden.length) return false;
+    [orden[i],orden[j]]=[orden[j],orden[i]];
+  });
+  if(ok){ save(); render(); }
+};
+let actArrastrando=null;
+window.actDragStart=(ev,id)=>{
+  actArrastrando=id;
+  try{ ev.dataTransfer.effectAllowed="move"; ev.dataTransfer.setData("text/plain",id); }catch(_){}
+  ev.currentTarget.classList.add("act-arrastrando");
+};
+window.actDragEnd=()=>{
+  actArrastrando=null;
+  document.querySelectorAll(".act-row").forEach(el=>el.classList.remove("act-drop","act-arrastrando"));
+};
+window.actDragOver=(ev,el)=>{
+  if(!actArrastrando) return;
+  ev.preventDefault();
+  if(el.dataset.actid!==actArrastrando) el.classList.add("act-drop");
+};
+window.actDrop=(ev,destinoId)=>{
+  ev.preventDefault();
+  const origenId=actArrastrando;
+  actDragEnd();
+  if(!origenId||origenId===destinoId) return;
+  const grupo=grupoActual(); if(!grupo) return;
+  const origen=grupo.actividades.find(x=>x.id===origenId), destino=grupo.actividades.find(x=>x.id===destinoId);
+  if(!origen||!destino||origen.trimestre!==destino.trimestre) return;
+  const ok=actReordenarTrim(grupo,origen.trimestre,orden=>{
+    const iO=orden.indexOf(origen), iD=orden.indexOf(destino);
+    orden.splice(iO,1);
+    orden.splice(iD,0,origen); // ocupa el puesto de la actividad sobre la que se suelta
+  });
+  if(ok){ save(); render(); }
 };
 window.duplicarActividad=id=>{ const grupo=grupoActual(); const a=grupo.actividades.find(x=>x.id===id); if(!a) return;
   const copia={...a,id:uid(),nombre:a.nombre+" (copia)",pesoBloque:a.pesoBloque??"",criterios:a.criterios.map(l=>({...l})),sda:a.sda||""};
