@@ -8094,10 +8094,11 @@ function renderActividades(grupo){
             <div style="font-size:12.5px;color:var(--mut);margin-top:2px">${a.tipo} · ${b?esc(b.label):""} · ${tipoDesc}</div>
             ${a.recupera?`<div style="font-size:12.5px;margin-top:2px;color:var(--accent-2,#8a5a12);font-weight:600">🔁 ${recResumenTexto(grupo,a)}</div>`:`<div style="font-size:12.5px;color:var(--mut);margin-top:2px">Peso dentro del bloque: ${pctEnBloque} %${(a.pesoBloque==null||a.pesoBloque==="")?" (automático)":""}</div>`}
             ${!a.recupera && recuperacionesDe(grupo,a.id).length?`<div style="font-size:12.5px;color:var(--mut);margin-top:2px">🔁 Tiene recuperación: ${recuperacionesDe(grupo,a.id).map(r=>esc(r.nombre)).join(", ")}</div>`:""}
+            ${cxAvisoCriteriosBadgeHTML(grupo,a)}
             <div style="font-size:12.5px;color:var(--mut);margin-top:4px">Criterios: ${a.criterios.length?a.criterios.map(l=>`${critLinkHTML(grupo.catalogoKey,l.critId)} (${l.peso})`).join(" · "):"ninguno todavía"}</div>
           </div>
           <div class="flex">
-            ${a.rubrica?`<button class="ghost" onclick="cxAbrirDesdeOtroModo('${a.id}')">Abrir en el Corrector</button>`:`<button class="ghost" onclick="editarActividad('${a.id}')">Editar</button>`}
+            ${a.rubrica?`<button class="ghost" onclick="cxAbrirDesdeOtroModo('${a.id}')">Abrir en el Corrector</button>`:`<button class="ghost" onclick="editarActividad('${a.id}')">Editar</button>${a.esExamen?`<button class="ghost" title="Abre este examen en el Corrector con una rúbrica inicial (un ítem por criterio) para ajustarla y corregir con ella" onclick="cxAnadirRubrica('${a.id}')">🖊️ Añadir rúbrica</button>`:""}`}
             <button class="ghost" onclick="duplicarActividad('${a.id}')">Duplicar</button>
             ${a.recupera?`<button class="ghost" onclick="recAbrirModal('${a.id}')">🔁 Recuperación…</button>`:(a.esExamen?`<button class="ghost" title="Crea un examen de recuperación vinculado a este" onclick="recCrear('${a.id}')">🔁 Crear recuperación</button>`:`<button class="ghost" title="Marcar esta actividad como recuperación de otra(s)" onclick="recAbrirModal('${a.id}')">🔁</button>`)}
             <button class="ghost" onclick="delActividad('${a.id}')">Eliminar</button>
@@ -8156,11 +8157,9 @@ window.actAnadirDesdeProgramacion=()=>{
   if(!progAct){ mostrarAviso("Esa actividad ya no existe en la Programación."); return; }
   if(!(progAct.nombre||"").trim()){ mostrarAviso("Esa actividad todavía no tiene nombre en la Programación — complétalo allí antes de añadirla aquí."); return; }
   if(!(progAct.criterios||[]).length){ mostrarAviso("Esa actividad todavía no tiene criterios marcados en la Programación — márcalos allí antes de añadirla aquí."); return; }
-  const bloqueId=defBloque(progAct.tipo,grupo.bloques);
-  grupo.actividades.push({ id:uid(), nombre:progAct.nombre, tipo:progAct.tipo, esExamen:!!progAct.esExamen, bloqueId, pesoBloque:"",
-    trimestre:state.ui.trim, criterios:(progAct.criterios||[]).map(c=>({...c})), sda:"" });
+  const act=progCrearActividadEnGrupo(grupo,progAct,state.ui.trim);
   save(); render();
-  mostrarToast("✓ Actividad añadida — "+progAct.nombre);
+  mostrarToast(act.rubrica? "✓ Examen añadido con rúbrica — ábrelo en el Corrector para ajustarla" : "✓ Actividad añadida — "+progAct.nombre);
 };
 /* Orden manual de las actividades de un trimestre: se reordenan dentro de
    grupo.actividades ocupando los mismos huecos que ya tenían las de ese
@@ -8215,6 +8214,7 @@ window.actDrop=(ev,destinoId)=>{
 window.duplicarActividad=id=>{ const grupo=grupoActual(); const a=grupo.actividades.find(x=>x.id===id); if(!a) return;
   const copia={...a,id:uid(),nombre:a.nombre+" (copia)",pesoBloque:a.pesoBloque??"",criterios:a.criterios.map(l=>({...l})),sda:a.sda||""};
   if(a.rubrica) copia.rubrica=JSON.parse(JSON.stringify(a.rubrica));
+  if(a.variantes) copia.variantes=JSON.parse(JSON.stringify(a.variantes));
   if(a.recupera) copia.recupera=JSON.parse(JSON.stringify(a.recupera));
   grupo.actividades.push(copia);
   save(); render(); };
@@ -8231,6 +8231,7 @@ window.recCrear=id=>{
   const r={id:uid(),trimestre:state.ui.trim,nombre:"Recuperación — "+a.nombre,tipo:a.tipo,bloqueId:a.bloqueId,esExamen:true,pesoBloque:"",
     criterios:a.criterios.map(l=>({...l})),sda:a.sda||"",recupera:{ids:[a.id],modo:"mayor",tope:""}};
   if(a.rubrica){ r.rubrica=JSON.parse(JSON.stringify(a.rubrica)); r.escalarA10=a.escalarA10!==false; }
+  if(a.variantes) r.variantes=JSON.parse(JSON.stringify(a.variantes));
   grupo.actividades.push(r);
   state.ui.recModalAct=r.id; state.ui.tab="actividades";
   save(); render();
@@ -8752,15 +8753,18 @@ function desgloseNotaActividadHTML(grupo,al,a){
     const vc=grupo.notasCuant?.[al.id]?.[a.id];
     if(a.rubrica){
       const sc=grupo.rubricScores?.[al.id]?.[a.id]||{};
-      const maxTotal=cxMaxTotal(a.rubrica);
-      const filas=(a.rubrica||[]).map(sec=>{
+      const rubAl=cxRubricaDe(a,al.id);
+      const maxTotal=cxMaxTotal(rubAl);
+      const nodo=(sec,depth)=>{
+        const ev=cxEvalNodo(sec,sc);
         const itemsRows=(sec.items||[]).map(it=>{
           const val=sc[it.id]; const max=Number(it.max)||0;
-          return `<tr><td style="padding-left:16px">${esc(it.label||"Ítem")}</td><td style="text-align:right;white-space:nowrap">${val==null?"—":fmt(Number(val))} / ${fmt(max)}</td></tr>`;
+          return `<tr><td style="padding-left:${16+depth*12}px">${esc(it.label||"Ítem")}</td><td style="text-align:right;white-space:nowrap">${val==null?"—":fmt(Number(val))} / ${fmt(max)}</td></tr>`;
         }).join("");
-        return `<tr><td colspan="2" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--mu);padding-top:7px">${esc(sec.title||"Apartado")}</td></tr>${itemsRows}`;
-      }).join("");
-      return `<table class="dsg-mini"><tbody>${filas}<tr><td style="font-weight:700">Total del examen (rúbrica)</td><td style="text-align:right;font-weight:700">${vc==null?"—":fmt(vc)} / ${fmt(maxTotal)}</td></tr></tbody></table>`;
+        return `<tr><td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--mu);padding-top:7px;padding-left:${depth*12}px">${esc((sec.title||"Apartado").split("\n")[0])}${cxElegirEf(sec)?` (${cxElegirEf(sec)} de ${cxNumHijos(sec)})`:""}</td><td style="text-align:right;font-size:11px;color:var(--mu);padding-top:7px">${ev.hay?fmt(ev.pts):"—"} / ${fmt(cxMaxNodo(sec))}</td></tr>${itemsRows}${(sec.subs||[]).map(s=>nodo(s,depth+1)).join("")}`;
+      };
+      const filas=(rubAl||[]).map(sec=>nodo(sec,0)).join("");
+      return `<table class="dsg-mini"><tbody>${filas}<tr><td style="font-weight:700">Total del examen (rúbrica)</td><td style="text-align:right;font-weight:700">${vc==null?"—":fmt(vc)} / ${fmt(cxEscalarDe(a,al.id)&&maxTotal>0&&Math.abs(maxTotal-10)>=0.01?10:maxTotal)}</td></tr></tbody></table>`;
     }
     return `<p class="dsg-note">Nota directa del examen (sin rúbrica): <strong>${vc==null?"—":fmt(vc)}</strong> / 10.</p>`;
   }
@@ -10868,7 +10872,7 @@ window.progImportarArchivo=inp=>{
     // sus SdA/actividades se regeneran para no chocar con nada que ya tengas.
     const mapaIds={};
     const nuevasSdas=(original.sdas||[]).map(s=>{ const nid=uid(); mapaIds[s.id]=nid; return {...s,id:nid}; });
-    const nuevasActividades=(original.actividades||[]).map(a=>({...a, id:uid(), sdaIds:(a.sdaIds||[]).map(sid=>mapaIds[sid]).filter(Boolean), criterios:(a.criterios||[]).map(c=>({...c}))}));
+    const nuevasActividades=(original.actividades||[]).map(a=>({...a, id:uid(), sdaIds:(a.sdaIds||[]).map(sid=>mapaIds[sid]).filter(Boolean), criterios:(a.criterios||[]).map(c=>({...c})), ...(a.rubrica?{rubrica:JSON.parse(JSON.stringify(a.rubrica))}:{})}));
     const copia={id:uid(), nombre:original.nombre||"Programación importada", catalogoKey:original.catalogoKey,
       sdas:nuevasSdas, actividades:nuevasActividades,
       recursos:{...(original.recursos||progRecursosDefault())}, cursoEscolar:original.cursoEscolar||cursoAcademicoActual(),
@@ -10886,7 +10890,7 @@ window.progDuplicar=(id)=>{
   const orig=progPorId(id); if(!orig) return;
   const mapaIds={};
   const nuevasSdas=orig.sdas.map(s=>{ const nid=uid(); mapaIds[s.id]=nid; return {...s,id:nid}; });
-  const nuevasActividades=orig.actividades.map(a=>({...a, id:uid(), sdaIds:(a.sdaIds||[]).map(sid=>mapaIds[sid]).filter(Boolean), criterios:(a.criterios||[]).map(c=>({...c}))}));
+  const nuevasActividades=orig.actividades.map(a=>({...a, id:uid(), sdaIds:(a.sdaIds||[]).map(sid=>mapaIds[sid]).filter(Boolean), criterios:(a.criterios||[]).map(c=>({...c})), ...(a.rubrica?{rubrica:JSON.parse(JSON.stringify(a.rubrica))}:{})}));
   const copia={id:uid(), nombre:orig.nombre+" (copia)", catalogoKey:orig.catalogoKey, sdas:nuevasSdas, actividades:nuevasActividades,
     recursos:{...(orig.recursos||progRecursosDefault())}, cursoEscolar:"", profesorNombre:orig.profesorNombre||"",
     metodologia:orig.metodologia||"", criteriosCalifCualitativa:orig.criteriosCalifCualitativa||"", criteriosCalifCuantitativa:orig.criteriosCalifCuantitativa||""};
@@ -11158,6 +11162,24 @@ function progRTEToolbarHTML(campo){
     <button type="button" class="ghost small" title="Quitar formato" onmousedown="event.preventDefault()" onclick="progRTECmd('${campo}','removeFormat')">✕ Formato</button>
   </div>`;
 }
+/* Secciones plegables de la Programación (Recursos didácticos, Metodología…).
+   Empiezan plegadas: se rellenan una vez al principio de curso y así no
+   obligan a hacer scroll hasta las Situaciones de Aprendizaje. */
+function progPlegado(id){ const m=state.ui.progPlegados||{}; return m[id]!==false; }
+window.progTogglePlegado=id=>{
+  if(!state.ui.progPlegados||typeof state.ui.progPlegados!=="object") state.ui.progPlegados={};
+  state.ui.progPlegados[id]=!progPlegado(id);
+  save(); render();
+};
+function progRTETieneTexto(html){ const d=document.createElement("div"); d.innerHTML=html||""; return !!(d.textContent||"").trim(); }
+function progCabeceraPlegableHTML(id,titulo,resumen){
+  const pl=progPlegado(id);
+  return `<button class="home-seccion-header" style="margin:0;padding:2px 2px" aria-expanded="${!pl}" onclick="progTogglePlegado('${id}')">
+    <span class="home-seccion-chevron" style="font-size:12px">${pl?"▸":"▾"}</span>
+    <span style="font-size:15px;font-weight:700;color:var(--ink)">${titulo}</span>
+    ${pl&&resumen?`<span style="font-size:12.5px;color:var(--mut);margin-left:6px">${resumen}</span>`:""}
+  </button>`;
+}
 function progRTEEditorHTML(campo,valorHTML,placeholder){
   return `${progRTEToolbarHTML(campo)}<div id="rte_${campo}" class="in rte-editable" contenteditable="true" data-placeholder="${esc(placeholder||"")}" style="width:100%;min-height:90px" oninput="progRTEInput('${campo}',this)" onblur="progRTEInput('${campo}',this)" onpaste="progRTEPegar(event,'${campo}')">${valorHTML||""}</div>`;
 }
@@ -11248,10 +11270,14 @@ function progActividadCardHTML(idx,a,p,grupoId,iAct,totalGrupo){
         ${TIPOS.map(t=>`<option value="${t}" ${a.tipo===t?"selected":""}>${t}</option>`).join("")}
       </select>
       <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;color:var(--mut)">
-        <input type="checkbox" ${a.esExamen?"checked":""} onchange="progSetActividadCampo('${a.id}','esExamen',this.checked)"> Es examen
+        <input type="checkbox" ${a.esExamen?"checked":""} onchange="progSetActividadCampo('${a.id}','esExamen',this.checked);render()"> Es examen
       </label>
+      ${a.esExamen?`<button class="ghost" style="border:1px solid var(--line)" title="Abre este examen en el Corrector del grupo vinculado para crear o editar su rúbrica (si aún no está en Evaluación, se añade)" onclick="progAbrirEnCorrector('${a.id}')">🖊️ Abrir en el Corrector</button>`:""}
       <button class="ghost danger" onclick="progEliminarActividad('${a.id}')">✕</button>
     </div>
+    ${a.esExamen&&(a.rubrica||[]).length?(()=>{ const n=cxItemsFlat(a.rubrica).length, tot=cxMaxTotal(a.rubrica);
+      return `<div style="font-size:12.5px;color:var(--mut);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">📌 Rúbrica guardada: ${a.rubrica.length} apartado${a.rubrica.length===1?"":"s"}, ${n} ítem${n===1?"":"s"}, ${String(Math.round(tot*100)/100).replace(".",",")} pts — se usará al traer este examen a cualquier grupo.
+        <button class="ghost danger small" style="padding:2px 8px" onclick="progQuitarRubrica('${a.id}')">Quitar</button></div>`; })():""}
     <div style="margin-top:8px">
       <div class="section-eyebrow" style="margin:0 0 4px">Situaciones de Aprendizaje que cubre (marca varias si es un examen conjunto)</div>
       <div class="flex" style="flex-wrap:wrap;gap:10px">
@@ -11340,7 +11366,8 @@ function progDetalleHTML(root){
   </div>
   `:`
   <div class="card">
-    <h2 style="font-size:15px">Recursos didácticos</h2>
+    ${progCabeceraPlegableHTML("recursos","Recursos didácticos",(()=>{ const n=PROG_RECURSOS_OPCIONES.filter(r=>p.recursos[r.id]).length+((p.recursos.otros||"").trim()?1:0); return n?`${n} marcado${n===1?"":"s"}`:"ninguno marcado"; })())}
+    ${progPlegado("recursos")?"":`<div style="margin-top:8px">
     <p class="sub" style="margin:0 0 8px">Señala los que vayas a utilizar este curso (sin adjuntar archivos, solo para dejar constancia en la programación).</p>
     <div class="flex" style="flex-wrap:wrap;gap:10px 18px">
       ${PROG_RECURSOS_OPCIONES.map(r=>`<label style="font-size:13px;display:flex;align-items:center;gap:6px">
@@ -11350,9 +11377,11 @@ function progDetalleHTML(root){
     <label style="font-size:12.5px;color:var(--mut);font-weight:500;display:block;margin-top:10px">Otros recursos
       <input class="in" style="width:100%;margin-top:4px" placeholder="Ej. cuadernos de campo, prensa local…" value="${esc(p.recursos.otros)}" onchange="progSetRecursoOtros(this.value)">
     </label>
+    </div>`}
   </div>
   <div class="card">
-    <h2 style="font-size:15px">Metodología y criterios de calificación</h2>
+    ${progCabeceraPlegableHTML("metodologia","Metodología y criterios de calificación",[["Metodología",p.metodologia],["Cualitativa",p.criteriosCalifCualitativa],["Cuantitativa",p.criteriosCalifCuantitativa]].map(([l,v])=>`${l} ${progRTETieneTexto(v)?"✓":"—"}`).join(" · "))}
+    ${progPlegado("metodologia")?"":`<div style="margin-top:8px">
     <p class="sub" style="margin:0 0 8px">Contenido general de la programación, común a todas las Situaciones de Aprendizaje.</p>
     <div style="font-size:12.5px;color:var(--mut);font-weight:500">Metodología
       <div style="margin-top:4px">${progRTEEditorHTML("metodologia",p.metodologia,"Enfoque metodológico, principios pedagógicos, agrupamientos, papel del alumnado y del profesorado…")}</div>
@@ -11364,6 +11393,7 @@ function progDetalleHTML(root){
     <div style="font-size:12.5px;color:var(--mut);font-weight:500;margin-top:10px">Valoración cuantitativa
       <div style="margin-top:4px">${progRTEEditorHTML("criteriosCalifCuantitativa",p.criteriosCalifCuantitativa,"Cómo se traduce a una nota numérica (ponderaciones, pesos por instrumento o competencia específica…)")}</div>
     </div>
+    </div>`}
   </div>
   ${[0,1,2].map(t=>`
     <button class="home-seccion-header" onclick="progToggleTrim(${t})" aria-expanded="${progTrimAbiertos[t]}" style="margin-top:10px" ondragover="event.preventDefault()" ondrop="progSdaDrop(event,${t},null)">
@@ -12177,6 +12207,8 @@ window.duplicarGrupo=async ()=>{
   nuevo.actividades=grupo.actividades.map(a=>{
     const copia={...a,id:uid(),criterios:a.criterios.map(l=>({...l}))};
     if(a.rubrica) copia.rubrica=JSON.parse(JSON.stringify(a.rubrica));
+    // El grupo nuevo no tiene alumnado: las rúbricas adaptadas se copian sin alumnos asignados.
+    if(a.variantes) copia.variantes=JSON.parse(JSON.stringify(a.variantes)).map(v=>({...v,alumnos:[]}));
     return copia;
   });
   state.grupos.push(nuevo);
@@ -12964,27 +12996,91 @@ function resumenInformeFinalHTML(grupo){
    porque no hay dos bases de datos: es el mismo grupo, el mismo alumnado
    y los mismos campos de nota, vistos desde dos pantallas distintas.
    ================================================================= */
+/* ---- Estructura de la rúbrica (v2) ----
+   La rúbrica es una lista de APARTADOS. Cada apartado (y cada subapartado)
+   es un "nodo" {id, title, items:[...], subs:[nodos], elegir}:
+     - items: preguntas/ítems puntuables {id,label,max,desc,links}.
+     - subs: subapartados, con la misma forma (hasta 3 niveles).
+     - elegir: si es N>0, de sus hijos (ítems + subapartados) solo cuentan N
+       (p. ej. "defina DOS de los cuatro conceptos", "elija UNA de las dos
+       fuentes"): el máximo es el de los N mayores y, al corregir, cuentan los
+       N hijos puntuados con más nota.
+   Las rúbricas antiguas (apartados solo con items) siguen siendo válidas.
+   Rúbricas adaptadas (NESE): act.variantes=[{id,nombre,rubrica,escalarA10,
+   alumnos:[alId]}]. Un alumno/a incluido en una variante se corrige con ella;
+   el resto, con act.rubrica. */
+const CX_MAX_NIVELES=3;
 function cxItemsFlat(rubrica){
-  const out=[]; (rubrica||[]).forEach(sec=>(sec.items||[]).forEach(it=>out.push(it))); return out;
+  const out=[]; const walk=list=>(list||[]).forEach(n=>{ (n.items||[]).forEach(it=>out.push(it)); walk(n.subs); }); walk(rubrica); return out;
 }
-function cxMaxTotal(rubrica){ return cxItemsFlat(rubrica).reduce((s,it)=>s+(Number(it.max)||0),0); }
+function cxNodosFlat(rubrica){
+  const out=[]; const walk=(list,depth)=>(list||[]).forEach(n=>{ out.push({n,depth}); walk(n.subs,depth+1); }); walk(rubrica,0); return out;
+}
+function cxFindNodo(rubrica,id){ const r=cxNodosFlat(rubrica).find(x=>x.n.id===id); return r?r.n:null; }
+/* Lista (array) que contiene al nodo id, para moverlo o borrarlo. */
+function cxListaDeNodo(rubrica,id){
+  if((rubrica||[]).some(n=>n.id===id)) return rubrica;
+  for(const x of cxNodosFlat(rubrica)){ if((x.n.subs||[]).some(s=>s.id===id)) return x.n.subs; }
+  return null;
+}
+function cxNivelNodo(rubrica,id){ const r=cxNodosFlat(rubrica).find(x=>x.n.id===id); return r?r.depth:0; }
+function cxNumHijos(n){ return (n.items||[]).length+(n.subs||[]).length; }
+function cxElegirEf(n){ const k=Number(n.elegir)||0; return (k>0 && k<cxNumHijos(n))? k : 0; }
+function cxSumaElegidos(vals,k){
+  if(k>0 && k<vals.length) return [...vals].sort((a,b)=>b-a).slice(0,k).reduce((s,v)=>s+v,0);
+  return vals.reduce((s,v)=>s+v,0);
+}
+function cxMaxNodo(n){
+  const vals=[...(n.items||[]).map(it=>Number(it.max)||0), ...(n.subs||[]).map(cxMaxNodo)];
+  return cxSumaElegidos(vals,cxElegirEf(n));
+}
+function cxMaxTotal(rubrica){ return (rubrica||[]).reduce((s,n)=>s+cxMaxNodo(n),0); }
+/* Evalúa un nodo con las puntuaciones de un alumno/a: puntos, si hay algo
+   puntuado y qué ítems cuentan (los de los hijos elegidos). */
+function cxEvalNodo(n,sc){
+  const hijos=[
+    ...(n.items||[]).map(it=>{ const v=sc[it.id]; const hay=v!=null&&v!==""; return {id:it.id,pts:hay?(Number(v)||0):0,hay,ids:[it.id]}; }),
+    ...(n.subs||[]).map(s=>({id:s.id,...cxEvalNodo(s,sc)}))
+  ];
+  const k=cxElegirEf(n);
+  const elegidos=k? [...hijos].sort((a,b)=>(Number(b.hay)-Number(a.hay))||(b.pts-a.pts)).slice(0,k) : hijos;
+  return {pts:elegidos.reduce((s,h)=>s+h.pts,0), hay:hijos.some(h=>h.hay), ids:elegidos.flatMap(h=>h.ids), elegidosIds:elegidos.map(h=>h.id)};
+}
+function cxEvalRubrica(rubrica,sc){
+  let pts=0; const ids=new Set();
+  (rubrica||[]).forEach(n=>{ const e=cxEvalNodo(n,sc); pts+=e.pts; e.ids.forEach(i=>ids.add(i)); });
+  return {pts,ids};
+}
 function cxCriteriosDeRubrica(rubrica){
   const set=new Set(); cxItemsFlat(rubrica).forEach(it=>(it.links||[]).forEach(l=>set.add(l.critId))); return [...set];
 }
-function cxNotaCuant(grupo,alId,actId,rubrica,act){
-  const sc=grupo.rubricScores?.[alId]?.[actId]||{};
-  let total=0; cxItemsFlat(rubrica).forEach(it=>{ total+=Number(sc[it.id])||0; });
-  // v1: si la rúbrica no suma 10 y el examen tiene activada la conversión,
-  // la puntuación se pasa a nota sobre 10. En cualquier caso, nunca >10.
-  const max=cxMaxTotal(rubrica);
-  if(act && act.escalarA10 && max>0 && Math.abs(max-10)>=0.01) total=total*10/max;
+/* ---- Rúbricas adaptadas ---- */
+function cxVariantes(act){ return Array.isArray(act&&act.variantes)? act.variantes : []; }
+function cxVarianteDeAlumno(act,alId){ return cxVariantes(act).find(v=>(v.alumnos||[]).includes(alId))||null; }
+function cxRubricaDe(act,alId){ const v=cxVarianteDeAlumno(act,alId); return v? v.rubrica : act.rubrica; }
+function cxEscalarDe(act,alId){ const v=cxVarianteDeAlumno(act,alId); return v? v.escalarA10!==false : !!act.escalarA10; }
+function cxTodasLasRubricas(act){ return [act.rubrica,...cxVariantes(act).map(v=>v.rubrica)].filter(Boolean); }
+function cxCriteriosDeActividad(act){
+  const set=new Set(); cxTodasLasRubricas(act).forEach(r=>cxCriteriosDeRubrica(r).forEach(c=>set.add(c))); return [...set];
+}
+function cxNotaCuant(grupo,alId,act){
+  const sc=grupo.rubricScores?.[alId]?.[act.id]||{};
+  const rub=cxRubricaDe(act,alId);
+  let total=cxEvalRubrica(rub,sc).pts;
+  // Si la rúbrica no suma 10 y tiene activada la conversión, la puntuación se
+  // pasa a nota sobre 10. En cualquier caso, nunca >10.
+  const max=cxMaxTotal(rub);
+  if(cxEscalarDe(act,alId) && max>0 && Math.abs(max-10)>=0.01) total=total*10/max;
   total=Math.max(0,Math.min(10,total));
   return Math.round(total*100)/100;
 }
-function cxNotaCriterio(grupo,alId,actId,rubrica,critId){
-  const sc=grupo.rubricScores?.[alId]?.[actId]||{};
+function cxNotaCriterio(grupo,alId,act,critId){
+  const sc=grupo.rubricScores?.[alId]?.[act.id]||{};
+  const rub=cxRubricaDe(act,alId);
+  const cuentan=cxEvalRubrica(rub,sc).ids;
   let sw=0,sv=0;
-  cxItemsFlat(rubrica).forEach(it=>{
+  cxItemsFlat(rub).forEach(it=>{
+    if(!cuentan.has(it.id)) return;
     const link=(it.links||[]).find(l=>l.critId===critId); if(!link) return;
     const w=Number(link.peso)||0; if(w<=0) return;
     const max=Number(it.max)||0; if(max<=0) return;
@@ -12994,7 +13090,7 @@ function cxNotaCriterio(grupo,alId,actId,rubrica,critId){
   return sw>0? Math.round((sv/sw)*100)/100 : null;
 }
 function cxSyncCriteriosActividad(act){
-  const ids=cxCriteriosDeRubrica(act.rubrica);
+  const ids=cxCriteriosDeActividad(act);
   act.criterios=ids.map(cid=>{
     const prev=(act.criterios||[]).find(l=>l.critId===cid);
     return {critId:cid, peso:prev?prev.peso:100};
@@ -13002,27 +13098,29 @@ function cxSyncCriteriosActividad(act){
 }
 function cxRecalcAlumno(grupo,act,alId){
   if(aplicarMarca(grupo,act,alId)) return;
+  const rub=cxRubricaDe(act,alId);
+  const validos=new Set(cxItemsFlat(rub).map(it=>it.id));
   const perAct=grupo.rubricScores?.[alId]?.[act.id];
-  const tieneAlgo = perAct && Object.keys(perAct).length>0;
+  const tieneAlgo = perAct && Object.keys(perAct).some(k=>validos.has(k));
   if(!tieneAlgo){
     if(grupo.notasCuant[alId]) delete grupo.notasCuant[alId][act.id];
     if(grupo.notas[alId]) delete grupo.notas[alId][act.id];
     return;
   }
   grupo.notasCuant[alId]=grupo.notasCuant[alId]||{};
-  grupo.notasCuant[alId][act.id]=cxNotaCuant(grupo,alId,act.id,act.rubrica,act);
+  grupo.notasCuant[alId][act.id]=cxNotaCuant(grupo,alId,act);
   grupo.notas[alId]=grupo.notas[alId]||{};
   const destino=grupo.notas[alId][act.id]=grupo.notas[alId][act.id]||{};
-  const critIds=cxCriteriosDeRubrica(act.rubrica);
+  const critIds=cxCriteriosDeRubrica(rub);
   critIds.forEach(cid=>{
-    const v=cxNotaCriterio(grupo,alId,act.id,act.rubrica,cid);
+    const v=cxNotaCriterio(grupo,alId,act,cid);
     if(v==null) delete destino[cid]; else destino[cid]=v;
   });
   Object.keys(destino).forEach(cid=>{ if(!critIds.includes(cid)) delete destino[cid]; });
 }
 function cxRecalcTodosLosAlumnos(grupo,act){ grupo.alumnos.forEach(al=>cxRecalcAlumno(grupo,act,al.id)); }
 function cxLimpiarPuntuacionesHuerfanas(grupo,act){
-  const validIds=new Set(cxItemsFlat(act.rubrica).map(it=>it.id));
+  const validIds=new Set(cxTodasLasRubricas(act).flatMap(r=>cxItemsFlat(r).map(it=>it.id)));
   Object.keys(grupo.rubricScores||{}).forEach(alId=>{
     const perAct=grupo.rubricScores[alId]?.[act.id]; if(!perAct) return;
     Object.keys(perAct).forEach(itemId=>{ if(!validIds.has(itemId)) delete perAct[itemId]; });
@@ -13030,12 +13128,299 @@ function cxLimpiarPuntuacionesHuerfanas(grupo,act){
   cxSyncCriteriosActividad(act);
   cxRecalcTodosLosAlumnos(grupo,act);
 }
+/* Rúbrica que se está editando ahora en el editor: la general o una adaptada. */
+function cxActEditando(){ const grupo=grupoActual(); return grupo && grupo.actividades.find(a=>a.id===state.ui.corExamId) || null; }
+function cxVarEditando(act){ return act && state.ui.corVarId ? cxVariantes(act).find(v=>v.id===state.ui.corVarId)||null : null; }
+function cxRubEd(act){ const v=cxVarEditando(act); return v? v.rubrica : act.rubrica; }
 function cxFindItem(secId,itemId){
-  const grupo=grupoActual(); const act=grupo && grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return null;
-  const sec=act.rubrica.find(s=>s.id===secId); if(!sec) return null;
-  return sec.items.find(it=>it.id===itemId)||null;
+  const act=cxActEditando(); if(!act) return null;
+  const sec=cxFindNodo(cxRubEd(act),secId); if(!sec) return null;
+  return (sec.items||[]).find(it=>it.id===itemId)||null;
+}
+/* ---- Criterios previstos del examen ----
+   Son los criterios marcados al crear la actividad: en la Programación de
+   Aula (si el examen viene de allí; un examen puede abarcar varias SdA y sus
+   criterios pueden ser de varias CE), al crearlo en Evaluación por
+   Competencias o en el Corrector. Sirven para dos cosas: en el editor de la
+   rúbrica solo se ofrecen esos criterios para vincular, y se avisa si alguno
+   se ha quedado sin vincular a ningún ítem (no se evaluaría en este examen).
+   Devuelve null si el examen no tiene criterios previstos. */
+function cxCriteriosPrevistos(grupo,act){
+  const ref=cxProgActDe(grupo,act);
+  if(ref && (ref.progAct.criterios||[]).length) return ref.progAct.criterios.map(c=>c.critId);
+  if(Array.isArray(act.criteriosPrevistos) && act.criteriosPrevistos.length) return act.criteriosPrevistos.slice();
+  return null;
+}
+function cxCriteriosSinVincular(grupo,act,rub){
+  const prev=cxCriteriosPrevistos(grupo,act); if(!prev) return [];
+  const usados=new Set(cxCriteriosDeRubrica(rub||act.rubrica));
+  return prev.filter(c=>!usados.has(c));
+}
+/* Todas las rúbricas del examen (general y adaptadas) con lo que les falta. */
+function cxAvisosCriterios(grupo,act){
+  const out=[];
+  const g=cxCriteriosSinVincular(grupo,act,act.rubrica); if(g.length) out.push({nombre:"",faltan:g});
+  cxVariantes(act).forEach(v=>{ if(!(v.alumnos||[]).length) return; const f=cxCriteriosSinVincular(grupo,act,v.rubrica); if(f.length) out.push({nombre:v.nombre||"Adaptada",faltan:f}); });
+  return out;
+}
+function cxCritChipsHTML(grupo,ids){ return ids.map(cid=>critLinkHTML(grupo.catalogoKey,cid)).join(" · "); }
+/* Aviso compacto para listas (Corrector y Evaluación). */
+function cxAvisoCriteriosBadgeHTML(grupo,act){
+  if(!act.rubrica) return "";
+  const av=cxAvisosCriterios(grupo,act); if(!av.length) return "";
+  const n=new Set(av.flatMap(a=>a.faltan)).size;
+  return `<div style="font-size:12.5px;margin-top:3px;color:var(--danger,#b91c1c);font-weight:600">⚠️ ${n} criterio${n===1?"":"s"} previsto${n===1?"":"s"} sin vincular en la rúbrica: ${cxCritChipsHTML(grupo,[...new Set(av.flatMap(a=>a.faltan))])}</div>`;
+}
+/* Nombres de las SdA que abarca el examen (si viene de la Programación). */
+function cxSdasDeExamen(grupo,act){
+  const ref=cxProgActDe(grupo,act); if(!ref) return [];
+  return (ref.progAct.sdaIds||[]).map(sid=>ref.prog.sdas.find(s=>s.id===sid)).filter(Boolean).map(s=>s.titulo||"(SdA sin título)");
+}
+/* Selector de criterios agrupado por CE (para crear examen y para editar los previstos). */
+function cxSelectorCriteriosHTML(catalogoKey,seleccion,onchange){
+  const idx=catIndex(catalogoKey); const sel=new Set(seleccion||[]);
+  return `<div class="scroll cx-selcrit" style="max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px">
+    ${idx.cat.ces.map(ce=>`
+      <div style="font-size:12px;color:var(--mut);font-weight:600;margin:6px 0 3px">${ce.id} · ${esc(ce.titulo)}</div>
+      ${ce.criterios.map(cr=>`<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:2px 0;cursor:pointer">
+        <input type="checkbox" style="margin-top:3px" ${sel.has(cr.id)?"checked":""} onchange="${onchange}('${cr.id}',this.checked)">
+        <span><strong>${cr.id}</strong> ${esc(cr.texto)}</span></label>`).join("")}
+    `).join("")}
+  </div>`;
+}
+/* Redibuja sin perder la posición de la lista de criterios ni de la página. */
+function cxRenderConservandoScroll(){
+  const caja=document.querySelector(".cx-selcrit"); const st=caja?caja.scrollTop:0; const wy=window.scrollY;
+  render();
+  const c2=document.querySelector(".cx-selcrit"); if(c2) c2.scrollTop=st;
+  window.scrollTo(0,wy);
+}
+window.cxFormToggleCrit=(cid,on)=>{
+  const f=state.ui.corForm; if(!Array.isArray(f.criterios)) f.criterios=[];
+  f.criterios=f.criterios.filter(c=>c!==cid); if(on) f.criterios.push(cid);
+  save(); cxRenderConservandoScroll();
+};
+window.cxTogglePrevisto=(cid,on)=>{
+  const x=cxCtxEd(); if(!x) return;
+  if(!Array.isArray(x.act.criteriosPrevistos)) x.act.criteriosPrevistos=[];
+  x.act.criteriosPrevistos=x.act.criteriosPrevistos.filter(c=>c!==cid); if(on) x.act.criteriosPrevistos.push(cid);
+  save(); cxRenderConservandoScroll();
+};
+window.cxToggleEditarPrevistos=()=>{ state.ui.corEditPrevistos=!state.ui.corEditPrevistos; save(); render(); };
+window.cxToggleVerTodosCrit=()=>{ state.ui.corVerTodosCrit=!state.ui.corVerTodosCrit; save(); render(); };
+/* Panel del editor: criterios previstos + aviso de los que faltan por vincular. */
+function cxPanelPrevistosHTML(grupo,act,rub,variante){
+  const prev=cxCriteriosPrevistos(grupo,act);
+  const ref=cxProgActDe(grupo,act);
+  const viaProg=!!(ref && (ref.progAct.criterios||[]).length);
+  const sdas=cxSdasDeExamen(grupo,act);
+  const faltan=cxCriteriosSinVincular(grupo,act,rub);
+  const usados=new Set(cxCriteriosDeRubrica(rub));
+  const extra=prev? [...usados].filter(c=>!prev.includes(c)) : [];
+  const editando=!!state.ui.corEditPrevistos && !viaProg;
+  let html=`<div class="card" style="${faltan.length?"border-left:4px solid var(--danger,#b91c1c)":""}">
+    <div class="flex" style="justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+      <div style="flex:1;min-width:240px">
+        <h2 style="font-size:14.5px;margin:0 0 4px">Criterios previstos para este examen</h2>
+        <p class="sub" style="margin:0">${viaProg?`Marcados en la Programación «${esc(ref.prog.nombre)}»${sdas.length?` · ${sdas.length>1?"abarca":"de"} ${sdas.map(esc).join(", ")}`:""}. Para cambiarlos, hazlo allí.`
+          : prev? "Marcados al crear el examen." : "Este examen no tiene criterios previstos: márcalos para que la rúbrica solo te ofrezca esos y te avise si se queda alguno sin vincular."}</p>
+      </div>
+      ${!viaProg?`<button class="ghost small" style="border:1px solid var(--line)" onclick="cxToggleEditarPrevistos()">${editando?"Hecho":prev?"Cambiar criterios previstos":"Marcar criterios previstos"}</button>`:""}
+    </div>
+    ${prev?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 10px">${prev.map(cid=>`<span style="font-size:12.5px;padding:2px 8px;border-radius:999px;${usados.has(cid)?"background:#dcece0;color:#1e5631":"background:#f3dcdc;color:#912525;font-weight:600"}" title="${usados.has(cid)?"Vinculado a algún ítem de la rúbrica":"Sin vincular: no se evaluará en este examen"}">${usados.has(cid)?"✓":"⚠️"} ${critLinkHTML(grupo.catalogoKey,cid)}</span>`).join("")}</div>`:""}
+    ${editando?cxSelectorCriteriosHTML(grupo.catalogoKey,act.criteriosPrevistos||[],"cxTogglePrevisto"):""}
+    ${faltan.length?`<p style="margin:10px 0 0;font-size:13px;color:var(--danger,#b91c1c);font-weight:600">⚠️ ${faltan.length===1?"Hay 1 criterio previsto":`Hay ${faltan.length} criterios previstos`} sin vincular a ningún ítem${variante?" de esta rúbrica adaptada":""}: ${cxCritChipsHTML(grupo,faltan)}. No se evaluará${faltan.length===1?"":"n"} en este examen hasta que lo${faltan.length===1?"":"s"} vincules a alguna pregunta (botón «Vincular criterios» de cada ítem).</p>`:""}
+    ${extra.length?`<p class="sub" style="margin:8px 0 0">También vinculado${extra.length===1?"":"s"} aunque no estaba${extra.length===1?"":"n"} previsto${extra.length===1?"":"s"}: ${cxCritChipsHTML(grupo,extra)}.</p>`:""}
+  </div>`;
+  return html;
 }
 function cxExamenesRubrica(grupo){ return grupo.actividades.filter(a=>a.esExamen && a.rubrica && a.trimestre===state.ui.trim); }
+
+/* =================================================================
+   PROGRAMACIÓN ↔ CORRECTOR — rúbricas para los exámenes planificados
+   - Al traer un examen de la Programación a Evaluación, se crea ya con
+     rúbrica (la guardada en la Programación, si la hay; si no, una
+     inicial con un ítem por cada criterio marcado, con los puntos
+     repartidos según sus pesos hasta sumar 10).
+   - Cualquier examen sin rúbrica (traído antes, o creado a mano) puede
+     abrirse en el Corrector para añadírsela.
+   - Desde la Programación, cada examen tiene "Abrir en el Corrector": lo
+     busca (o lo trae) en el grupo vinculado y abre su rúbrica.
+   - La rúbrica de un examen se puede guardar de vuelta en la Programación
+     para reutilizarla en otros grupos y en otros cursos.
+   La actividad del grupo recuerda de qué actividad de la Programación
+   viene en act.progActId.
+   ================================================================= */
+function cxRepartirPuntos(pesos,total){
+  // Reparte "total" puntos según los pesos, en múltiplos de 0,25, y ajusta
+  // el último ítem para que la suma sea exacta.
+  const n=pesos.length; if(!n) return [];
+  const suma=pesos.reduce((s,p)=>s+(Number(p)>0?Number(p):0),0);
+  const base=suma>0? pesos.map(p=>(Number(p)>0?Number(p):0)/suma*total) : pesos.map(()=>total/n);
+  const out=base.map(v=>Math.round(v*4)/4);
+  const dif=Math.round((total-out.reduce((s,v)=>s+v,0))*100)/100;
+  out[n-1]=Math.max(0,Math.round((out[n-1]+dif)*100)/100);
+  return out;
+}
+function cxRubricaDesdeCriterios(criterios,catalogoKey){
+  const crits=(criterios||[]).filter(l=>l&&l.critId);
+  if(!crits.length) return [{id:uid(),title:"Apartado 1",items:[{id:uid(),label:"",max:10,desc:[],links:[]}]}];
+  const idx=catIndex(catalogoKey);
+  const textoDe=cid=>{ for(const ce of idx.cat.ces){ const cr=ce.criterios.find(c=>c.id===cid); if(cr) return cr.texto||""; } return ""; };
+  const puntos=cxRepartirPuntos(crits.map(l=>l.peso),10);
+  return [{id:uid(),title:"Apartado 1",items:crits.map((l,i)=>{
+    let t=textoDe(l.critId); if(t.length>90) t=t.slice(0,87).trim()+"…";
+    return {id:uid(),label:`Pregunta ${i+1} · criterio ${l.critId}${t?" — "+t:""}`,max:puntos[i],desc:[],links:[{critId:l.critId,peso:100}]};
+  })}];
+}
+function cxClonarRubrica(rubrica,catalogoKey){
+  const validos=catalogoKey? cxCriteriosValidosEnCatalogo(catalogoKey) : null;
+  const clonar=sec=>({
+    ...sec, id:uid(),
+    items:(sec.items||[]).map(it=>({...it, id:uid(), desc:Array.isArray(it.desc)?it.desc:[], links:(it.links||[]).filter(l=>!validos||validos.has(l.critId))})),
+    subs:(sec.subs||[]).map(clonar)
+  });
+  return JSON.parse(JSON.stringify(rubrica||[])).map(clonar);
+}
+/* Actividad de la Programación de la que procede una actividad del grupo (o null). */
+function cxProgActDe(grupo,act){
+  if(!act||!act.progActId) return null;
+  const prog=progDeGrupo(grupo);
+  const enProg=prog&&(prog.actividades||[]).find(x=>x.id===act.progActId);
+  if(enProg) return {prog,progAct:enProg};
+  for(const p of (state.programaciones||[])){ const x=(p.actividades||[]).find(y=>y.id===act.progActId); if(x) return {prog:p,progAct:x}; }
+  return null;
+}
+function cxRubricaInicial(grupo,act,progAct){
+  if(progAct && Array.isArray(progAct.rubrica) && progAct.rubrica.length) return cxClonarRubrica(progAct.rubrica,grupo.catalogoKey);
+  return cxRubricaDesdeCriterios(act.criterios,grupo.catalogoKey);
+}
+function cxActTieneNotas(grupo,act){
+  return grupo.alumnos.some(al=>{
+    if(grupo.notasCuant?.[al.id]?.[act.id]!=null) return true;
+    const q=grupo.notas?.[al.id]?.[act.id];
+    return !!(q && Object.keys(q).length);
+  });
+}
+/* Pone rúbrica a un examen que no la tenía. Devuelve true si se ha puesto. */
+async function cxPonerRubrica(grupo,act){
+  if(act.rubrica) return true;
+  if(cxActTieneNotas(grupo,act)){
+    const ok=await confirmar(`«${act.nombre}» ya tiene notas puestas en Calificar.\n\nAl pasar a corregirse con rúbrica, sus notas (cuantitativa y por criterio) se sustituirán por las que salgan de la rúbrica, y tendrás que corregirlo de nuevo en el Corrector. Las marcas (no presentado, exento…) se mantienen.`,{titulo:"Este examen ya tiene notas",ok:"Sí, sustituir por la rúbrica"});
+    if(!ok) return false;
+  }
+  const ref=cxProgActDe(grupo,act);
+  if(!Array.isArray(act.criteriosPrevistos) || !act.criteriosPrevistos.length) act.criteriosPrevistos=(act.criterios||[]).map(c=>c.critId);
+  act.rubrica=cxRubricaInicial(grupo,act,ref&&ref.progAct);
+  act.escalarA10=true;
+  act.esExamen=true;
+  cxSyncCriteriosActividad(act);
+  cxRecalcTodosLosAlumnos(grupo,act);
+  return true;
+}
+function cxAbrirEditor(grupo,act){
+  state.ui.appMode="corrector"; state.ui.grupoId=grupo.id; state.ui.trim=act.trimestre;
+  state.ui.corTab="editor"; state.ui.corExamId=act.id; state.ui.corAlId=""; state.ui.corVarId="";
+  save(); render();
+}
+/* Abrir en el Corrector un examen que todavía no tiene rúbrica (desde Evaluación o desde la lista del Corrector). */
+window.cxAnadirRubrica=async actId=>{
+  const grupo=grupoActual(); const act=grupo&&grupo.actividades.find(a=>a.id===actId); if(!act) return;
+  if(!await cxPonerRubrica(grupo,act)) return;
+  cxAbrirEditor(grupo,act);
+  mostrarToast("✓ Rúbrica creada — ajústala y corrige desde aquí");
+};
+/* Crea en el grupo la actividad de evaluación a partir de una de la Programación
+   (si es examen, ya con rúbrica). Devuelve la actividad creada. */
+function progCrearActividadEnGrupo(grupo,progAct,trimestre){
+  const act={ id:uid(), nombre:progAct.nombre, tipo:progAct.tipo, esExamen:!!progAct.esExamen, bloqueId:defBloque(progAct.tipo,grupo.bloques), pesoBloque:"",
+    trimestre, criterios:(progAct.criterios||[]).map(c=>({...c})), sda:"", progActId:progAct.id,
+    criteriosPrevistos:(progAct.criterios||[]).map(c=>c.critId) };
+  if(act.esExamen){
+    act.rubrica=cxRubricaInicial(grupo,act,progAct);
+    act.escalarA10=true;
+    cxSyncCriteriosActividad(act);
+  }
+  grupo.actividades.push(act);
+  return act;
+}
+/* Actividades del grupo que vienen de una actividad de la Programación. Las
+   traídas antes de existir act.progActId se reconocen por el nombre. */
+function progActividadesEnGrupo(grupo,progAct){
+  const porId=grupo.actividades.filter(a=>!a.recupera && a.progActId===progAct.id);
+  if(porId.length) return porId;
+  const nom=(progAct.nombre||"").trim().toLowerCase();
+  return nom? grupo.actividades.filter(a=>!a.recupera && !a.progActId && (a.nombre||"").trim().toLowerCase()===nom) : [];
+}
+/* Selector sencillo con la misma apariencia que el resto de avisos de la app. */
+function elegirOpcion(titulo,mensaje,opciones){
+  if(window.__dialogosAuto) return Promise.resolve(opciones.length?opciones[0].value:null);
+  return new Promise(resolve=>{
+    const div=document.createElement("div");
+    div.className="modal-overlay dlg-overlay"; div.style.zIndex=String(++_dlgZ);
+    div.innerHTML=`<div class="modal-box dlg-box" role="dialog" aria-modal="true" style="max-width:460px">
+      <h2 style="font-size:16.5px;margin-bottom:6px">${esc(titulo)}</h2>
+      <div class="dlg-msg" style="font-size:14px;line-height:1.5;color:var(--ink)">${_textoDialogoHTML(mensaje)}</div>
+      <div class="grid" style="gap:6px;margin-top:12px">${opciones.map((o,i)=>`<button class="ghost dlg-op" data-i="${i}" style="border:1px solid var(--line);text-align:left;justify-content:flex-start">${esc(o.label)}</button>`).join("")}</div>
+      <div class="flex" style="justify-content:flex-end;margin-top:14px"><button class="ghost dlg-no" style="border:1px solid var(--line)">Cancelar</button></div>
+    </div>`;
+    document.body.appendChild(div);
+    const fin=v=>{ div.remove(); document.removeEventListener("keydown",tecla,true); resolve(v); };
+    const tecla=e=>{ if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); fin(null); } };
+    document.addEventListener("keydown",tecla,true);
+    div.querySelectorAll(".dlg-op").forEach(b=>b.onclick=()=>fin(opciones[Number(b.dataset.i)].value));
+    div.querySelector(".dlg-no").onclick=()=>fin(null);
+    div.onclick=e=>{ if(e.target===div) fin(null); };
+    setTimeout(()=>{ div.querySelector(".dlg-op")?.focus(); },20);
+  });
+}
+/* Botón "Abrir en el Corrector" de un examen en la Programación de Aula. */
+window.progAbrirEnCorrector=async actId=>{
+  const p=progPorId(state.ui.progId); if(!p) return;
+  const progAct=p.actividades.find(a=>a.id===actId); if(!progAct) return;
+  if(!(progAct.nombre||"").trim()){ mostrarAviso("Ponle antes un nombre al examen."); return; }
+  const grupos=state.grupos.filter(g=>g.programacionId===p.id);
+  if(!grupos.length){ mostrarAviso(`El Corrector trabaja con el alumnado de un grupo, y ningún grupo tiene vinculada todavía la Programación "${p.nombre}".\n\nVincúlala a un grupo y vuelve a pulsar aquí.`); return; }
+  let grupo=grupos.length===1? grupos[0] : null;
+  if(!grupo){
+    const gid=await elegirOpcion("🖊️ Abrir en el Corrector",`¿En qué grupo quieres abrir «${progAct.nombre}»?`,
+      grupos.map(g=>{ const ya=progActividadesEnGrupo(g,progAct); return {value:g.id,label:g.nombre+(ya.length?(ya.some(a=>a.rubrica)?" · ya tiene rúbrica":" · ya está en Evaluación"):" · se añadirá a Evaluación")}; }));
+    if(!gid) return;
+    grupo=state.grupos.find(g=>g.id===gid); if(!grupo) return;
+  }
+  const existentes=progActividadesEnGrupo(grupo,progAct);
+  let act=existentes.find(a=>a.rubrica)||existentes[0]||null;
+  if(act){
+    if(!act.progActId) act.progActId=progAct.id;
+    if(!act.rubrica){ if(!await cxPonerRubrica(grupo,act)) return; }
+    cxAbrirEditor(grupo,act);
+    return;
+  }
+  if(!(progAct.criterios||[]).length && !(progAct.rubrica||[]).length){
+    if(!await confirmar(`«${progAct.nombre}» todavía no tiene criterios marcados, así que la rúbrica empezará en blanco y no contará para las competencias hasta que vincules sus ítems a criterios en el Corrector.\n\n¿Continuar?`)) return;
+  }
+  const trims=(progAct.sdaIds||[]).map(sid=>(p.sdas.find(s=>s.id===sid)||{}).trimestre).filter(t=>typeof t==="number"&&TRIMESTRES[t]);
+  const trim=trims.length? Math.min(...trims) : state.ui.trim;
+  act=progCrearActividadEnGrupo(grupo,progAct,trim);
+  cxAbrirEditor(grupo,act);
+  mostrarToast(`✓ Añadido a Evaluación de ${grupo.nombre} (${TRIMESTRES[trim]}) con rúbrica`);
+};
+/* Guardar la rúbrica de un examen del grupo en su actividad de la Programación. */
+window.cxGuardarRubricaEnProgramacion=async examId=>{
+  const grupo=grupoActual(); const act=grupo&&grupo.actividades.find(a=>a.id===examId); if(!act||!act.rubrica) return;
+  const ref=cxProgActDe(grupo,act); if(!ref){ mostrarAviso("Este examen no procede de la Programación."); return; }
+  if(Array.isArray(ref.progAct.rubrica)&&ref.progAct.rubrica.length){
+    if(!await confirmar(`La Programación "${ref.prog.nombre}" ya tiene guardada una rúbrica para «${ref.progAct.nombre}». ¿Sustituirla por esta?`,{ok:"Sí, sustituir"})) return;
+  }
+  ref.progAct.rubrica=JSON.parse(JSON.stringify(act.rubrica));
+  save(); render();
+  mostrarToast("✓ Rúbrica guardada en la Programación");
+};
+window.progQuitarRubrica=async actId=>{
+  const p=progPorId(state.ui.progId); const a=p&&p.actividades.find(x=>x.id===actId); if(!a) return;
+  if(!await confirmar("¿Quitar la rúbrica guardada en la Programación para este examen? Los exámenes ya creados en los grupos conservan la suya.",{ok:"Quitar"})) return;
+  delete a.rubrica; save(); render();
+};
 
 /* Acceso cruzado: abrir un examen concreto en el Corrector desde Evaluación por Competencias */
 window.cxAbrirDesdeOtroModo=examId=>{
@@ -13044,11 +13429,18 @@ window.cxAbrirDesdeOtroModo=examId=>{
 };
 
 /* ---------- Navegación del Corrector ---------- */
-window.cxTab=k=>{ state.ui.corTab=k; if(k==="lista"){ state.ui.corExamId=""; state.ui.corAlId=""; } save(); render(); };
-window.cxIrLista=()=>{ state.ui.corTab="lista"; state.ui.corExamId=""; state.ui.corAlId=""; save(); render(); };
+window.cxTab=k=>{ if(k!=="editor") cxAvisarAlSalirDelEditor(); state.ui.corTab=k; if(k==="lista"){ state.ui.corExamId=""; state.ui.corAlId=""; } save(); render(); };
+function cxAvisarAlSalirDelEditor(){
+  if(state.ui.corTab!=="editor") return;
+  const grupo=grupoActual(); const act=grupo&&grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act||!act.rubrica) return;
+  const av=cxAvisosCriterios(grupo,act); if(!av.length) return;
+  const ids=[...new Set(av.flatMap(a=>a.faltan))];
+  setTimeout(()=>mostrarToast(`⚠️ «${act.nombre}»: ${ids.length===1?"el criterio "+ids[0]+" se ha":"los criterios "+ids.join(", ")+" se han"} quedado sin vincular en la rúbrica`,"info"),50);
+}
+window.cxIrLista=()=>{ cxAvisarAlSalirDelEditor(); state.ui.corTab="lista"; state.ui.corExamId=""; state.ui.corAlId=""; save(); render(); };
 window.cxIrCrear=()=>{ state.ui.corTab="crear"; save(); render(); };
-window.cxIrEditor=examId=>{ state.ui.corTab="editor"; state.ui.corExamId=examId; save(); render(); };
-window.cxIrCorregir=examId=>{ state.ui.corTab="corregir"; state.ui.corExamId=examId; state.ui.corAlId=""; save(); render(); };
+window.cxIrEditor=examId=>{ if(state.ui.corExamId!==examId) state.ui.corVarId=""; state.ui.corTab="editor"; state.ui.corExamId=examId; save(); render(); };
+window.cxIrCorregir=examId=>{ cxAvisarAlSalirDelEditor(); state.ui.corTab="corregir"; state.ui.corExamId=examId; state.ui.corAlId=""; save(); render(); };
 window.cxIrAlumno=alId=>{ state.ui.corAlId=alId; save(); render(); };
 window.cxVolverLista=()=>{ state.ui.corAlId=""; save(); render(); };
 
@@ -13104,6 +13496,7 @@ function renderCorLista(grupo){
         <div>
           <div style="font-size:15px;font-weight:600">${esc(act.nombre)} ${act.sda?`<span class="badge" style="vertical-align:middle;margin-left:6px">${esc(act.sda)}</span>`:''}</div>
           <div style="font-size:12.5px;color:var(--mut);margin-top:2px">${b?esc(b.label):""} · ${notas.length}/${grupo.alumnos.length} corregido${notas.length===1?"":"s"}${media!=null?` · media ${fmt(media)}`:""}</div>
+          ${cxAvisoCriteriosBadgeHTML(grupo,act)}
         </div>
         <div class="flex">
           <button class="btn small" onclick="cxIrCorregir('${act.id}')">Corregir</button>
@@ -13114,8 +13507,42 @@ function renderCorLista(grupo){
         </div>
       </div>
     </div>`;
-  }).join("") : '<div class="card"><p class="sub" style="margin:0">Todavía no hay ningún examen con rúbrica en este periodo.</p></div>'}`;
+  }).join("") : '<div class="card"><p class="sub" style="margin:0">Todavía no hay ningún examen con rúbrica en este periodo.</p></div>'}
+  ${cxPendientesHTML(grupo)}`;
 }
+/* Exámenes que aún no se corrigen con rúbrica: los del grupo sin rúbrica y los
+   de la Programación vinculada que todavía no se han traído a este grupo. */
+function cxPendientesHTML(grupo){
+  const sinRub=grupo.actividades.filter(a=>a.esExamen && !a.rubrica && a.trimestre===state.ui.trim);
+  const prog=progDeGrupo(grupo);
+  const deProg=prog? (prog.actividades||[]).filter(pa=>pa.esExamen && (pa.nombre||"").trim() && !progActividadesEnGrupo(grupo,pa).length) : [];
+  if(!sinRub.length && !deProg.length) return "";
+  const trimDe=pa=>{ const t=(pa.sdaIds||[]).map(sid=>(prog.sdas.find(s=>s.id===sid)||{}).trimestre).filter(x=>typeof x==="number"&&TRIMESTRES[x]); return t.length?Math.min(...t):null; };
+  return `<div class="card">
+    <h2 style="font-size:15px">Exámenes sin rúbrica</h2>
+    <p class="sub" style="margin:0 0 8px">Al añadirles rúbrica se crea una inicial con un ítem por cada criterio marcado (o la que tengas guardada en la Programación), lista para ajustar.</p>
+    <div class="grid" style="gap:8px">
+      ${sinRub.map(a=>`<div class="row" style="justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:8px 12px">
+        <span style="font-size:14px">${esc(a.nombre)} <span style="font-size:12.5px;color:var(--mut)">· en Evaluación${cxActTieneNotas(grupo,a)?" · ya tiene notas":""}</span></span>
+        <button class="btn small" onclick="cxAnadirRubrica('${a.id}')">🖊️ Añadir rúbrica</button>
+      </div>`).join("")}
+      ${deProg.map(pa=>{ const t=trimDe(pa); return `<div class="row" style="justify-content:space-between;border:1px dashed var(--line);border-radius:8px;padding:8px 12px">
+        <span style="font-size:14px">${esc(pa.nombre)} <span style="font-size:12.5px;color:var(--mut)">· en la Programación${t!=null?" ("+TRIMESTRES[t]+")":""}, aún no traído a este grupo${(pa.rubrica||[]).length?" · con rúbrica guardada":""}</span></span>
+        <button class="btn small" title="Lo añade a Evaluación por Competencias en ${TRIMESTRES[state.ui.trim]}, ya con rúbrica" onclick="cxTraerDeProgramacion('${pa.id}')">+ Traer a ${TRIMESTRES[state.ui.trim].replace("ª evaluación","ª ev.")} con rúbrica</button>
+      </div>`; }).join("")}
+    </div>
+  </div>`;
+}
+window.cxTraerDeProgramacion=async progActId=>{
+  const grupo=grupoActual(); const prog=progDeGrupo(grupo); if(!grupo||!prog) return;
+  const pa=prog.actividades.find(x=>x.id===progActId); if(!pa) return;
+  if(!(pa.criterios||[]).length && !(pa.rubrica||[]).length){
+    if(!await confirmar(`«${pa.nombre}» todavía no tiene criterios marcados en la Programación, así que la rúbrica empezará en blanco y no contará para las competencias hasta que vincules sus ítems a criterios.\n\n¿Continuar?`)) return;
+  }
+  const act=progCrearActividadEnGrupo(grupo,pa,state.ui.trim);
+  cxAbrirEditor(grupo,act);
+  mostrarToast("✓ Examen añadido con rúbrica — ajústala y corrige desde aquí");
+};
 
 /* ---------- Crear examen ---------- */
 function renderCorCrear(grupo){
@@ -13126,7 +13553,7 @@ function renderCorCrear(grupo){
   c.innerHTML=`<div class="card">
     <h2>Nuevo examen</h2>
     <p class="sub">Se crea en ${TRIMESTRES[state.ui.trim]}. Después diseñas la rúbrica y vinculas cada ítem a los criterios que trabaja.</p>
-    <div class="grid" style="max-width:440px">
+    <div class="grid" style="max-width:640px">
       <input class="in" id="cxfNombre" placeholder="Nombre del examen" value="${esc(f.nombre)}">
       <select class="in" id="cxfBloque">${grupo.bloques.map(b=>`<option value="${b.id}" ${b.id===f.bloqueId?"selected":""}>${esc(b.label)}</option>`).join("")}</select>
       <input class="in" id="cxfSda" placeholder="Situación de Aprendizaje (opcional)" value="${esc(f.sda||'')}">
@@ -13141,6 +13568,11 @@ function renderCorCrear(grupo){
         </select>
       </label>
       ${plantillas.length?`<p class="sub" style="margin:-4px 0 0;font-size:11.5px">Los ítems se copian con sus puntos y descriptores; los criterios vinculados solo se copian si existen en el catálogo de este grupo.</p>`:""}
+      <div>
+        <button class="ghost" style="border:1px solid var(--line)" onclick="state.ui.corFormCritAbierto=!state.ui.corFormCritAbierto;save();render()">${state.ui.corFormCritAbierto?"▾":"▸"} Criterios de evaluación que evalúa — ${(f.criterios||[]).length} marcado${(f.criterios||[]).length===1?"":"s"}</button>
+        <p class="sub" style="margin:4px 0 0;font-size:11.5px">Opcional, pero recomendable: la rúbrica empezará con una pregunta por criterio, solo te ofrecerá estos para vincular y te avisará si alguno se queda sin evaluar. Pueden ser de varias Situaciones de Aprendizaje.</p>
+        ${state.ui.corFormCritAbierto?cxSelectorCriteriosHTML(grupo.catalogoKey,f.criterios||[],"cxFormToggleCrit"):""}
+      </div>
       <button class="btn" id="cxfBtn" onclick="cxCrearExamen()" ${!f.nombre.trim()?"disabled":""} style="justify-self:start">Crear y diseñar rúbrica</button>
     </div>
   </div>
@@ -13180,37 +13612,77 @@ window.cxCrearExamen=()=>{
   const grupo=grupoActual(); const f=state.ui.corForm;
   if(!f.nombre.trim()) return;
   if(!f.bloqueId) f.bloqueId=defBloque("Prueba objetiva / examen",grupo.bloques);
-  let rubricaInicial=[{id:uid(),title:"Apartado 1",items:[{id:uid(),label:"",max:10,desc:[],links:[]}]}];
+  const critsForm=(f.criterios||[]).filter(c=>cxCriteriosValidosEnCatalogo(grupo.catalogoKey).has(c));
+  let rubricaInicial= critsForm.length? cxRubricaDesdeCriterios(critsForm.map(c=>({critId:c,peso:100})),grupo.catalogoKey)
+    : [{id:uid(),title:"Apartado 1",items:[{id:uid(),label:"",max:10,desc:[],links:[]}]}];
   if(f.plantillaId){
     const plantilla=(state.plantillasRubrica||[]).find(p=>p.id===f.plantillaId);
     if(plantilla){
-      const validos=cxCriteriosValidosEnCatalogo(grupo.catalogoKey);
-      rubricaInicial=JSON.parse(JSON.stringify(plantilla.rubrica)).map(sec=>({
-        ...sec, id:uid(),
-        items:sec.items.map(it=>({...it, id:uid(), links:(it.links||[]).filter(l=>validos.has(l.critId))}))
-      }));
+      rubricaInicial=cxClonarRubrica(plantilla.rubrica,grupo.catalogoKey);
     }
   }
   const act={ id:uid(), trimestre:state.ui.trim, nombre:f.nombre.trim(), tipo:"Prueba objetiva / examen",
     bloqueId:f.bloqueId, esExamen:true, pesoBloque:"", criterios:[], sda:(f.sda||"").trim(),
-    rubrica:rubricaInicial, escalarA10:true };
+    rubrica:rubricaInicial, escalarA10:true, criteriosPrevistos:critsForm };
+  cxSyncCriteriosActividad(act);
   grupo.actividades.push(act);
   if((f.fecha||"").trim()){
     if(!Array.isArray(state.eventos)) state.eventos=[];
     state.eventos.push({id:uid(), fecha:f.fecha.trim(), titulo:act.nombre, tipo:"examen", grupoId:grupo.id, notas:"", examId:act.id});
     state.ui.agMes=f.fecha.trim().slice(0,7);
   }
-  state.ui.corExamId=act.id; state.ui.corTab="editor"; state.ui.corForm={nombre:"",bloqueId:"",sda:"",fecha:"",plantillaId:""};
+  state.ui.corExamId=act.id; state.ui.corTab="editor"; state.ui.corForm={nombre:"",bloqueId:"",sda:"",fecha:"",plantillaId:"",criterios:[]}; state.ui.corFormCritAbierto=false;
   save(); render();
 };
 
 /* ---------- Editor de rúbrica ---------- */
+const CX_NOMBRE_NIVEL=["Apartado","Subapartado","Sub-subapartado"];
+function cxFmtPts(v){ return String(Math.round((Number(v)||0)*100)/100).replace(".",","); }
 function renderCorEditor(grupo){
   const c=document.getElementById("tabContent");
   const act=grupo.actividades.find(a=>a.id===state.ui.corExamId);
   if(!act || !act.rubrica){ state.ui.corTab="lista"; renderCorLista(grupo); return; }
-  const maxTotal=cxMaxTotal(act.rubrica);
+  if(state.ui.corVarId && !cxVariantes(act).some(v=>v.id===state.ui.corVarId)) state.ui.corVarId="";
+  const variante=cxVarEditando(act);
+  const rub=cxRubEd(act);
+  const escalar=variante? variante.escalarA10!==false : !!act.escalarA10;
+  const maxTotal=cxMaxTotal(rub);
   const totalOk=Math.abs(maxTotal-10)<0.01;
+  const progRef=cxProgActDe(grupo,act);
+  const enVariantes=new Set(cxVariantes(act).flatMap(v=>v.alumnos||[]));
+  const nGeneral=grupo.alumnos.filter(al=>!enVariantes.has(al.id)).length;
+  const prevCrit=cxCriteriosPrevistos(grupo,act);
+  _cxCritPermitidos = prevCrit && !state.ui.corVerTodosCrit ? new Set(prevCrit) : null;
+  _cxHayPrevistos = !!prevCrit;
+  _cxPrevistosSet = prevCrit ? new Set(prevCrit) : null;
+  const pestanas=`<div class="flex" style="flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center">
+      <button class="tab ${!variante?"on":""}" onclick="cxElegirVariante('')">Rúbrica general · ${nGeneral} alumno${nGeneral===1?"":"s"}</button>
+      ${cxVariantes(act).map(v=>`<button class="tab ${variante&&variante.id===v.id?"on":""}" onclick="cxElegirVariante('${v.id}')">${esc(v.nombre||"Rúbrica adaptada")} · ${(v.alumnos||[]).length} alumno${(v.alumnos||[]).length===1?"":"s"}</button>`).join("")}
+      <button class="ghost" style="border:1px dashed var(--line)" title="Examen diferente para uno o varios alumnos/as (p. ej. NESE): se corrigen con su propia rúbrica y el resto con la general" onclick="cxNuevaVariante()">+ Rúbrica adaptada (NESE)</button>
+    </div>`;
+  const panelVariante=variante? `<div class="card" style="border-left:4px solid var(--accent)">
+    <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <label style="font-size:12.5px;color:var(--mut);font-weight:500;flex:1;min-width:220px">Nombre de esta rúbrica adaptada
+        <input class="in" style="width:100%;margin-top:4px" value="${esc(variante.nombre||"")}" onchange="cxSetVarianteNombre(this.value)">
+      </label>
+      <div class="flex" style="align-items:flex-end">
+        <button class="ghost" style="border:1px solid var(--line)" title="Sustituye esta rúbrica adaptada por una copia de la general" onclick="cxCopiarGeneralEnVariante()">Copiar la general aquí</button>
+        <button class="ghost danger" onclick="cxEliminarVariante()">Eliminar rúbrica adaptada</button>
+      </div>
+    </div>
+    <div class="section-eyebrow" style="margin:12px 0 6px">Alumnado que hace este examen</div>
+    <div class="flex" style="flex-wrap:wrap;gap:6px 16px">
+      ${[...grupo.alumnos].sort((a,b)=>Number(!!b.nese)-Number(!!a.nese)).map(al=>{
+        const otra=cxVarianteDeAlumno(act,al.id);
+        const aqui=otra&&otra.id===variante.id;
+        const bloqueado=otra&&!aqui;
+        return `<label style="font-size:13px;display:flex;align-items:center;gap:6px;${bloqueado?"opacity:.55":""}" ${bloqueado?`title="Ya hace «${esc(otra.nombre||"otra rúbrica adaptada")}»"`:""}>
+          <input type="checkbox" ${aqui?"checked":""} ${bloqueado?"disabled":""} onchange="cxToggleAlumnoVariante('${al.id}',this.checked)"> ${esc(al.nombre)}${neseBadgeHTML(al)}
+        </label>`;
+      }).join("")||'<span class="sub">Este grupo todavía no tiene alumnado.</span>'}
+    </div>
+    <p class="sub" style="margin:8px 0 0">Quien esté marcado aquí se corrige con esta rúbrica y no con la general; su nota cuenta en el mismo examen, con el mismo peso.</p>
+  </div>` : "";
   c.innerHTML=`
   <div class="card">
     <div class="flex" style="justify-content:space-between;align-items:flex-start;flex-wrap:wrap">
@@ -13226,17 +13698,27 @@ function renderCorEditor(grupo){
         <input class="in miniw" type="number" min="0" style="width:70px" value="${act.pesoBloque??''}" placeholder="auto" onchange="cxSetPesoBloque(this.value)">%
       </label>
     </div>
-    <p class="sub" style="margin:10px 0 0">Apartados con sus ítems. Cada ítem tiene una puntuación máxima y, opcionalmente, uno o varios criterios de evaluación vinculados (para la calificación cualitativa). Los máximos de todos los ítems deben sumar 10 (nota cuantitativa).</p>
+    ${pestanas}
+  </div>
+  ${panelVariante}
+  ${cxPanelPrevistosHTML(grupo,act,rub,variante)}
+  <div class="card">
+    <p class="sub" style="margin:0">Organiza el examen como necesites: <strong>apartados</strong> con sus preguntas o ítems y, si hace falta, <strong>subapartados</strong> dentro (hasta ${CX_MAX_NIVELES} niveles). Cada ítem tiene su puntuación máxima, descriptores opcionales y los criterios de evaluación que trabaja. Si el alumnado elige (p. ej. «responda UNA de las dos opciones»), indica en ese apartado cuántos cuentan.</p>
     <div class="flex" style="margin-top:10px;align-items:center">
-      <span class="pill" style="background:${totalOk?'#dcece0':'#f3dcdc'};color:${totalOk?'#1e5631':'#912525'}">Suma de puntos: ${maxTotal.toFixed(2)} / 10</span>
-      ${!totalOk?`<label style="font-size:12.5px;color:var(--ink);display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ${act.escalarA10?"checked":""} onchange="cxSetEscalarA10(this.checked)"> Convertir la puntuación a nota sobre 10 ${maxTotal>0?`(p. ej. ${String(Math.round(maxTotal/2*100)/100).replace(".",",")} puntos → 5)`:""}</label>
-        ${act.escalarA10?"":'<span style="font-size:12.5px;color:var(--danger,#b91c1c)">Sin convertir, la nota será la suma de puntos (máximo 10).</span>'}`:''}
+      <span class="pill" style="background:${totalOk?'#dcece0':'#f3dcdc'};color:${totalOk?'#1e5631':'#912525'}">Suma de puntos${variante?" (rúbrica adaptada)":""}: ${maxTotal.toFixed(2)} / 10</span>
+
+      ${!totalOk?`<label style="font-size:12.5px;color:var(--ink);display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ${escalar?"checked":""} onchange="cxSetEscalarA10(this.checked)"> Convertir la puntuación a nota sobre 10 ${maxTotal>0?`(p. ej. ${cxFmtPts(maxTotal/2)} puntos → 5)`:""}</label>
+        ${escalar?"":'<span style="font-size:12.5px;color:var(--danger,#b91c1c)">Sin convertir, la nota será la suma de puntos (máximo 10).</span>'}`:''}
+      <span style="flex:1"></span>
+      <button class="ghost small" style="border:1px solid var(--line)" onclick="cxPlegarTodo(true)">▸ Plegar todo</button>
+      <button class="ghost small" style="border:1px solid var(--line)" onclick="cxPlegarTodo(false)">▾ Desplegar todo</button>
     </div>
   </div>
-  ${act.rubrica.map((sec,sIdx)=>renderCxSeccionHTML(grupo,act,sec,sIdx)).join("")}
+  ${rub.map((sec,sIdx)=>renderCxNodoHTML(grupo,sec,0,sIdx,rub.length)).join("")}
   <div class="flex">
     <button class="btn" onclick="cxAddSeccion()">+ Añadir apartado</button>
-    <button class="ghost" style="border:1px solid var(--line)" onclick="cxGuardarComoPlantilla('${act.id}')">💾 Guardar como plantilla</button>
+    ${!variante?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxGuardarComoPlantilla('${act.id}')">💾 Guardar como plantilla</button>`:""}
+    ${progRef&&!variante?`<button class="ghost" style="border:1px solid var(--line)" title="Guarda esta rúbrica en el examen de la Programación &quot;${esc(progRef.prog.nombre)}&quot;: los demás grupos y los cursos siguientes la recibirán ya hecha al traer el examen" onclick="cxGuardarRubricaEnProgramacion('${act.id}')">📌 ${(progRef.progAct.rubrica||[]).length?"Actualizar la rúbrica de la Programación":"Guardar en la Programación"}</button>`:""}
     <button class="ghost" style="border:1px solid var(--line)" onclick="cxIrCorregir('${act.id}')">Ir a corregir →</button>
   </div>`;
   document.getElementById("cxNombre").addEventListener("change",e=>{ act.nombre=e.target.value.trim()||act.nombre;
@@ -13244,42 +13726,103 @@ function renderCorEditor(grupo){
     save(); });
   document.getElementById("cxBloque").addEventListener("change",e=>{ act.bloqueId=e.target.value; save(); });
   document.getElementById("cxSda").addEventListener("change",e=>{ act.sda=e.target.value.trim(); save(); });
+  c.querySelectorAll("textarea.cx-autogrow").forEach(cxAutoGrow);
 }
-function renderCxSeccionHTML(grupo,act,sec,sIdx){
-  return `<div class="card">
-    <div class="flex" style="justify-content:space-between">
-      <input class="in" value="${esc(sec.title)}" style="font-weight:600;min-width:200px" onchange="cxSetSeccionTitle('${sec.id}',this.value)">
-      <div class="flex">
-        <button class="ghost small" ${sIdx===0?"disabled":""} onclick="cxMoveSeccion('${sec.id}',-1)">↑</button>
-        <button class="ghost small" ${sIdx===act.rubrica.length-1?"disabled":""} onclick="cxMoveSeccion('${sec.id}',1)">↓</button>
-        <button class="ghost danger" onclick="cxDelSeccion('${sec.id}')">Eliminar apartado</button>
+function cxAutoGrow(t){ t.style.height="auto"; t.style.height=(t.scrollHeight+2)+"px"; }
+function renderCxNodoHTML(grupo,sec,depth,sIdx,nHermanos){
+  const items=sec.items||[], subs=sec.subs||[];
+  const nHijos=items.length+subs.length;
+  const k=cxElegirEf(sec);
+  const nivel=CX_NOMBRE_NIVEL[depth]||"Subapartado";
+  const estilo= depth===0 ? "" : `margin:10px 0 0;padding:12px 12px 12px 14px;border:1px solid var(--line);border-left:4px solid ${depth===1?"var(--accent)":"var(--brand-3,#7a8fb3)"};border-radius:10px;background:var(--surface-2,transparent)`;
+  const abre= depth===0 ? `<div class="card" data-cxnodo="${sec.id}">` : `<div style="${estilo}" data-cxnodo="${sec.id}">`;
+  const plegado=cxEstaPlegado(sec.id);
+  const nomSub=(CX_NOMBRE_NIVEL[depth+1]||"Subapartado").toLowerCase();
+  const resumen=[items.length?`${items.length} pregunta${items.length===1?"":"s"}`:"", subs.length?`${subs.length} ${nomSub}${subs.length===1?"":"s"}`:""].filter(Boolean).join(" · ");
+  const cabecera=`<div class="flex" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="ghost" style="display:flex;align-items:center;gap:8px;padding:2px 6px;margin-left:-6px;text-align:left;flex:1;min-width:0;justify-content:flex-start" title="${plegado?"Desplegar":"Plegar"}" aria-expanded="${!plegado}" onclick="cxTogglePlegado('${sec.id}')">
+        <span style="display:inline-block;width:14px;transition:transform .15s;transform:rotate(${plegado?0:90}deg);color:var(--mut)">▶</span>
+        <span class="section-eyebrow" style="margin:0">${nivel} · ${cxFmtPts(cxMaxNodo(sec))} pts${k?` · cuentan ${k} de ${nHijos}`:""}${plegado&&resumen?` · ${resumen}`:""}</span>
+      </button>
+      <div class="flex" style="gap:4px">`;
+  if(plegado){
+    const titulo=(sec.title||"").trim();
+    return `${abre}
+    ${cabecera}
+        <button class="ghost small" title="Subir" ${sIdx===0?"disabled":""} onclick="cxMoveSeccion('${sec.id}',-1)">↑</button>
+        <button class="ghost small" title="Bajar" ${sIdx===nHermanos-1?"disabled":""} onclick="cxMoveSeccion('${sec.id}',1)">↓</button>
       </div>
     </div>
-    <div class="grid" style="margin-top:10px;gap:10px">
-      ${sec.items.map((it,iIdx)=>renderCxItemHTML(grupo,sec,it,iIdx)).join("")}
+    <div onclick="cxTogglePlegado('${sec.id}')" style="cursor:pointer;margin-top:4px;font-weight:600;font-size:${depth===0?"14.5px":"13.5px"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${titulo?"":"color:var(--mut);font-weight:400;font-style:italic"}">${titulo?esc(titulo.split("\n")[0]):"(sin título)"}</div>
+  </div>`;
+  }
+  return `${abre}
+    ${cabecera}
+        <button class="ghost small" title="Subir" ${sIdx===0?"disabled":""} onclick="cxMoveSeccion('${sec.id}',-1)">↑</button>
+        <button class="ghost small" title="Bajar" ${sIdx===nHermanos-1?"disabled":""} onclick="cxMoveSeccion('${sec.id}',1)">↓</button>
+        <button class="ghost danger small" onclick="cxDelSeccion('${sec.id}')">Eliminar ${nivel.toLowerCase()}</button>
+      </div>
     </div>
-    <button class="ghost" style="border:1px solid var(--line);margin-top:8px" onclick="cxAddItem('${sec.id}')">+ Añadir ítem</button>
+    <textarea class="in cx-autogrow" rows="1" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;font-weight:600;resize:none;overflow:hidden;line-height:1.45;font-size:${depth===0?"14.5px":"13.5px"}" placeholder="${depth===0?"Título y enunciado del apartado (p. ej. II. Comentario de fuente histórica — elija UNA de las dos fuentes)":"Título y enunciado del subapartado (p. ej. 2.1. Describa el tipo de fuente, analice el contenido…)"}" oninput="cxAutoGrow(this)" onchange="cxSetSeccionTitle('${sec.id}',this.value)">${esc(sec.title||"")}</textarea>
+    ${nHijos>=2?`<label style="font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">El alumnado responde
+      <select class="in" style="padding:4px 8px" onchange="cxSetNodoElegir('${sec.id}',this.value)">
+        <option value="0" ${!k?"selected":""}>todo (${nHijos} de ${nHijos})</option>
+        ${Array.from({length:nHijos-1},(_,i)=>i+1).map(n=>`<option value="${n}" ${k===n?"selected":""}>solo ${n} de ${nHijos}, a elegir</option>`).join("")}
+      </select>
+      ${k?`<span>· al corregir, puntúa solo lo que haya respondido: ${k===1?"cuenta la mejor":`cuentan las ${k} mejores`}.</span>`:""}
+    </label>`:""}
+    ${items.length?`<div class="grid" style="margin-top:10px;gap:10px">
+      ${items.map((it,iIdx)=>renderCxItemHTML(grupo,sec,it,iIdx)).join("")}
+    </div>`:""}
+    ${subs.map((s,i)=>renderCxNodoHTML(grupo,s,depth+1,i,subs.length)).join("")}
+    <div class="flex" style="margin-top:10px;gap:6px">
+      <button class="ghost" style="border:1px solid var(--line)" onclick="cxAddItem('${sec.id}')">+ Pregunta / ítem</button>
+      ${depth<CX_MAX_NIVELES-1?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxAddSub('${sec.id}')">+ ${CX_NOMBRE_NIVEL[depth+1]}</button>`:""}
+    </div>
   </div>`;
 }
+function cxEstaPlegado(id){ return !!(state.ui.corPlegados&&state.ui.corPlegados[id]); }
+function cxDesplegar(id){ if(state.ui.corPlegados) delete state.ui.corPlegados[id]; }
+window.cxTogglePlegado=id=>{
+  if(!state.ui.corPlegados||typeof state.ui.corPlegados!=="object") state.ui.corPlegados={};
+  if(state.ui.corPlegados[id]) delete state.ui.corPlegados[id]; else state.ui.corPlegados[id]=true;
+  save(); render();
+  // Mantener a la vista el apartado que se acaba de plegar o desplegar.
+  const el=document.querySelector(`[data-cxnodo="${id}"]`);
+  if(el){ const r=el.getBoundingClientRect(); if(r.top<80||r.top>window.innerHeight-60) el.scrollIntoView({block:"start",behavior:"auto"}); if(el.getBoundingClientRect().top<90) window.scrollBy(0,-110); }
+};
+window.cxPlegarTodo=plegar=>{
+  const x=cxCtxEd(); if(!x) return;
+  if(!state.ui.corPlegados||typeof state.ui.corPlegados!=="object") state.ui.corPlegados={};
+  cxNodosFlat(x.rub).forEach(({n})=>{ if(plegar) state.ui.corPlegados[n.id]=true; else delete state.ui.corPlegados[n.id]; });
+  save(); render();
+};
 function renderCxItemHTML(grupo,sec,it,iIdx){
   const idx=catIndex(grupo.catalogoKey);
   const abierto=state.ui.corItemAbierto===it.id;
   const nCrit=(it.links||[]).length;
-  return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+  return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface,#fff)">
     <div class="flex" style="align-items:flex-start">
-      <input class="in" placeholder="Enunciado / criterio de corrección" value="${esc(it.label)}" style="flex:1;min-width:180px" onchange="cxSetItemLabel('${sec.id}','${it.id}',this.value)">
+      <input class="in" placeholder="Pregunta / enunciado / criterio de corrección" value="${esc(it.label)}" style="flex:1;min-width:180px" onchange="cxSetItemLabel('${sec.id}','${it.id}',this.value)">
       <span class="flex" style="gap:4px;align-items:center">
         <input class="in miniw" type="text" inputmode="decimal" autocomplete="off" value="${String(it.max).replace('.',',')}" style="width:70px" onchange="cxSetItemMax('${sec.id}','${it.id}',this.value)">
         <span style="font-size:12.5px;color:var(--mut)">pts</span>
       </span>
       <button class="ghost small" ${iIdx===0?"disabled":""} onclick="cxMoveItem('${sec.id}','${it.id}',-1)">↑</button>
-      <button class="ghost small" ${iIdx===sec.items.length-1?"disabled":""} onclick="cxMoveItem('${sec.id}','${it.id}',1)">↓</button>
+      <button class="ghost small" ${iIdx===(sec.items||[]).length-1?"disabled":""} onclick="cxMoveItem('${sec.id}','${it.id}',1)">↓</button>
       <button class="ghost danger" onclick="cxDelItem('${sec.id}','${it.id}')">Eliminar</button>
     </div>
-    <textarea class="in" style="width:100%;margin-top:6px;min-height:44px;resize:vertical;font-size:13px" placeholder="Descriptores (opcional, una línea por punto)" onchange="cxSetItemDesc('${sec.id}','${it.id}',this.value)">${esc((it.desc||[]).join("\n"))}</textarea>
+    <textarea class="in cx-autogrow" style="width:100%;box-sizing:border-box;margin-top:6px;min-height:44px;resize:vertical;font-size:13px" placeholder="Descriptores (opcional, una línea por cada uno: p. ej. «Identifica el tipo de fuente y su autor (0,5)»)" oninput="cxAutoGrow(this)" onchange="cxSetItemDesc('${sec.id}','${it.id}',this.value)">${esc((it.desc||[]).join("\n"))}</textarea>
     <button class="ghost" style="border:1px solid var(--line);margin-top:6px" onclick="cxToggleItemCriterios('${it.id}')">${abierto?"Ocultar":"Vincular"} criterios${nCrit?` (${nCrit})`:""}</button>
-    ${abierto?`<div class="scroll" style="margin-top:8px;max-height:220px">
-      ${idx.cat.ces.map(ce=>`
+    ${abierto?(()=>{
+      const linkados=new Set((it.links||[]).map(l=>l.critId));
+      const visible=cr=> !_cxCritPermitidos || _cxCritPermitidos.has(cr.id) || linkados.has(cr.id);
+      const ces=idx.cat.ces.map(ce=>({...ce,criterios:ce.criterios.filter(visible)})).filter(ce=>ce.criterios.length);
+      const nota= _cxHayPrevistos
+        ? `<div class="flex" style="justify-content:space-between;align-items:center;margin:2px 0 4px;gap:8px"><span class="sub" style="margin:0;font-size:12px">${_cxCritPermitidos?"Solo se muestran los criterios previstos para este examen.":"Se muestran todos los criterios de la materia."}</span><button class="ghost small" style="padding:2px 8px" onclick="cxToggleVerTodosCrit()">${_cxCritPermitidos?"Ver todos":"Ver solo los previstos"}</button></div>`
+        : `<div class="sub" style="margin:2px 0 4px;font-size:12px">Este examen no tiene criterios previstos, así que se muestran todos.</div>`;
+      return `<div class="scroll" style="margin-top:8px;max-height:260px">${nota}
+      ${ces.map(ce=>`
         <div style="font-size:12px;color:var(--mut);font-weight:500;margin:6px 0 3px">${ce.id} · ${esc(ce.titulo)}</div>
         ${ce.criterios.map(cr=>{
           const l=(it.links||[]).find(x=>x.critId===cr.id);
@@ -13288,77 +13831,139 @@ function renderCxItemHTML(grupo,sec,it,iIdx){
               <input type="checkbox" ${l?"checked":""} onchange="cxToggleItemLink('${sec.id}','${it.id}','${cr.id}')">
               <span><strong>${cr.id}</strong> ${esc(cr.texto)}</span>
             </label>
+            ${(cxCritNoPrevisto(cr.id)?'<span class="badge" style="background:var(--danger-soft,#f3dcdc);color:var(--danger,#912525)" title="No estaba entre los criterios previstos de este examen">no previsto</span>':"")}
             ${l?`<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mut)">peso
               <input class="in miniw" type="number" min="0" value="${l.peso}" onchange="cxSetItemLinkPeso('${it.id}','${cr.id}',this.value)"></span>`:""}
           </div>`;}).join("")}
       `).join("")}
-    </div>`:""}
+    </div>`; })():""}
   </div>`;
 }
-window.cxSetPesoBloque=v=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  act.pesoBloque=(v===""||v==null)?"":Number(v); save(); };
-window.cxAddSeccion=()=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  act.rubrica.push({id:uid(),title:"Nuevo apartado",items:[{id:uid(),label:"",max:0,desc:[],links:[]}]});
+let _cxCritPermitidos=null, _cxHayPrevistos=false, _cxPrevistosSet=null;
+function cxCritNoPrevisto(cid){ return !!(_cxPrevistosSet && !_cxPrevistosSet.has(cid)); }
+function cxNuevoItem(max){ return {id:uid(),label:"",max:max??0,desc:[],links:[]}; }
+function cxCtxEd(){ const grupo=grupoActual(); const act=grupo&&grupo.actividades.find(a=>a.id===state.ui.corExamId); return act? {grupo,act,rub:cxRubEd(act)} : null; }
+window.cxSetPesoBloque=v=>{ const x=cxCtxEd(); if(!x) return;
+  x.act.pesoBloque=(v===""||v==null)?"":Number(v); save(); };
+window.cxAddSeccion=()=>{ const x=cxCtxEd(); if(!x) return;
+  x.rub.push({id:uid(),title:"",items:[cxNuevoItem()],subs:[]});
   save(); render(); };
-window.cxDelSeccion=async secId=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  if(act.rubrica.length<=1){ mostrarAviso("Debe quedar al menos un apartado. Si quieres vaciarlo, elimina sus ítems o borra el examen entero."); return; }
-  if(!await confirmar("¿Eliminar este apartado y todos sus ítems?")) return;
-  act.rubrica=act.rubrica.filter(s=>s.id!==secId);
-  cxLimpiarPuntuacionesHuerfanas(grupo,act);
+window.cxAddSub=secId=>{ const x=cxCtxEd(); if(!x) return;
+  const sec=cxFindNodo(x.rub,secId); if(!sec) return;
+  if(cxNivelNodo(x.rub,secId)>=CX_MAX_NIVELES-1) return;
+  if(!Array.isArray(sec.subs)) sec.subs=[];
+  sec.subs.push({id:uid(),title:"",items:[cxNuevoItem()],subs:[]});
+  cxDesplegar(secId);
   save(); render(); };
-window.cxMoveSeccion=(secId,dir)=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  const i=act.rubrica.findIndex(s=>s.id===secId); const j=i+dir; if(j<0||j>=act.rubrica.length) return;
-  [act.rubrica[i],act.rubrica[j]]=[act.rubrica[j],act.rubrica[i]]; save(); render(); };
-window.cxSetSeccionTitle=(secId,v)=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  const sec=act.rubrica.find(s=>s.id===secId); if(sec){ sec.title=v; save(); } };
-window.cxAddItem=secId=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  const sec=act.rubrica.find(s=>s.id===secId); if(!sec) return;
-  sec.items.push({id:uid(),label:"",max:0,desc:[],links:[]}); save(); render(); };
-window.cxDelItem=(secId,itemId)=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  const sec=act.rubrica.find(s=>s.id===secId); if(!sec) return;
-  if(sec.items.length<=1){ mostrarAviso("Debe quedar al menos un ítem en el apartado (o elimina el apartado entero)."); return; }
+window.cxDelSeccion=async secId=>{ const x=cxCtxEd(); if(!x) return;
+  const lista=cxListaDeNodo(x.rub,secId); if(!lista) return;
+  if(lista===x.rub && x.rub.length<=1){ mostrarAviso("Debe quedar al menos un apartado. Si quieres vaciarlo, elimina sus ítems o borra el examen entero."); return; }
+  const n=lista.find(s=>s.id===secId);
+  const nItems=cxItemsFlat([n]).length, nSubs=cxNodosFlat([n]).length-1;
+  if(!await confirmar(`¿Eliminar este ${CX_NOMBRE_NIVEL[cxNivelNodo(x.rub,secId)]?.toLowerCase()||"apartado"}${nSubs?`, sus ${nSubs} subapartado${nSubs===1?"":"s"}`:""} y ${nItems===1?"su ítem":`sus ${nItems} ítems`}?`)) return;
+  lista.splice(lista.indexOf(n),1);
+  cxLimpiarPuntuacionesHuerfanas(x.grupo,x.act);
+  save(); render(); };
+window.cxMoveSeccion=(secId,dir)=>{ const x=cxCtxEd(); if(!x) return;
+  const lista=cxListaDeNodo(x.rub,secId); if(!lista) return;
+  const i=lista.findIndex(s=>s.id===secId); const j=i+dir; if(j<0||j>=lista.length) return;
+  [lista[i],lista[j]]=[lista[j],lista[i]]; save(); render(); };
+window.cxSetSeccionTitle=(secId,v)=>{ const x=cxCtxEd(); if(!x) return;
+  const sec=cxFindNodo(x.rub,secId); if(sec){ sec.title=v; save(); } };
+window.cxSetNodoElegir=(secId,v)=>{ const x=cxCtxEd(); if(!x) return;
+  const sec=cxFindNodo(x.rub,secId); if(!sec) return;
+  const k=Number(v)||0; if(k>0) sec.elegir=k; else delete sec.elegir;
+  cxRecalcTodosLosAlumnos(x.grupo,x.act); save(); render(); };
+window.cxAddItem=secId=>{ const x=cxCtxEd(); if(!x) return;
+  const sec=cxFindNodo(x.rub,secId); if(!sec) return;
+  if(!Array.isArray(sec.items)) sec.items=[];
+  sec.items.push(cxNuevoItem()); cxDesplegar(secId); save(); render(); };
+window.cxDelItem=(secId,itemId)=>{ const x=cxCtxEd(); if(!x) return;
+  const sec=cxFindNodo(x.rub,secId); if(!sec) return;
+  if((sec.items||[]).length<=1 && !(sec.subs||[]).length){ mostrarAviso("Debe quedar al menos un ítem (o un subapartado) en el apartado. Si sobra, elimina el apartado entero."); return; }
   sec.items=sec.items.filter(it=>it.id!==itemId);
-  cxLimpiarPuntuacionesHuerfanas(grupo,act);
+  if(sec.elegir && sec.elegir>=cxNumHijos(sec)) delete sec.elegir;
+  cxLimpiarPuntuacionesHuerfanas(x.grupo,x.act);
   save(); render(); };
-window.cxMoveItem=(secId,itemId,dir)=>{ const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  const sec=act.rubrica.find(s=>s.id===secId); if(!sec) return;
+window.cxMoveItem=(secId,itemId,dir)=>{ const x=cxCtxEd(); if(!x) return;
+  const sec=cxFindNodo(x.rub,secId); if(!sec) return;
   const i=sec.items.findIndex(it=>it.id===itemId); const j=i+dir; if(j<0||j>=sec.items.length) return;
   [sec.items[i],sec.items[j]]=[sec.items[j],sec.items[i]]; save(); render(); };
 window.cxSetItemLabel=(secId,itemId,v)=>{ const it=cxFindItem(secId,itemId); if(it){ it.label=v; save(); } };
 window.cxSetEscalarA10=on=>{
-  const grupo=grupoActual(); const act=grupo && grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  act.escalarA10=!!on; cxRecalcTodosLosAlumnos(grupo,act); save(); render();
+  const x=cxCtxEd(); if(!x) return;
+  const v=cxVarEditando(x.act);
+  if(v) v.escalarA10=!!on; else x.act.escalarA10=!!on;
+  cxRecalcTodosLosAlumnos(x.grupo,x.act); save(); render();
   mostrarToast(on?"✓ Notas recalculadas sobre 10":"Notas recalculadas como suma de puntos");
 };
 window.cxSetItemMax=(secId,itemId,v)=>{
-  const grupo=grupoActual(); const act=grupo && grupo.actividades.find(a=>a.id===state.ui.corExamId);
-  const it=cxFindItem(secId,itemId); if(!it) return;
+  const x=cxCtxEd(); const it=cxFindItem(secId,itemId); if(!it||!x) return;
   it.max=Math.max(0,Number(String(v??"").replace(",","."))||0);
-  if(act){
-    // Si el nuevo máximo queda por debajo de puntuaciones ya guardadas, se reajustan
-    // para no generar porcentajes por encima del 100% ni notas cuantitativas infladas.
-    Object.keys(grupo.rubricScores||{}).forEach(alId=>{
-      const val=grupo.rubricScores[alId]?.[act.id]?.[itemId];
-      if(val!=null && Number(val)>it.max) grupo.rubricScores[alId][act.id][itemId]=it.max;
-    });
-    cxRecalcTodosLosAlumnos(grupo,act);
-  }
+  // Si el nuevo máximo queda por debajo de puntuaciones ya guardadas, se reajustan
+  // para no generar porcentajes por encima del 100% ni notas cuantitativas infladas.
+  Object.keys(x.grupo.rubricScores||{}).forEach(alId=>{
+    const val=x.grupo.rubricScores[alId]?.[x.act.id]?.[itemId];
+    if(val!=null && Number(val)>it.max) x.grupo.rubricScores[alId][x.act.id][itemId]=it.max;
+  });
+  cxRecalcTodosLosAlumnos(x.grupo,x.act);
   save(); render();
 };
 window.cxSetItemDesc=(secId,itemId,v)=>{ const it=cxFindItem(secId,itemId); if(it){ it.desc=String(v||"").split("\n").map(s=>s.trim()).filter(Boolean); save(); } };
 window.cxToggleItemCriterios=itemId=>{ state.ui.corItemAbierto = state.ui.corItemAbierto===itemId? "" : itemId; save(); render(); };
 window.cxToggleItemLink=(secId,itemId,critId)=>{
-  const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
+  const x=cxCtxEd(); if(!x) return;
   const it=cxFindItem(secId,itemId); if(!it) return;
   if(!it.links) it.links=[];
   const i=it.links.findIndex(l=>l.critId===critId);
   if(i>=0) it.links.splice(i,1); else it.links.push({critId,peso:100});
-  cxSyncCriteriosActividad(act); cxRecalcTodosLosAlumnos(grupo,act);
+  cxSyncCriteriosActividad(x.act); cxRecalcTodosLosAlumnos(x.grupo,x.act);
   save(); render(); };
 window.cxSetItemLinkPeso=(itemId,critId,v)=>{
-  const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===state.ui.corExamId); if(!act) return;
-  const it=cxItemsFlat(act.rubrica).find(x=>x.id===itemId); if(!it) return;
-  const l=(it.links||[]).find(x=>x.critId===critId); if(l){ l.peso=Number(v)||0; cxRecalcTodosLosAlumnos(grupo,act); save(); } };
+  const x=cxCtxEd(); if(!x) return;
+  const it=cxItemsFlat(x.rub).find(y=>y.id===itemId); if(!it) return;
+  const l=(it.links||[]).find(y=>y.critId===critId); if(l){ l.peso=Number(v)||0; cxRecalcTodosLosAlumnos(x.grupo,x.act); save(); } };
+/* ---- Rúbricas adaptadas (NESE) ---- */
+window.cxElegirVariante=id=>{ state.ui.corVarId=id||""; state.ui.corItemAbierto=""; save(); render(); };
+window.cxNuevaVariante=()=>{
+  const x=cxCtxEd(); if(!x) return;
+  if(!Array.isArray(x.act.variantes)) x.act.variantes=[];
+  const ocupados=new Set(cxVariantes(x.act).flatMap(v=>v.alumnos||[]));
+  const nese=x.grupo.alumnos.filter(al=>al.nese && !ocupados.has(al.id)).map(al=>al.id);
+  const n=x.act.variantes.length+1;
+  const v={id:uid(), nombre:n===1?"Adaptada (NESE)":"Adaptada "+n, rubrica:cxClonarRubrica(x.act.rubrica,null), escalarA10:true, alumnos:nese};
+  x.act.variantes.push(v);
+  state.ui.corVarId=v.id;
+  nese.forEach(alId=>cxRecalcAlumno(x.grupo,x.act,alId));
+  cxSyncCriteriosActividad(x.act);
+  save(); render();
+  mostrarToast(nese.length?`✓ Rúbrica adaptada creada (copia de la general) con ${nese.length} alumno${nese.length===1?"":"s"} NESE`:"✓ Rúbrica adaptada creada (copia de la general). Marca qué alumnado la hace");
+};
+window.cxSetVarianteNombre=v=>{ const x=cxCtxEd(); const va=x&&cxVarEditando(x.act); if(!va) return; va.nombre=String(v||"").trim()||va.nombre; save(); render(); };
+window.cxToggleAlumnoVariante=(alId,on)=>{
+  const x=cxCtxEd(); const va=x&&cxVarEditando(x.act); if(!va) return;
+  const tienePuntos=Object.keys(x.grupo.rubricScores?.[alId]?.[x.act.id]||{}).length>0;
+  va.alumnos=(va.alumnos||[]).filter(id=>id!==alId);
+  if(on){ cxVariantes(x.act).forEach(v=>{ v.alumnos=(v.alumnos||[]).filter(id=>id!==alId); }); va.alumnos.push(alId); }
+  cxRecalcAlumno(x.grupo,x.act,alId);
+  save(); render();
+  if(tienePuntos) mostrarToast("Ojo: este alumno/a ya estaba corregido con otra rúbrica — revisa su corrección","info");
+};
+window.cxCopiarGeneralEnVariante=async ()=>{
+  const x=cxCtxEd(); const va=x&&cxVarEditando(x.act); if(!va) return;
+  if(!await confirmar("¿Sustituir esta rúbrica adaptada por una copia de la general? Se perderán sus apartados actuales y lo ya corregido con ella.",{ok:"Sí, sustituir"})) return;
+  va.rubrica=cxClonarRubrica(x.act.rubrica,null);
+  cxLimpiarPuntuacionesHuerfanas(x.grupo,x.act);
+  save(); render();
+};
+window.cxEliminarVariante=async ()=>{
+  const x=cxCtxEd(); const va=x&&cxVarEditando(x.act); if(!va) return;
+  if(!await confirmar(`¿Eliminar la rúbrica adaptada «${va.nombre}»? ${(va.alumnos||[]).length?"Su alumnado pasará a corregirse con la rúbrica general.":""}`)) return;
+  x.act.variantes=cxVariantes(x.act).filter(v=>v.id!==va.id);
+  state.ui.corVarId="";
+  cxLimpiarPuntuacionesHuerfanas(x.grupo,x.act);
+  save(); render();
+};
 
 /* ---------- Corregir (lista de alumnado de un examen + panel por alumno) ---------- */
 function renderCorCorregir(grupo){
@@ -13377,7 +13982,7 @@ function renderCorCorregir(grupo){
     const vc=grupo.notasCuant?.[al.id]?.[act.id];
     const hecho=vc!=null;
     return `<tr>
-      <td>${esc(al.nombre)}${neseBadgeHTML(al)}${marcaBadgeHTML(grupo,al.id,act.id)}</td>
+      <td>${esc(al.nombre)}${neseBadgeHTML(al)}${marcaBadgeHTML(grupo,al.id,act.id)}${cxVarianteDeAlumno(act,al.id)?` <span class="badge" title="Se corrige con una rúbrica adaptada">${esc(cxVarianteDeAlumno(act,al.id).nombre||"Adaptada")}</span>`:""}</td>
       <td style="font-weight:600">${hecho?fmt(vc):"—"}</td>
       <td>${hecho?pillCuant(vc):'<span class="badge">Sin corregir</span>'}</td>
       <td><button class="btn small" onclick="cxIrAlumno('${al.id}')">${hecho?"Revisar":"Corregir"}</button>${hecho?` <button class="ghost small" style="border:1px solid var(--line)" title="Imprimir la rúbrica de este alumno/a" onclick="cxImprimirRubrica('${al.id}','${act.id}')">🖨️</button>`:""}</td>
@@ -13432,16 +14037,24 @@ function barraHorizontalHTML(label,pct,color){
 function cxEstadisticasItems(grupo,act){
   const corregidos=grupo.alumnos.filter(al=>grupo.notasCuant?.[al.id]?.[act.id]!=null);
   const filas=[];
-  (act.rubrica||[]).forEach(sec=>{
-    (sec.items||[]).forEach(it=>{
-      const max=Number(it.max)||0;
-      const vals=corregidos.map(al=>{
-        const v=grupo.rubricScores?.[al.id]?.[act.id]?.[it.id];
-        return (v==null||max<=0)?null:(Number(v)/max)*100;
-      }).filter(v=>v!=null);
-      const avg=vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null;
-      filas.push({seccion:sec.title,label:it.label||"(sin enunciado)",avg,n:vals.length});
+  const grupos=[{nombre:"",rubrica:act.rubrica,alumnos:corregidos.filter(al=>!cxVarianteDeAlumno(act,al.id))},
+    ...cxVariantes(act).map(v=>({nombre:v.nombre||"Adaptada",rubrica:v.rubrica,alumnos:corregidos.filter(al=>(v.alumnos||[]).includes(al.id))}))];
+  grupos.forEach(gr=>{
+    if(gr.nombre && !gr.alumnos.length) return;
+    const walk=(list,ruta)=>(list||[]).forEach(sec=>{
+      const r=[...ruta,(sec.title||"").split("\n")[0].slice(0,60)].filter(Boolean);
+      (sec.items||[]).forEach(it=>{
+        const max=Number(it.max)||0;
+        const vals=gr.alumnos.map(al=>{
+          const v=grupo.rubricScores?.[al.id]?.[act.id]?.[it.id];
+          return (v==null||max<=0)?null:(Number(v)/max)*100;
+        }).filter(v=>v!=null);
+        const avg=vals.length? vals.reduce((x,y)=>x+y,0)/vals.length : null;
+        filas.push({seccion:(gr.nombre?"["+gr.nombre+"] ":"")+r.join(" › "),label:it.label||"(sin enunciado)",avg,n:vals.length});
+      });
+      walk(sec.subs,r);
     });
+    walk(gr.rubrica,[]);
   });
   return filas;
 }
@@ -13456,28 +14069,41 @@ function cxEstadisticasItemsHTML(grupo,act){
     <p class="sub" style="margin:4px 0 0;font-size:11px">Media de acierto de cada ítem (puntos obtenidos / puntos máximos) sobre el alumnado ya corregido, de peor a mejor.</p>`;
 }
 window.cxToggleEstadisticas=()=>{ state.ui.cxVerEstadisticas=!state.ui.cxVerEstadisticas; save(); render(); };
+function cxNodoCorregirHTML(sec,depth,sc,alId,actId){
+  const k=cxElegirEf(sec);
+  const ev=cxEvalNodo(sec,sc);
+  const elegidos=new Set(ev.elegidosIds);
+  const atenuar=id=> k && ev.hay && !elegidos.has(id);
+  const items=(sec.items||[]).map(it=>`
+        <div class="row" style="justify-content:space-between;margin-bottom:6px;align-items:flex-start;${atenuar(it.id)?"opacity:.5":""}">
+          <div style="flex:1">
+            <div style="font-size:13.5px">${esc(it.label||"(sin enunciado)")}</div>
+            ${it.desc&&it.desc.length?`<div style="font-size:11.5px;color:var(--mut);margin-top:2px">${it.desc.map(d=>`• ${esc(d)}`).join("<br>")}</div>`:""}
+          </div>
+          <span class="flex" style="align-items:center;flex-shrink:0">
+            <input class="in miniw" type="text" inputmode="decimal" autocomplete="off" style="width:70px" value="${sc[it.id]==null?'':String(sc[it.id]).replace('.',',')}" onchange="cxSetItemScore('${alId}','${actId}','${it.id}',this.value)">
+            <span style="font-size:12px;color:var(--mut)">/ ${cxFmtPts(it.max)}</span>
+          </span>
+        </div>`).join("");
+  const subs=(sec.subs||[]).map(s=>`<div style="${atenuar(s.id)?"opacity:.5;":""}">${cxNodoCorregirHTML(s,depth+1,sc,alId,actId)}</div>`).join("");
+  const cab=`<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:6px">
+      <div style="${depth===0?"font-size:12.5px;text-transform:uppercase;letter-spacing:.02em":"font-size:13px"};color:var(--mut);font-weight:600;white-space:pre-wrap">${esc(sec.title||(depth===0?"Apartado":"Subapartado"))}</div>
+      <div style="font-size:12px;color:var(--mut);white-space:nowrap">${ev.hay?`<strong style="color:var(--ink)">${cxFmtPts(ev.pts)}</strong>`:"—"} / ${cxFmtPts(cxMaxNodo(sec))}</div>
+    </div>
+    ${k?`<div class="sub" style="font-size:11.5px;margin:-2px 0 6px">A elegir: cuentan ${k} de ${cxNumHijos(sec)}. Puntúa solo lo que haya respondido.</div>`:""}`;
+  if(depth===0) return `<div style="margin-bottom:16px">${cab}${items}${subs}</div>`;
+  return `<div style="margin:8px 0 10px ${depth>1?"14px":"10px"};padding-left:10px;border-left:3px solid var(--line)">${cab}${items}${subs}</div>`;
+}
 function renderCxGradingAlumno(grupo,act,al){
   const c=document.getElementById("tabContent");
   const alumnos=grupo.alumnos;
   const i=alumnos.findIndex(a=>a.id===al.id);
   grupo.rubricScores[al.id]=grupo.rubricScores[al.id]||{};
   const sc=grupo.rubricScores[al.id][act.id]=grupo.rubricScores[al.id][act.id]||{};
-  const critIds=cxCriteriosDeRubrica(act.rubrica);
-  const itemsHtml=act.rubrica.map(sec=>`
-    <div style="margin-bottom:14px">
-      <div style="font-size:12.5px;color:var(--mut);font-weight:600;text-transform:uppercase;margin-bottom:6px">${esc(sec.title)}</div>
-      ${sec.items.map(it=>`
-        <div class="row" style="justify-content:space-between;margin-bottom:6px;align-items:flex-start">
-          <div style="flex:1">
-            <div style="font-size:13.5px">${esc(it.label||"(sin enunciado)")}</div>
-            ${it.desc&&it.desc.length?`<div style="font-size:11.5px;color:var(--mut);margin-top:2px">${it.desc.map(d=>`• ${esc(d)}`).join("<br>")}</div>`:""}
-          </div>
-          <span class="flex" style="align-items:center;flex-shrink:0">
-            <input class="in miniw" type="text" inputmode="decimal" autocomplete="off" style="width:70px" value="${sc[it.id]==null?'':String(sc[it.id]).replace('.',',')}" onchange="cxSetItemScore('${al.id}','${act.id}','${it.id}',this.value)">
-            <span style="font-size:12px;color:var(--mut)">/ ${it.max}</span>
-          </span>
-        </div>`).join("")}
-    </div>`).join("");
+  const rubAl=cxRubricaDe(act,al.id);
+  const varAl=cxVarianteDeAlumno(act,al.id);
+  const critIds=cxCriteriosDeRubrica(rubAl);
+  const itemsHtml=rubAl.map(sec=>cxNodoCorregirHTML(sec,0,sc,al.id,act.id)).join("");
   const vc=grupo.notasCuant?.[al.id]?.[act.id];
   const critPanel=critIds.length? `<div class="grid" style="gap:6px;margin-top:6px">
     ${critIds.map(cid=>{
@@ -13500,7 +14126,8 @@ function renderCxGradingAlumno(grupo,act,al){
     </div>
   </div>
   <div class="card">
-    <h2 style="font-size:15px">Rúbrica</h2>
+    <h2 style="font-size:15px">Rúbrica${varAl?` <span class="badge" style="vertical-align:middle">${esc(varAl.nombre||"Adaptada")}</span>`:""}</h2>
+    ${varAl?`<p class="sub" style="margin:0 0 10px">Este alumno/a hace un examen adaptado y se corrige con su propia rúbrica.</p>`:""}
     ${itemsHtml}
   </div>
   <div class="card">
@@ -13524,7 +14151,7 @@ function renderCxGradingAlumno(grupo,act,al){
 }
 window.cxSetItemScore=(alId,actId,itemId,v)=>{
   const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===actId); if(!act) return;
-  const item=cxItemsFlat(act.rubrica).find(it=>it.id===itemId); if(!item) return;
+  const item=cxItemsFlat(cxRubricaDe(act,alId)).find(it=>it.id===itemId); if(!item) return;
   const txt=String(v??"").trim().replace(",",".");
   let val=txt===""?null:Number(txt);
   if(val!=null){
@@ -13540,12 +14167,13 @@ window.cxSetItemScore=(alId,actId,itemId,v)=>{
 };
 window.cxExportarCSV=actId=>{
   const grupo=grupoActual(); const act=grupo.actividades.find(a=>a.id===actId); if(!act) return;
-  let csv="Alumno;Nota (0-10);Calificacion\n";
+  let csv="Alumno;Nota (0-10);Calificacion;Rubrica\n";
   const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
   grupo.alumnos.forEach(al=>{
     const v=grupo.notasCuant?.[al.id]?.[act.id];
     const et=etiquetaNota(v,grupo);
-    csv+=`${q(al.nombre)};${v==null?'':String(fmt(v))};${et?et.etq:''}\n`;
+    const va=cxVarianteDeAlumno(act,al.id);
+    csv+=`${q(al.nombre)};${v==null?'':String(fmt(v))};${et?et.etq:''};${q(va?(va.nombre||"Adaptada"):"General")}\n`;
   });
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});
   const u=URL.createObjectURL(blob); const a=document.createElement("a");
@@ -13595,11 +14223,11 @@ function cxRubricaBodyHTML(grupo,act,al,opts){
   const cat=getCatalogo(grupo.catalogoKey);
   const sc=grupo.rubricScores?.[al.id]?.[act.id]||{};
   const vc=grupo.notasCuant?.[al.id]?.[act.id];
-  const maxTotal=cxMaxTotal(act.rubrica);
+  const rubAl=cxRubricaDe(act,al.id);
+  const maxTotal=cxMaxTotal(rubAl);
   const comentario=(grupo.examComentarios?.[al.id]?.[act.id]||"").trim();
   const fechaLarga=new Date().toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"});
-  const seccionesHtml=(act.rubrica||[]).map(sec=>{
-    const filas=(sec.items||[]).map(it=>{
+  const filaItem=it=>{
       const val=sc[it.id];
       const max=Number(it.max)||0;
       const desc=(it.desc&&it.desc.length)?`<div class="cx-item-desc">${it.desc.map(d=>"• "+esc(d)).join("<br>")}</div>`:"";
@@ -13611,9 +14239,19 @@ function cxRubricaBodyHTML(grupo,act,al,opts){
           <span class="cx-item-score">${val==null?"—":fmt(Number(val))}</span>
           <small> / ${fmt(max)}</small>
         </td></tr>`;
-    }).join("");
-    return `<div class="cx-sec"><h2>${esc(sec.title||"Apartado")}</h2><table><tbody>${filas}</tbody></table></div>`;
-  }).join("");
+  };
+  // En los apartados "a elegir" se imprime solo lo que ha respondido el alumno/a.
+  const nodoHTML=(sec,depth)=>{
+    const k=cxElegirEf(sec); const ev=cxEvalNodo(sec,sc); const eleg=new Set(ev.elegidosIds);
+    const mostrar=id=> !k || !ev.hay || eleg.has(id);
+    const filas=(sec.items||[]).filter(it=>mostrar(it.id)).map(filaItem).join("");
+    const subs=(sec.subs||[]).filter(s=>mostrar(s.id)).map(s=>nodoHTML(s,depth+1)).join("");
+    const tit=esc(sec.title||(depth===0?"Apartado":"Subapartado"));
+    const pts=`<span style="float:right;font-weight:600;color:#141b28;text-transform:none;letter-spacing:0">${ev.hay?fmt(ev.pts):"—"} / ${fmt(cxMaxNodo(sec))}</span>`;
+    if(depth===0) return `<div class="cx-sec"><h2 style="white-space:pre-wrap">${pts}${tit}</h2>${filas?`<table><tbody>${filas}</tbody></table>`:""}${subs}</div>`;
+    return `<div style="margin:12px 0 0 ${depth>1?"14px":"0"}"><h3 style="font-size:12.5px;color:#465064;margin:0 0 4px;white-space:pre-wrap">${pts}${tit}</h3>${filas?`<table><tbody>${filas}</tbody></table>`:""}${subs}</div>`;
+  };
+  const seccionesHtml=(rubAl||[]).map(sec=>nodoHTML(sec,0)).join("");
   return `
     <div${opts.pageBreak?' style="page-break-before:always;break-before:page"':''}>
     ${state.centroNombre?`<div class="cx-letterhead">${esc(state.centroNombre)}</div>`:""}
@@ -13622,7 +14260,7 @@ function cxRubricaBodyHTML(grupo,act,al,opts){
     <div class="cx-meta-line">${esc(act.nombre)}<span class="sep">·</span>${esc(cat.materia)} ${esc(cat.curso)}<span class="sep">·</span>Grupo ${esc(grupo.nombre)}<span class="sep">·</span><b>${fechaLarga}</b></div>
     ${seccionesHtml}
     <div class="cx-total-box">
-      <div><div class="cx-total-label">Puntuación total</div><div class="cx-total-value">${vc==null?"—":fmt(vc)} <small>/ ${fmt(maxTotal)}</small></div></div>
+      <div><div class="cx-total-label">Puntuación total</div><div class="cx-total-value">${vc==null?"—":fmt(vc)} <small>/ ${fmt(cxEscalarDe(act,al.id)&&maxTotal>0&&Math.abs(maxTotal-10)>=0.01?10:maxTotal)}</small></div></div>
       <div>${pillCuant(vc)}</div>
     </div>
     ${comentario?`<div class="cx-comentario"><h2>Comentario del profesor/a</h2><p style="white-space:pre-wrap">${esc(comentario)}</p></div>`:""}
@@ -13664,7 +14302,7 @@ window.cxImprimirRubricasTodos=actId=>{
 /* ---------- Vista de solo-lectura del examen dentro de "Calificar" (Evaluación Competencial) ---------- */
 function renderCalificarRubrica(grupo,act,acts){
   const c=document.getElementById("tabContent");
-  const critIds=cxCriteriosDeRubrica(act.rubrica);
+  const critIds=cxCriteriosDeActividad(act);
   const rows=grupo.alumnos.map(al=>{
     const vc=grupo.notasCuant?.[al.id]?.[act.id];
     const crit=critIds.map(cid=>{
