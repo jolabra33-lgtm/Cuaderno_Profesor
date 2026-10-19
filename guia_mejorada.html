@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Guía de uso · Evaluación, Corrector y Tutoría</title>
+<title>Guía de uso · Cuaderno del profesor</title>
 <meta name="theme-color" content="#0a1120">
 <style>
   :root{
@@ -43,6 +43,19 @@
   .flow{display:grid;gap:8px;margin:14px 0}
   .flow .step{background:var(--card);border:1px solid var(--line);border-left:4px solid #b3893a;border-radius:10px;padding:10px 14px;font-size:14.5px}
   .flow .step b{color:#8a6a24}
+  h2,h3{scroll-margin-top:96px}
+  main a{color:#8a6a24;font-weight:600}
+  .mini{font-size:13.5px;color:var(--mut)}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:14px 0}
+  .grid2 .card{margin:0}
+  .grid2 .card h4{margin:0 0 4px;font-size:15px}
+  .grid2 .card p{margin:0;font-size:14px}
+  .tabs3{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .tabs3 span{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:13px;font-weight:600}
+  .tabs3 span.on{background:linear-gradient(135deg,#d7b463,#b3893a);color:#fff;border-color:transparent}
+  .check li{list-style:none;margin-left:-18px}
+  .check li::before{content:"☐ ";color:#8a6a24;font-weight:700}
+  @media print{ header{position:static} nav.toc{break-after:page} .tip,.warn,.card,.flow .step{break-inside:avoid} }
   footer{color:var(--mut);font-size:13px;text-align:center;padding:20px;border-top:1px solid var(--line);margin-top:40px}
 </style>
 </head>
@@ -52,7 +65,7 @@
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div>
         <h1>Guía de uso</h1>
-        <p class="sub">Evaluación por Competencias · Corrector de Exámenes · Gestor de Tutoría — Geografía e Historia</p>
+        <p class="sub">Cuaderno del profesor · Evaluación por Competencias · Corrector y diseño de exámenes · Gestor de Tutoría</p>
       </div>
       <a href="index.html" style="flex-shrink:0;text-decoration:none;color:rgba(244,236,216,.92);border:1px solid rgba(215,180,99,.35);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;background:rgba(215,180,99,.08);white-space:nowrap">🏠 Inicio</a>
     </div>
@@ -62,34 +75,66 @@
 
 <nav class="toc">
   <strong>Contenido</strong>
-  <ol>
-    <li><a href="#novedades"><strong>Novedades de la versión mejorada</strong></a></li>
-    <li><a href="#vision">Qué es esta suite y cómo se organiza</a></li>
-    <li><a href="#primeros">Primeros pasos: crear un grupo y su alumnado</a></li>
-    <li><a href="#competencial">Evaluación por Competencias</a></li>
-    <li><a href="#programacion">Programación de Aula</a></li>
-    <li><a href="#memoria">Memoria de curso</a></li>
-    <li><a href="#corrector">Corrector de Exámenes (rúbricas)</a></li>
-    <li><a href="#conexion">Cómo se conectan Corrector y Competencias</a></li>
-    <li><a href="#tutoria">Gestor de Tutoría</a></li>
-    <li><a href="#copias">Copias de seguridad (imprescindible)</a></li>
-    <li><a href="#papelera">Papelera: recuperar lo borrado por error</a></li>
-    <li><a href="#offline">Uso sin conexión e instalación como app</a></li>
-    <li><a href="#calendario">Calendario de Inicio</a></li>
-    <li><a href="#reuniones">Reuniones y actas</a></li>
-    <li><a href="#buscador">Buscador global</a></li>
-    <li><a href="#refuerzo">Plan de Refuerzo</a></li>
-    <li><a href="#repeticion">Plan de Repetición</a></li>
-    <li><a href="#nese">Alumnos NESE</a></li>
-    <li><a href="#horario">Mi horario semanal</a></li>
-    <li><a href="#pulido">Notificaciones y navegación rápida</a></li>
-    <li><a href="#tema">Modo oscuro</a></li>
-    <li><a href="#faq">Preguntas frecuentes</a></li>
+  <ol style="list-style:none;padding-left:0">
+    <li><a href="#novedades"><strong>✨ Novedades: diseño de exámenes dentro del Corrector</strong></a></li>
+    <li><a href="#rapido">⏱️ Empezar en 5 minutos</a></li>
+    <li><a href="#vision">1. Qué es esta suite y cómo se organiza</a></li>
+    <li><a href="#primeros">2. Primeros pasos: crear un grupo y su alumnado</a></li>
+    <li><a href="#competencial">3. Evaluación por Competencias</a></li>
+    <li><a href="#programacion">4. Programación de Aula</a></li>
+    <li><a href="#memoria">5. Memoria de curso</a></li>
+    <li><a href="#corrector">6. Corrector de Exámenes: diseñar, rúbrica y corregir</a>
+      <ol style="list-style:none;padding-left:18px;margin:2px 0 4px">
+        <li><a href="#cx-flujo">6.1 El camino completo de un examen</a></li>
+        <li><a href="#cx-crear">6.2 Crear el examen</a></li>
+        <li><a href="#cx-diseno">6.3 Diseñar el examen (pestaña Diseño)</a></li>
+        <li><a href="#cx-importar">6.4 Pasar el examen a la rúbrica</a></li>
+        <li><a href="#cx-rubrica">6.5 La rúbrica</a></li>
+        <li><a href="#cx-nese">6.6 Alumnado NESE y Versión B</a></li>
+        <li><a href="#cx-corregir">6.7 Corregir</a></li>
+        <li><a href="#cx-analisis">6.8 Análisis de resultados</a></li>
+        <li><a href="#cx-pdf">6.9 Imprimir el examen o pasarlo a PDF y Word</a></li>
+        <li><a href="#cx-reutilizar">6.10 Reutilizar exámenes en otros grupos y cursos</a></li>
+      </ol></li>
+    <li><a href="#conexion">7. Cómo se conectan Corrector y Competencias</a></li>
+    <li><a href="#tutoria">8. Gestor de Tutoría</a></li>
+    <li><a href="#calendario">9. Calendario de Inicio</a></li>
+    <li><a href="#reuniones">10. Reuniones y actas</a></li>
+    <li><a href="#buscador">11. Buscador global</a></li>
+    <li><a href="#refuerzo">12. Plan de Refuerzo</a></li>
+    <li><a href="#repeticion">13. Plan de Repetición</a></li>
+    <li><a href="#nese">14. Alumnos NESE</a></li>
+    <li><a href="#horario">15. Mi horario semanal</a></li>
+    <li><a href="#pulido">16. Notificaciones y navegación rápida</a></li>
+    <li><a href="#tema">17. Modo oscuro y versión de pantalla</a></li>
+    <li><a href="#copias"><strong>18. Copias de seguridad (imprescindible)</strong></a></li>
+    <li><a href="#papelera">19. Papelera: recuperar lo borrado por error</a></li>
+    <li><a href="#offline">20. Uso sin conexión, instalación y actualizaciones</a></li>
+    <li><a href="#faq">21. Preguntas frecuentes</a></li>
   </ol>
 </nav>
 
-<h2 id="novedades">✨ Novedades de la versión mejorada</h2>
-<p>Resumen de todo lo que ha cambiado. Tus datos de siempre funcionan igual: no hay que convertir nada.</p>
+<h2 id="novedades">✨ Novedades: diseño de exámenes dentro del Corrector</h2>
+<p>Ahora el examen se <strong>escribe</strong> en la propia app, y de ese mismo examen salen la rúbrica, la corrección y el análisis. Tus datos de siempre funcionan igual: no hay que convertir nada.</p>
+<div class="grid2">
+  <div class="card"><h4>✏️ Pestaña Diseño</h4><p>Editor de exámenes con vista de página real (A4), apartados, preguntas, subpreguntas, tablas, imágenes, líneas de respuesta… Se guarda solo. <a href="#cx-diseno">Ver 6.3</a></p></div>
+  <div class="card"><h4>📋 Del examen a la rúbrica</h4><p>«Importar a la rúbrica →» copia apartados, preguntas y subpreguntas, con sus puntos y los criterios que marques en cada pregunta. Si retocas el examen, reimportas sin perder notas. <a href="#cx-importar">Ver 6.4</a></p></div>
+  <div class="card"><h4>📊 Cobertura de criterios</h4><p>Qué criterios evalúa el examen y con qué peso; avisa de preguntas sin criterio, de puntos que no suman 10 y de apartados que no cuadran.</p></div>
+  <div class="card"><h4>🧩 NESE y 🔀 Versión B</h4><p>Un examen adaptado para cada rúbrica adaptada, y una versión B con las preguntas barajadas que comparte rúbrica. <a href="#cx-nese">Ver 6.6</a></p></div>
+  <div class="card"><h4>↕ Corregir por pregunta</h4><p>Una misma pregunta para todo el grupo seguida, con <span class="kbd">Intro</span> para bajar. Cada ítem muestra su enunciado y admite un comentario para el alumno/a. <a href="#cx-corregir">Ver 6.7</a></p></div>
+  <div class="card"><h4>📈 Análisis</h4><p>Porcentaje de acierto por pregunta y por criterio, y las preguntas por debajo del 50 %. <a href="#cx-analisis">Ver 6.8</a></p></div>
+  <div class="card"><h4>📦 Paquetes de examen</h4><p>Examen + rúbrica + adaptaciones en un archivo, para otro grupo, otro curso o un compañero. Sin alumnado ni notas. <a href="#cx-reutilizar">Ver 6.10</a></p></div>
+  <div class="card"><h4>🖨️ PDF fiable en iPad</h4><p>«Exportar PDF» usa la vista previa de impresión de la app. También «Exportar Word» (.docx). <a href="#cx-pdf">Ver 6.9</a></p></div>
+</div>
+<h3>Más seguro</h3>
+<ul>
+  <li><strong>Las copias incluyen los diseños.</strong> «Exportar copia» (normal o cifrada) guarda también los exámenes diseñados, y al importarla se recuperan. Además se hace una copia automática diaria de los diseños (🛟 en la Ayuda del Diseño).</li>
+  <li><strong>Reimportar con notas puestas</strong> te dice antes qué preguntas cambian o desaparecen; ninguna puntuación queda por encima del nuevo máximo de su pregunta.</li>
+  <li><strong>Funciona sin conexión.</strong> El editor no necesita internet: las fuentes Lora e Inter van dentro de la app. Solo algunas fuentes opcionales se descargan, y únicamente si el examen las usa.</li>
+</ul>
+
+<h3 style="margin-top:34px;color:var(--mut)">Mejoras de la versión anterior</h3>
+<p class="mini">Siguen vigentes; se recogen aquí como referencia.</p>
 
 <h3>Notas más fiables</h3>
 <ul>
@@ -152,6 +197,17 @@
   <li>En el teléfono, la cabecera es más compacta y los grupos se deslizan en una sola fila.</li>
 </ul>
 
+<h2 id="rapido">⏱️ Empezar en 5 minutos</h2>
+<p>La aplicación arranca <strong>vacía</strong> en cada dispositivo: no trae alumnado ni notas de nadie. Para ponerla en marcha:</p>
+<div class="flow">
+  <div class="step"><b>1.</b> En Inicio, rellena una vez el curso escolar, tu nombre, el centro y su código (salen en todos los documentos).</div>
+  <div class="step"><b>2.</b> Abre <strong>📊 Evaluación por Competencias</strong> → crea tu grupo eligiendo materia y curso → pega la lista del alumnado en <strong>Alumnado</strong> («Apellidos, Nombre», uno por línea).</div>
+  <div class="step"><b>3.</b> Elige la evaluación en <strong>Periodo</strong> (barra superior).</div>
+  <div class="step"><b>4.</b> Si ya trabajas con Programación de Aula, vincúlala en <strong>Ajustes</strong> del grupo.</div>
+  <div class="step"><b>5.</b> Pulsa <strong>Exportar copia</strong> y guarda el archivo fuera del navegador. Repítelo con regularidad (<a href="#copias">apartado 18</a>).</div>
+</div>
+<div class="tip">¿Ya usabas la app en otro dispositivo? No hace falta empezar de cero: <strong>Importar copia</strong> con tu último archivo y lo tienes todo, diseños de examen incluidos.</div>
+
 <h2 id="vision">1. Qué es esta suite y cómo se organiza</h2>
 <p>Al abrir la aplicación aparece la pantalla de <strong>Inicio</strong>, con nueve tarjetas agrupadas en tres bloques — todas comparten los mismos grupos, alumnado y notas, salvo Gestor de Tutoría, que es independiente:</p>
 <ul>
@@ -165,7 +221,7 @@
 <p>Cada uno de esos tres bloques, y el de Calendario/Horario, tiene una cabecera con una flechita (▾/▸): pulsándola se pliega o despliega esa sección sin afectar a las demás — útil si solo usas unas pocas herramientas a diario y quieres una pantalla de Inicio más corta.</p>
 <p>Debajo de las tarjetas, la sección <strong>📅 Calendario</strong> / <strong>🗓️ Mi horario</strong> (una pestaña a la vez, para no saturar la pantalla) y, al final de todo, <strong>Ayuda</strong> — con la misma cabecera plegable que el resto de secciones, pero alineada a la derecha — que abre esta guía y la nota sobre Tutoría sin ocupar espacio cuando no lo necesitas.</p>
 <p>Desde cualquier pantalla puedes volver al Inicio con el botón <span class="kbd">🏠 Inicio</span> de la barra superior o pulsando el título de la página.</p>
-<div class="tip">Todos los datos se guardan <strong>en el propio dispositivo</strong> (en el almacenamiento del navegador). No hay cuenta, no hay servidor, nada sale de tu iPad u ordenador. La contrapartida: las copias de seguridad son cosa tuya (ver <a href="#copias">apartado 7</a>).</div>
+<div class="tip">Todos los datos se guardan <strong>en el propio dispositivo</strong> (en el almacenamiento del navegador). No hay cuenta, no hay servidor, nada sale de tu iPad u ordenador. La única excepción, opcional: en el editor de exámenes, algunas fuentes tipográficas se descargan de internet si el examen las usa (<a href="#cx-pdf">6.9</a>). La contrapartida: las copias de seguridad son cosa tuya (ver <a href="#copias">apartado 18</a>).</div>
 
 <h2 id="primeros">2. Primeros pasos: crear un grupo y su alumnado</h2>
 <div class="flow">
@@ -241,7 +297,7 @@
   <div class="step"><b>4.</b> "🖨️ Imprimir diario" genera el registro completo del curso, en orden cronológico, con la SdA de cada día.</div>
 </div>
 
-<h2 id="programacion">3b. Programación de Aula</h2>
+<h2 id="programacion">4. Programación de Aula</h2>
 <p>Es una sección <strong>independiente</strong> (como Refuerzo o Repetición), accesible desde Inicio — no vive dentro de un grupo. Se crea una vez al principio de curso y se va completando poco a poco; siempre es editable, no hace falta tenerla acabada desde el primer día.</p>
 <p><strong>Se guarda por sí sola, no por grupo</strong>: si dos de tus grupos son del mismo nivel (por ejemplo, 2º ESO A y 2º ESO B), creas <em>una</em> Programación y la <strong>vinculas</strong> a los dos desde Ajustes de cada grupo — la escribes una vez y la usan ambos, sin duplicar trabajo. De un año para otro, "Duplicar" copia una Programación entera (con sus SdA y actividades) en blanco de seguimiento, lista para reutilizar.</p>
 <p><strong>Compartir con otro profesor</strong>: "Exportar (.json)" descarga esa Programación en un archivo que puedes darle a un compañero; "Importar programación", en la parte de arriba de la lista, la añade a la suya. Importar solo <strong>añade</strong> — nunca sobrescribe ni toca ninguna Programación (ni ningún otro dato) que tu compañero ya tuviera.</p>
@@ -267,7 +323,7 @@
   <li><strong>Exámenes:</strong> tienen <strong>dos notas separadas</strong>: la <em>cuantitativa</em> (0–10, cuenta para la media del bloque y del trimestre) y la <em>cualitativa por criterio</em> (alimenta las competencias específicas y clave). Puedes ponerlas a mano… o dejar que el Corrector las calcule solas (siguiente apartado).</li>
 </ul>
 
-<h2 id="memoria">3c. Memoria de curso</h2>
+<h2 id="memoria">5. Memoria de curso</h2>
 <p>Sección independiente (Inicio → 📄 Memoria de curso) que junta <strong>todos tus grupos a la vez</strong>: resultados, asistencia, convivencia y % de Situaciones de Aprendizaje impartidas, por evaluación o para el curso completo.</p>
 <div class="flow">
   <div class="step"><b>1.</b> Un desplegable arriba elige el periodo: 1ª / 2ª / 3ª evaluación, o "Memoria final (curso completo)".</div>
@@ -277,37 +333,138 @@
   <div class="step"><b>5.</b> "🖨️ Imprimir memoria" genera el documento de ese mismo periodo, con portada, índice, numeración de página y firma — igual que el de Programación de Aula.</div>
 </div>
 
-<h2 id="corrector">4. Corrector de Exámenes (rúbricas)</h2>
-<p>El Corrector usa <strong>los mismos grupos y el mismo alumnado</strong> que Competencias: no hay que dar de alta a nadie dos veces. Elige el grupo en la barra superior y el trimestre en <strong>Periodo</strong>.</p>
-<h3>Crear un examen y su rúbrica</h3>
-<div class="flow">
-  <div class="step"><b>1.</b> Pestaña <strong>Nuevo examen</strong>: nombre, bloque de calificación y (opcional) Situación de Aprendizaje. Se crea en el trimestre activo.</div>
-  <div class="step"><b>2.</b> Se abre el <strong>editor de rúbrica</strong>: organiza el examen en <em>apartados</em> (p. ej. "Pregunta 1", "Comentario de mapa") y dentro de cada uno sus <em>ítems</em> de corrección.</div>
-  <div class="step"><b>3.</b> A cada ítem dale su <strong>puntuación máxima</strong>. La suma de todos los ítems debe ser exactamente <strong>10</strong> — el indicador de arriba te avisa en rojo mientras no cuadre.</div>
-  <div class="step"><b>4.</b> En cada ítem, pulsa <strong>Vincular criterios</strong> y marca qué criterios de evaluación del currículo trabaja ese ítem (puede ser ninguno — p. ej. "presentación y ortografía" — uno, o varios con distinto peso).</div>
-  <div class="step"><b>5.</b> (Opcional) Añade <em>descriptores</em> a cada ítem: qué esperas encontrar para dar la puntuación completa. Los verás mientras corriges.</div>
-</div>
-<h3>Corregir</h3>
-<div class="flow">
-  <div class="step"><b>1.</b> Botón <strong>Corregir</strong> del examen: verás la lista del alumnado con su estado (corregido / sin corregir), la media y los aprobados.</div>
-  <div class="step"><b>2.</b> Entra en un alumno y ve poniendo los puntos de cada ítem. Debajo verás actualizarse en directo su <strong>nota cuantitativa</strong> (suma de puntos) y su <strong>calificación por criterio</strong> (porcentaje logrado en los ítems vinculados a cada criterio).</div>
-  <div class="step"><b>3.</b> Usa <span class="kbd">← Anterior</span> / <span class="kbd">Siguiente →</span> para pasar de alumno sin volver a la lista. Puedes dejar un comentario individual por examen.</div>
-  <div class="step"><b>4.</b> No hay botón de guardar: <strong>todo se guarda solo</strong> al instante. Puedes corregir a medias y continuar otro día.</div>
-  <div class="step"><b>5.</b> Si lo necesitas, exporta las notas del examen a <strong>CSV</strong> desde la lista.</div>
-</div>
-<div class="tip">Botón <strong>"💾 Guardar como plantilla"</strong> en el editor: guarda la rúbrica actual (ítems, puntos y descriptores) para reutilizarla en otro examen desde "Nuevo examen" → "Empezar la rúbrica desde". Los criterios vinculados solo se copian si existen en el catálogo del grupo donde la apliques.</div>
-<div class="tip">Puedes <strong>editar la rúbrica después de haber corregido</strong>: las notas de todo el alumnado se recalculan solas. Si reduces el máximo de un ítem por debajo de puntuaciones ya puestas, estas se reajustan automáticamente al nuevo máximo.</div>
+<h2 id="corrector">6. Corrector de Exámenes: diseñar, rúbrica y corregir</h2>
+<p>El Corrector usa <strong>los mismos grupos y el mismo alumnado</strong> que Competencias: no hay que dar de alta a nadie dos veces. Elige el grupo en las pestañas de grupos y el trimestre en <strong>Periodo</strong>. Arriba tienes dos botones: <span class="kbd">Exámenes</span> (la lista) y <span class="kbd">Nuevo examen</span>.</p>
 
-<h2 id="conexion">5. Cómo se conectan Corrector y Competencias</h2>
+<h3 id="cx-flujo">6.1 El camino completo de un examen</h3>
+<p>Al abrir un examen verás siempre esta barra, con tres pestañas que siguen el orden natural del trabajo, y dos botones a la derecha:</p>
+<div class="tabs3"><span>Examen de la Unidad 3</span><span class="on">✏️ Diseño</span><span>📋 Rúbrica</span><span>🖊️ Corregir</span><span>📈 Análisis</span><span>❔ Ayuda</span></div>
+<div class="flow">
+  <div class="step"><b>✏️ Diseño</b> — escribes el examen tal y como lo verá el alumnado, con los puntos de cada pregunta y, si quieres, los criterios que evalúa.</div>
+  <div class="step"><b>📋 Rúbrica</b> — «Importar a la rúbrica →» convierte el examen en ítems de corrección con sus puntos. Aquí ajustas descriptores, vínculos y pesos.</div>
+  <div class="step"><b>🖊️ Corregir</b> — pones los puntos de cada alumno/a (o pregunta a pregunta para todo el grupo). La nota pasa sola a Calificar y a las competencias.</div>
+  <div class="step"><b>📈 Análisis</b> — cuando has corregido, ves qué preguntas y qué criterios han salido peor.</div>
+</div>
+<div class="tip">El Diseño es <strong>opcional</strong>. Si prefieres seguir escribiendo el examen en Word, sáltate el Diseño y construye la rúbrica a mano como siempre (<a href="#cx-rubrica">6.5</a>): todo lo demás funciona igual.</div>
+
+<h3 id="cx-crear">6.2 Crear el examen</h3>
+<p>Hay tres caminos, y los tres llevan al mismo sitio:</p>
+<ul>
+  <li><strong>Desde la Programación de Aula</strong> (recomendado si la usas): en la actividad de examen, <span class="kbd">🖊️ Abrir en el Corrector</span>. El examen se crea en el grupo vinculado con sus criterios previstos.</li>
+  <li><strong>Desde el Corrector</strong>: <span class="kbd">Nuevo examen</span> → nombre, bloque de calificación, Situación de Aprendizaje (opcional), fecha (opcional: crea su evento en el calendario), criterios previstos y, si quieres, «Empezar la rúbrica desde» una plantilla guardada.</li>
+  <li><strong>Desde un paquete</strong>: en <span class="kbd">Nuevo examen</span>, <span class="kbd">📥 Importar paquete</span> (<a href="#cx-reutilizar">6.10</a>).</li>
+</ul>
+<p>En la lista de <strong>Exámenes</strong>, cada examen tiene botones directos: <span class="kbd">✏️ Diseño</span>, <span class="kbd">Rúbrica</span>, <span class="kbd">Corregir</span> y <span class="kbd">⬇ CSV</span>.</p>
+
+<h3 id="cx-diseno">6.3 Diseñar el examen (pestaña Diseño)</h3>
+<p>La pestaña Diseño tiene una barra de herramientas del Cuaderno y, debajo, el editor de exámenes.</p>
+<table>
+  <tr><th>Botón (barra del Cuaderno)</th><th>Para qué sirve</th></tr>
+  <tr><td><strong>Examen general · Versión B · adaptadas</strong></td><td>Qué versión del examen estás editando (<a href="#cx-nese">6.6</a>).</td></tr>
+  <tr><td><strong>Importar a la rúbrica →</strong></td><td>Crea o actualiza la rúbrica a partir del examen (<a href="#cx-importar">6.4</a>).</td></tr>
+  <tr><td><strong>💾 Plantilla de la Programación</strong></td><td>Guarda este diseño en la actividad de la Programación, para que los demás grupos vinculados lo encuentren ya hecho. Solo para exámenes abiertos desde la Programación.</td></tr>
+  <tr><td><strong>🔀 Mezclar de nuevo</strong></td><td>Solo en Versión B: vuelve a barajar las preguntas.</td></tr>
+  <tr><td><strong>📊 Cobertura</strong></td><td>Qué criterios evalúa el examen, cuántos puntos y qué porcentaje pesa cada uno; avisos si algo no cuadra.</td></tr>
+  <tr><td><strong>⛶ Pantalla completa</strong></td><td>El editor ocupa toda la pantalla (muy útil en el iPad). Para volver, <span class="kbd">✕ Salir de pantalla completa</span>, abajo a la izquierda.</td></tr>
+  <tr><td><strong>📦 Exportar paquete</strong></td><td>Descarga examen, rúbrica, adaptaciones y versión B en un archivo (<a href="#cx-reutilizar">6.10</a>).</td></tr>
+</table>
+<p>Junto a los botones verás <em>«Guardado · 10:42»</em>: el diseño se guarda solo mientras escribes. No hay que pulsar nada.</p>
+
+<h3>El editor por dentro</h3>
+<p>Tres zonas: a la izquierda la <strong>Estructura</strong> (el esquema del examen), en el centro la <strong>vista de página</strong> (como saldrá impreso, con saltos de página reales) y a la derecha el <strong>panel de ajustes</strong>, con tres pestañas: <em>Bloque</em> (lo que tengas seleccionado), <em>Examen</em> (papel, márgenes, tipografía general, numeración, puntuación) y <em>Encabezado y pie</em> (textos, número de página, escudo del centro). En el iPad en vertical, las tres zonas pasan a ser pestañas: Estructura · Vista · Ajustes.</p>
+<table>
+  <tr><th>Bloque</th><th>Uso</th></tr>
+  <tr><td>Título del examen · Datos del alumno</td><td>La cabecera: asignatura, título, subtítulo y casillas de nombre, curso, fecha y nota.</td></tr>
+  <tr><td>Apartado</td><td>Partes del examen (I, II, III…). Agrupa preguntas.</td></tr>
+  <tr><td>Pregunta · Subpregunta</td><td>Preguntas numeradas con enunciado y <strong>puntos</strong>; subapartados a), b), c)…</td></tr>
+  <tr><td>Texto · Tabla · Imagen</td><td>Fuentes y citas, tablas para completar o relacionar, mapas y gráficos (desde Archivos o Fotos).</td></tr>
+  <tr><td>Líneas de respuesta · Recuadro · Espacio</td><td>Renglones para escribir, instrucciones o zonas de respuesta con borde, huecos.</td></tr>
+</table>
+<div class="flow">
+  <div class="step"><b>1.</b> <span class="kbd">+ Añadir</span> (en Estructura) o <span class="kbd">+ Añadir bloque</span> (en el panel) para insertar. Toca un bloque en la estructura o en la página para seleccionarlo y editarlo a la derecha. Las flechas lo suben, bajan, meten en el bloque anterior o sacan un nivel.</div>
+  <div class="step"><b>2.</b> En cada pregunta escribe sus <strong>puntos</strong> (admite coma: <code>1,5</code>). Pon puntos <em>a la pregunta</em> o <em>a sus subpreguntas</em>, no a las dos: si haces ambas cosas, en la rúbrica cuenta la de la pregunta y Cobertura te avisará si no suman lo mismo.</div>
+  <div class="step"><b>3.</b> Con una pregunta seleccionada, al final del panel aparece <strong>Criterios de evaluación</strong>: marca los que trabaja. Sus subpreguntas los heredan. Si el examen tiene criterios previstos, solo aparecen esos.</div>
+  <div class="step"><b>4.</b> Revisa con <span class="kbd">📊 Cobertura</span> (criterios y pesos) y con <span class="kbd">Validar</span> (problemas de maquetación: preguntas sin enunciado, tablas vacías, imágenes que no cargan, bloques que desbordan una página, puntuación que no coincide con el total…).</div>
+</div>
+<table>
+  <tr><th>Botón (barra del editor)</th><th>Para qué sirve</th></tr>
+  <tr><td><strong>↶ ↷</strong></td><td>Deshacer y rehacer dentro del editor (también <span class="kbd">Ctrl/Cmd+Z</span>).</td></tr>
+  <tr><td><strong>Guardar archivo</strong></td><td>Descarga el examen suelto (<code>.examen.json</code>), por ejemplo para pasárselo a alguien que use solo el editor. Para el día a día no hace falta: ya se guarda solo.</td></tr>
+  <tr><td><strong>Validar</strong></td><td>Control de calidad antes de imprimir.</td></tr>
+  <tr><td><strong>Versiones</strong></td><td>Historial del examen en este dispositivo: recupera cómo estaba antes (se guardan automáticamente, como mucho una cada 2 minutos, y puedes crear versiones a mano).</td></tr>
+  <tr><td><strong>Banco de bloques</strong></td><td>Guarda bloques que repites (instrucciones, cabeceras, tablas tipo) para insertarlos en otros exámenes.</td></tr>
+  <tr><td><strong>Automático / Claro / Oscuro</strong></td><td>Tema de color del editor (no afecta al examen impreso).</td></tr>
+  <tr><td><strong>Exportar Word · Exportar PDF</strong></td><td>Ver <a href="#cx-pdf">6.9</a>.</td></tr>
+</table>
+<div class="warn">Las <strong>Versiones</strong> y el <strong>Banco de bloques</strong> viven solo en el dispositivo y <strong>no viajan en las copias de seguridad</strong>. El examen en sí, sí: va en «Exportar copia».</div>
+<div class="tip">Las imágenes se guardan dentro del examen. Usa imágenes de tamaño razonable (una captura o una foto recortada): un examen con muchas fotos de móvil a máxima resolución hace las copias de seguridad más pesadas.</div>
+
+<h3 id="cx-importar">6.4 Pasar el examen a la rúbrica</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> En Diseño, <span class="kbd">Importar a la rúbrica →</span>. La rúbrica copia la estructura del examen tal cual, <em>apartado → pregunta → subpregunta</em> y en el mismo orden, y se puntúa en la parte más pequeña: la subpregunta (o la pregunta, si no la has dividido). Cada apartado y cada pregunta suman lo de sus partes. Si una pregunta tiene puntos propios y también sus subpreguntas, cuentan los de las subpreguntas (📊 Cobertura te avisa si no suman lo mismo). Los criterios marcados en el Diseño pasan como vínculos (repartidos a partes iguales si hay varios).</div>
+  <div class="step"><b>2.</b> La primera vez te avisa de que sustituye la rúbrica que hubiera. Después te lleva a la pestaña Rúbrica para que completes descriptores o ajustes pesos.</div>
+  <div class="step"><b>3.</b> ¿Has retocado el examen? Vuelve a importar. Cada ítem recuerda de qué pregunta viene, así que se actualizan enunciados y puntos <strong>sin perder</strong> descriptores, vínculos ajustados a mano ni notas ya puestas.</div>
+</div>
+<div class="warn"><strong>Si ya has corregido a alguien</strong> y el examen ha cambiado, antes de reimportar la app te enseña qué preguntas cambian de puntuación (p. ej. «P2 (3 → 1)»), cuáles desaparecen y cuántas puntuaciones superan el nuevo máximo. Si continúas, esas puntuaciones se ajustan al máximo y las notas se recalculan. Los ítems que añadiste a mano en la rúbrica se conservan en un apartado «Añadidos a mano». Si una pregunta que antes se corregía entera ahora tiene subpreguntas con puntos, se desglosa: pierde sus descriptores y las notas que tuviera como pregunta entera (la app te lo advierte antes de continuar).</div>
+<p>El aviso final te dice cuántos apartados, preguntas y subpreguntas se han importado y el total de puntos (⚠️ si no suma 10: puedes activar «Convertir la puntuación a nota sobre 10» en la rúbrica).</p>
+
+<h3 id="cx-rubrica">6.5 La rúbrica</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> Organiza el examen en <em>apartados</em> y, dentro, sus <em>ítems</em> de corrección (si vienen del Diseño, los bloques se llaman Apartado, Pregunta o Subpregunta, igual que en el examen). Si el examen no tiene apartados, la rúbrica muestra solo las preguntas; <span class="kbd">Usar apartado</span> los activa (y permite «elegir X de Y», p. ej. «contesta 2 de 3») y <span class="kbd">Sin apartado</span> los quita.</div>
+  <div class="step"><b>2.</b> Cada ítem tiene su <strong>puntuación máxima</strong>. Lo normal es que sumen <strong>10</strong>; si no (p. ej. 20 puntos), marca «Convertir la puntuación a nota sobre 10». Nunca sale una nota por encima de 10.</div>
+  <div class="step"><b>3.</b> <span class="kbd">Vincular criterios</span> en cada ítem: ninguno (p. ej. presentación y ortografía), uno o varios con distinto peso. Si el examen tiene criterios previstos, la app avisa de los que se quedan sin vincular.</div>
+  <div class="step"><b>4.</b> (Opcional) <em>Descriptores</em>: qué esperas encontrar para dar la puntuación completa. Los verás al corregir.</div>
+</div>
+<div class="tip"><strong>💾 Guardar como plantilla</strong> guarda la rúbrica (ítems, puntos y descriptores) para empezar otro examen desde ella («Nuevo examen» → «Empezar la rúbrica desde»). Los criterios solo se copian si existen en el catálogo del grupo donde la apliques.</div>
+<div class="tip">Puedes <strong>editar la rúbrica después de haber corregido</strong>: las notas se recalculan solas, y si bajas el máximo de un ítem por debajo de puntuaciones ya puestas, se ajustan al nuevo máximo.</div>
+
+<h3 id="cx-nese">6.6 Alumnado NESE y Versión B</h3>
+<div class="grid2">
+  <div class="card"><h4>🧩 Examen adaptado (NESE)</h4><p>1) En la pestaña <strong>Rúbrica</strong>, <span class="kbd">+ Rúbrica adaptada (NESE)</span>: se crea una copia de la rúbrica con el alumnado NESE del grupo ya asignado (puedes cambiarlo). 2) En <strong>Diseño</strong>, elige la pestaña de esa adaptada y adapta el examen (parte de una copia del general). 3) «Importar a la rúbrica →» actualiza <em>su</em> rúbrica. Cada alumno/a se corrige con la suya.</p></div>
+  <div class="card"><h4>🔀 Versión B</h4><p>El mismo examen con las preguntas en otro orden, para evitar copias entre compañeros. Se crea sola la primera vez que pulsas <span class="kbd">Versión B</span>, y <span class="kbd">🔀 Mezclar de nuevo</span> vuelve a barajar. <strong>Comparte la rúbrica</strong> del examen general (se importa siempre desde «Examen general»), así que corriges igual con independencia de la versión.</p></div>
+</div>
+
+<h3 id="cx-corregir">6.7 Corregir</h3>
+<div class="flow">
+  <div class="step"><b>1.</b> Pestaña <strong>Corregir</strong>: la lista del alumnado con su estado (corregido / sin corregir), media y aprobados. <span class="kbd">Ver</span> estadísticas despliega más datos.</div>
+  <div class="step"><b>2.</b> <strong>Por alumno/a</strong>: entra en uno y pon los puntos de cada ítem. Bajo cada ítem verás el <strong>enunciado</strong> de la pregunta (si el examen está diseñado en la app) y una casilla de <strong>comentario</strong> para el alumno/a, que sale en la rúbrica impresa. Debajo se actualizan en directo la nota cuantitativa y la calificación por criterio. <span class="kbd">← Anterior</span> / <span class="kbd">Siguiente →</span> para pasar de alumno/a; hay también un comentario general del examen.</div>
+  <div class="step"><b>3.</b> <strong>↕ Por pregunta</strong> (opcional): eliges una pregunta y la puntúas para todo el grupo seguido; <span class="kbd">Intro</span> salta al siguiente alumno/a. Si alguien tiene rúbrica adaptada sin esa pregunta, se indica. <span class="kbd">← Corregir por alumno/a</span> vuelve al modo normal.</div>
+  <div class="step"><b>4.</b> <span class="kbd">NP</span> (no presentado: cuenta 0) y <span class="kbd">Exento</span> (no le cuenta) en cada alumno/a.</div>
+  <div class="step"><b>5.</b> Todo se guarda solo, al instante. Puedes corregir a medias y seguir otro día.</div>
+  <div class="step"><b>6.</b> <span class="kbd">🖨️ Imprimir rúbrica</span> (de un alumno/a) o <span class="kbd">🖨️ Imprimir rúbricas</span> (de todos) para devolverlas con comentarios; <span class="kbd">⬇ CSV</span> exporta las notas del examen.</div>
+</div>
+<div class="tip">Las puntuaciones se escriben como en papel, con coma (<code>0,75</code>). Si te pasas del máximo del ítem, se ajusta solo y te avisa.</div>
+
+<h3 id="cx-analisis">6.8 Análisis de resultados</h3>
+<p><span class="kbd">📈 Análisis</span> (en la barra del examen) resume lo corregido: alumnado corregido, nota media, <strong>porcentaje medio de acierto por pregunta</strong> y <strong>por criterio de evaluación</strong> (en verde, ámbar o rojo), y una lista de las preguntas con menos del 50 % de acierto. Útil para decidir qué repasar o qué preguntas reformular. NP y exentos no cuentan.</p>
+
+<h3 id="cx-pdf">6.9 Imprimir el examen o pasarlo a PDF y Word</h3>
+<div class="flow">
+  <div class="step"><b>Exportar PDF</b> — si <em>Validar</em> encuentra algo, te lo enseña antes; después abre la <strong>vista previa de impresión de la app</strong> (la misma de informes y rúbricas, fiable también en el iPad). Pulsa <span class="kbd">🖨️ Imprimir / Guardar PDF</span> y en el cuadro del sistema elige: <em>Guardar como PDF</em> (o tu impresora), papel <strong>A4</strong> (o el del examen), márgenes <strong>Ninguno</strong>, escala <strong>100 %</strong> y sin encabezados ni pies del navegador. En el iPad: en el cuadro de impresión, «Compartir» → «Guardar en Archivos».</div>
+  <div class="step"><b>Exportar Word</b> — descarga un <code>.docx</code> editable, por si necesitas retocarlo fuera o entregarlo al departamento.</div>
+</div>
+<div class="tip"><strong>Fuentes.</strong> <em>Lora</em> e <em>Inter</em> van dentro de la app y funcionan siempre. Las de sistema (Times, Arial, Georgia…) también. Las marcadas «· requiere conexión» (EB Garamond, Lexend, Atkinson Hyperlegible…) se descargan solo si el examen las usa y hay internet; sin conexión se sustituyen por una parecida, y el PDF podría cambiar ligeramente de paginación. Para exámenes que vas a imprimir en el centro sin wifi, mejor Lora, Inter o una de sistema.</div>
+
+<h3 id="cx-reutilizar">6.10 Reutilizar exámenes en otros grupos y cursos</h3>
+<table>
+  <tr><th>Quiero…</th><th>Usa</th></tr>
+  <tr><td>Que el mismo examen esté en mis otros grupos del mismo nivel (con la misma Programación)</td><td><span class="kbd">💾 Plantilla de la Programación</span> en el examen general. Cuando abras ese examen en otro grupo vinculado, su Diseño arrancará con este.</td></tr>
+  <tr><td>Llevarlo a otro grupo, a otro curso escolar o dárselo a un compañero</td><td><span class="kbd">📦 Exportar paquete</span> → en el destino, «Nuevo examen» → <span class="kbd">📥 Importar paquete</span>. Lleva examen, rúbrica, adaptaciones NESE y versión B; nunca alumnado ni notas. Hay que volver a asignar el alumnado NESE a las rúbricas adaptadas.</td></tr>
+  <tr><td>Reutilizar solo la rúbrica</td><td><span class="kbd">💾 Guardar como plantilla</span> en la pestaña Rúbrica (<a href="#cx-rubrica">6.5</a>).</td></tr>
+</table>
+<div class="warn"><strong>Paquete de otro curso.</strong> Los criterios se enlazan por su número (1.1, 2.3…). Si importas un paquete de, por ejemplo, 2.º ESO en un grupo de 3.º, la app te pregunta: <em>Conservar vínculos</em> (solo si los criterios coinciden en ambos cursos, como suele pasar entre 3.º y 4.º ESO) o <em>Quitar vínculos</em> (y los marcas de nuevo).</div>
+<div class="tip"><strong>🛟 Copias de los diseños</strong> (en <span class="kbd">❔ Ayuda</span> del examen): además de ir en «Exportar copia», la app guarda una copia automática diaria de todos los diseños (las tres últimas) que puedes restaurar. Ahí también está <em>🧹 Buscar diseños de exámenes que ya no existen</em>, para limpiar los de exámenes borrados (antes guarda una copia).</div>
+<h2 id="conexion">7. Cómo se conectan Corrector y Competencias</h2>
 <p>No hay "sincronización" que pueda fallar: son <strong>la misma base de datos vista desde dos pantallas</strong>. Al corregir en el Corrector:</p>
 <ul>
   <li>La <strong>nota cuantitativa</strong> (0–10) entra directamente en la media del bloque y del trimestre del alumno.</li>
   <li>La <strong>calificación por criterio</strong> entra en el cálculo de sus competencias específicas y clave. A diferencia de las actividades normales (4 niveles), aquí es un <strong>porcentaje continuo y preciso</strong> (p. ej. 87 %), porque sale de puntos reales de examen.</li>
 </ul>
+<p>Si el examen está diseñado en la app, los criterios que marcaste en cada pregunta del Diseño son los que llegan aquí a través de la rúbrica.</p>
 <p>En Competencias, ese examen aparece como una actividad más, pero <strong>de solo lectura</strong>: en Actividades, Calificar y Resultados verás sus notas con un botón 🖊️ / "Abrir en el Corrector" para modificarlas donde corresponde — pregunta a pregunta, no a ojo.</p>
 <div class="warn">Los exámenes creados <em>a mano</em> en Competencias (sin rúbrica) siguen funcionando como siempre: nota 0–10 y escala de 4 niveles por criterio, editables directamente. Ambos tipos de examen pueden convivir en el mismo trimestre.</div>
 
-<h2 id="tutoria">6. Gestor de Tutoría</h2>
+<h2 id="tutoria">8. Gestor de Tutoría</h2>
 <p>Se abre desde su tarjeta en Inicio. Es una aplicación <strong>independiente</strong>: gestiona sesiones de evaluación, actas, decisiones de promoción y estadísticas de grupos, con sus propios archivos y su propio sistema de guardado y exportación (.ev). No comparte alumnado ni notas con las otras dos aplicaciones.</p>
 <div class="tip">Para que sus gráficos y la vista previa de PDF funcionen sin conexión, sigue una única vez las instrucciones de <code>tutoria/vendor/LEEME.txt</code> (descargar 3 archivos). Sin ese paso, todo lo demás funciona igual.</div>
 <p>Su sección <strong>📅 Calendario</strong> tiene dos cosas a la vez:</p>
@@ -330,8 +487,8 @@
 </div>
 <p>Para verlos todos juntos (por ejemplo, si inspección te los pide), la pestaña <strong>"👪 Seguimientos"</strong> de arriba lista, por grupo, todos los registros de todos sus alumnos — con casillas para elegir cuáles, o "Imprimir todos", generando un único documento con cada registro en su propia página.</p>
 
-<h2 id="calendario">6b. Calendario de Inicio</h2>
-<p>En la pantalla de Inicio, debajo de las tarjetas, hay un calendario para exámenes, entregas, reuniones y cualquier otra cosa que quieras anotar. (El Gestor de Tutoría tiene el suyo propio, aparte — ver el <a href="#tutoria">apartado 6</a>.)</p>
+<h2 id="calendario">9. Calendario de Inicio</h2>
+<p>En la pantalla de Inicio, debajo de las tarjetas, hay un calendario para exámenes, entregas, reuniones y cualquier otra cosa que quieras anotar. (El Gestor de Tutoría tiene el suyo propio, aparte — ver el <a href="#tutoria">apartado 8</a>.)</p>
 <ul>
   <li><strong>Crear:</strong> pulsa cualquier día del calendario, o el botón "+ Nuevo"/"+ Añadir evento".</li>
   <li><strong>Editar o eliminar:</strong> pulsa el evento en la lista de la derecha; se abre el mismo formulario, con "Eliminar" aparte.</li>
@@ -344,7 +501,7 @@
 </ul>
 <div class="tip">Los eventos se guardan junto con todo lo demás: viajan solos dentro de Exportar/Importar copia, sin ningún paso aparte.</div>
 
-<h2 id="reuniones">6c. Reuniones y actas</h2>
+<h2 id="reuniones">10. Reuniones y actas</h2>
 <p>Cuarta tarjeta del Inicio. Un registro de reuniones —con familias, con el alumnado o con el equipo directivo— con acta imprimible al final.</p>
 <div class="flow">
   <div class="step"><b>1.</b> "+ Nueva reunión": título, tipo, fecha y hora, y opcionalmente el grupo (y dentro de él, el alumno/a) con quien se relaciona. Si le das fecha, se crea también su evento en el calendario de Inicio, ya vinculado.</div>
@@ -357,7 +514,7 @@
 <p>El botón <strong>"⬇ Exportar a Excel"</strong> de la lista descarga un resumen (título, tipo, fecha, grupo, alumno, estado, nº de asistentes/temas/acuerdos) en un archivo <code>.csv</code> que abre directamente Excel o Google Sheets. Respeta el filtro/búsqueda que tengas activo.</p>
 <div class="tip">Igual que exámenes y eventos, las reuniones viajan dentro de Exportar/Importar copia sin ningún paso aparte.</div>
 
-<h2 id="buscador">6d. Buscador global</h2>
+<h2 id="buscador">11. Buscador global</h2>
 <p>Botón <strong>🔍 Buscar</strong> en la cabecera (o atajo <strong>Ctrl/Cmd + K</strong>), disponible en cualquier pantalla. Busca a la vez en alumnado, actividades y exámenes, reuniones y eventos del calendario, de todos los grupos.</p>
 <ul>
   <li>No hace falta escribir las palabras en orden ni con tildes: "garcia lucia" encuentra a "García, Lucía".</li>
@@ -365,7 +522,7 @@
   <li><kbd>Esc</kbd> cierra el buscador.</li>
 </ul>
 
-<h2 id="refuerzo">6e. Plan de Refuerzo</h2>
+<h2 id="refuerzo">12. Plan de Refuerzo</h2>
 <p>Para un alumno/a que promociona con tu materia <strong>no superada</strong>. Organizado en tres evaluaciones, cada una con los elementos curriculares no conseguidos y su propia evaluación — más un diario de seguimiento fechado para el día a día.</p>
 <div class="flow">
   <div class="step"><b>1.</b> "+ Nuevo plan": grupo, alumno/a, curso académico y, si quieres, un <strong>modelo del departamento</strong> (ver más abajo). El título se genera solo; edítalo cuando quieras.</div>
@@ -379,7 +536,7 @@
 </div>
 <p>Si el alumno/a tiene reuniones registradas, aparecen enlazadas al final del plan.</p>
 
-<h2 id="repeticion">6f. Plan de Repetición</h2>
+<h2 id="repeticion">13. Plan de Repetición</h2>
 <p>Distinto del Plan de Refuerzo: para un alumno/a que <strong>repite curso</strong>, cuando una de las causas fue no superar tu materia. Mismos motivos, misma tabla agrupada por competencia específica en las tres evaluaciones (criterios no conseguidos, actividades, calificación, valoración y justificación) — y además:</p>
 <div class="flow">
   <div class="step"><b>1.</b> "+ Nuevo plan": grupo, alumno/a, curso que repite (se sugiere solo desde el catálogo del grupo), curso académico y, si quieres, un modelo del departamento.</div>
@@ -422,7 +579,7 @@
 <p>El botón <strong>"Editar"</strong> de cada fila abre una ficha con todos los datos del alumno/a juntos (apellidos, nombre, fecha de nacimiento, NESE, Plan, Repite, Pendientes y observaciones) — útil para revisar o corregir todo de una vez, sin ir campo a campo por la tabla. Los campos de la tabla siguen siendo editables directamente también, como hasta ahora.</p>
 <p>El botón <strong>"⚙ Columnas"</strong>, junto al buscador, despliega una lista para marcar qué columnas ver — NESE, Nivel NESE, Plan, Repite, Pendientes, Nacimiento y Edad se pueden ocultar (Apellidos y Nombre siempre se ven). Útil si solo necesitas lo esencial a la vista un día concreto. Se recuerda para la próxima vez que abras la app.</p>
 
-<h2 id="nese">6g. Alumnos NESE</h2>
+<h2 id="nese">14. Alumnos NESE</h2>
 <p>Séptima tarjeta del Inicio. El alumnado marcado como NESE en Evaluación por Competencias (pestaña Alumnado, columna NESE) aparece aquí solo, organizado por grupo — no hace falta darlo de alta dos veces.</p>
 <div class="flow">
   <div class="step"><b>1.</b> Cada alumno/a NESE aparece en la tarjeta de su grupo. Si no tiene plan todavía, verás "+ Crear plan".</div>
@@ -434,7 +591,7 @@
 </div>
 <div class="tip">Estos modelos no sustituyen al Plan de Actuación Personalizado oficial del departamento de orientación — son la herramienta de trabajo del profesor de Geografía e Historia para concretar, trimestre a trimestre, qué se está trabajando y con qué nivel de logro.</div>
 
-<h2 id="horario">6h. Mi horario semanal</h2>
+<h2 id="horario">15. Mi horario semanal</h2>
 <p>En la pantalla de Inicio, debajo del calendario. Una cuadrícula de lunes a viernes con las franjas horarias de tu centro (de 7:45 a 15:05, con los dos recreos ya marcados).</p>
 <div class="flow">
   <div class="step"><b>1.</b> Pulsa cualquier casilla para abrir su editor.</div>
@@ -454,11 +611,11 @@
   <div class="step"><b>4.</b> Cuando termines, "✓ Aceptar" cierra el modo de copiar (o "Cancelar", que hace lo mismo — las casillas ya pegadas se quedan igual con cualquiera de los dos; son solo dos formas de cerrar el aviso).</div>
 </div>
 
-<h2 id="pulido">6i. Notificaciones y navegación rápida</h2>
+<h2 id="pulido">16. Notificaciones y navegación rápida</h2>
 <p>Algunas acciones (exportar copia, guardar en el Diario, copiar/pegar en el horario, crear o eliminar un plan) muestran ahora un aviso breve en la parte inferior de la pantalla en vez de una alerta del navegador — desaparece solo a los pocos segundos, no hace falta cerrarlo.</p>
 <p>El buscador (<span class="kbd">Ctrl/Cmd + K</span>, o el botón "🔍 Buscar") funciona también como <strong>menú de navegación rápida</strong>: ábrelo y verás un acceso directo a cada módulo y a cada uno de tus grupos; escribe el nombre de cualquiera de ellos para saltar ahí al instante, además de para buscar contenido como hasta ahora.</p>
 
-<h2 id="tema">6j. Modo oscuro y versión de pantalla</h2>
+<h2 id="tema">17. Modo oscuro y versión de pantalla</h2>
 <p>Dos botones en la cabecera, junto al buscador:</p>
 <ul>
   <li><strong>🌙/☀️</strong> cambia toda la aplicación a un tema oscuro pensado para corregir de noche.</li>
@@ -466,30 +623,38 @@
 </ul>
 <p>Las dos son preferencias del dispositivo — no viajan con las copias de seguridad ni se sincronizan entre dispositivos, así que puedes elegir la que te convenga en cada sitio donde abras la app.</p>
 
-<h2 id="copias">7. Copias de seguridad (imprescindible)</h2>
+<h2 id="copias">18. Copias de seguridad (imprescindible)</h2>
 <p>Los datos viven en el almacenamiento del navegador del dispositivo. Eso significa que <strong>borrar los datos de navegación puede borrar tus notas</strong>. La defensa es sencilla:</p>
 <ul>
-  <li>Pulsa <strong>Exportar copia</strong> (barra superior, disponible en cualquier pantalla incluida Inicio) con regularidad. Descarga un archivo <code>.json</code> con absolutamente todo: grupos, alumnado, actividades, rúbricas, notas, comentarios, planes, calendario y tu horario semanal.</li>
+  <li>Pulsa <strong>Exportar copia</strong> (barra superior, disponible en cualquier pantalla incluida Inicio) con regularidad. Descarga un archivo <code>.json</code> con absolutamente todo: grupos, alumnado, actividades, rúbricas, notas, comentarios, planes, calendario, tu horario semanal y los <strong>exámenes diseñados</strong> (con sus adaptaciones y versión B).</li>
   <li>Guarda ese archivo fuera del navegador: en Archivos/iCloud (iPad), en una carpeta del PC, en Drive…</li>
   <li>Para recuperar: <strong>Importar copia</strong> y eliges el archivo. También puedes usarlo para <strong>pasar tus datos a otro dispositivo</strong> (exporta en uno, importa en el otro).</li>
   <li>La propia app te avisa con <span class="pill">⚠️ Conviene exportar copia</span> si llevas más de una semana o muchos cambios sin exportar.</li>
   <li><strong>Novedad:</strong> además, la app hace <strong>copias automáticas internas</strong> y mantiene un espejo de tus datos; las ves y restauras en <strong>🛟 Copias</strong>. Allí también está <strong>🔒 Exportar copia cifrada</strong>, la forma recomendada de sacar la copia del dispositivo. Aun así, sigue exportando copias a un archivo: la copia interna vive en el mismo dispositivo.</li>
 </ul>
+<table>
+  <tr><th>¿Qué va en cada copia?</th><th>Exportar copia (normal o 🔒 cifrada)</th><th>Copias automáticas 🛟</th></tr>
+  <tr><td>Grupos, alumnado, notas, rúbricas, planes, calendario, horario…</td><td>✅</td><td>✅</td></tr>
+  <tr><td>Exámenes diseñados (pestaña Diseño)</td><td>✅</td><td>❌ — tienen su propia copia diaria (<a href="#cx-reutilizar">6.10</a>)</td></tr>
+  <tr><td>Versiones y Banco de bloques del editor</td><td>❌ (solo en el dispositivo)</td><td>❌</td></tr>
+  <tr><td>Tema oscuro, ancho de pantalla, columnas ocultas</td><td>❌ (preferencias del dispositivo)</td><td>❌</td></tr>
+</table>
+<div class="tip">Si llevas tiempo sin exportar y tienes diseños nuevos, en la pestaña Diseño verás <span class="pill">⚠️ N diseños sin exportar</span> con un acceso directo a «Exportar todo».</div>
 <div class="warn">En el iPad, si la app está añadida a la pantalla de inicio, iOS puede purgar el almacenamiento de webs que llevan <em>muchas semanas</em> sin abrirse. Usándola con normalidad no pasa, pero es un motivo más para exportar copia al cerrar cada evaluación.</div>
 
 <h3>Compartir un solo grupo con un compañero</h3>
 <p>Distinto de la copia completa de arriba: en <strong>Ajustes</strong> de cualquier grupo, "Exportar solo este grupo (.json)" descarga solo ese grupo (alumnado, actividades, notas). Tu compañero, junto a "+ Nuevo grupo" en su propia aplicación, tiene un botón <strong>"Importar grupo…"</strong> que lo añade a su lista.</p>
 <div class="tip">A diferencia de "Importar copia" (que sobrescribe absolutamente todo y por eso pide confirmación), importar un grupo suelto es <strong>aditivo</strong>: se suma a los grupos que tu compañero ya tenga, sin tocar ni borrar ninguno. Eso sí, viaja sin sus planes de Refuerzo/Repetición/NESE (esos se exportan e importan aparte, con "Exportar/Importar copia") ni ninguna Programación de Aula a la que estuviera vinculado — si la tenía, queda desvinculado al importarse.</div>
 
-<h2 id="papelera">8. Papelera: recuperar lo borrado por error</h2>
+<h2 id="papelera">19. Papelera: recuperar lo borrado por error</h2>
 <ul>
   <li><strong>Alumnos borrados:</strong> pestaña Alumnado → papelera al final. Se restauran con todas sus notas, incluidas las de rúbrica y los comentarios de examen.</li>
-  <li><strong>Actividades y exámenes borrados:</strong> pestaña Actividades → papelera al final. Un examen restaurado vuelve con su rúbrica, todas las puntuaciones y comentarios.</li>
+  <li><strong>Actividades y exámenes borrados:</strong> pestaña Actividades → papelera al final. Un examen restaurado vuelve con su rúbrica, todas las puntuaciones, comentarios y su diseño.</li>
   <li>La papelera guarda los <strong>últimos 10</strong> elementos de cada tipo por grupo.</li>
   <li><strong>Borrar un grupo entero no tiene papelera</strong> (se avisa antes): la única vuelta atrás es importar una copia de seguridad.</li>
 </ul>
 
-<h2 id="offline">9. Uso sin conexión e instalación como app</h2>
+<h2 id="offline">20. Uso sin conexión, instalación y actualizaciones</h2>
 <h3>En iPad</h3>
 <div class="flow">
   <div class="step"><b>1.</b> Abre la URL en <strong>Safari</strong> (con conexión, la primera vez).</div>
@@ -497,13 +662,25 @@
   <div class="step"><b>3.</b> A partir de ahí se abre a pantalla completa desde su icono, y funciona <strong>también sin wifi</strong> (incluso en modo avión).</div>
 </div>
 <p>Puedes repetir el paso 2 dentro del Gestor de Tutoría para tener también su icono propio (azul).</p>
+<div class="tip">El editor de exámenes también funciona sin wifi. Solo las fuentes opcionales marcadas «requiere conexión» necesitan internet (<a href="#cx-pdf">6.9</a>).</div>
 <h3>En ordenador</h3>
 <ul>
   <li><strong>Por la URL de GitHub Pages:</strong> igual que en el iPad; en Chrome/Edge además puedes "Instalarla" desde el icono de la barra de direcciones para tenerla en ventana propia.</li>
   <li><strong>Abriendo el archivo local (doble clic en <code>index.html</code>):</strong> funciona igualmente y siempre sin conexión — no depende de nada externo.</li>
 </ul>
+<div class="warn">Cada navegador guarda sus propios datos. La web de GitHub, el archivo abierto con doble clic en Chrome y el mismo archivo en Edge son, para la app, <strong>sitios distintos</strong>: lo que hagas en uno no aparece en el otro. Elige uno para trabajar y usa «Exportar/Importar copia» para pasar datos.</div>
 
-<h2 id="faq">10. Preguntas frecuentes</h2>
+<h3>Publicar o actualizar la app en GitHub Pages</h3>
+<p>La app no lleva datos dentro: al publicarla, cualquiera que la abra la ve <strong>vacía</strong>, y tus datos siguen solo en tus dispositivos. Para subir una versión nueva:</p>
+<div class="flow">
+  <div class="step"><b>1.</b> Antes de nada, en tu dispositivo de trabajo: <strong>Exportar copia</strong>.</div>
+  <div class="step"><b>2.</b> En el repositorio, sustituye <code>index.html</code> por la versión nueva (si te la dan con otro nombre, como <code>index_beta_v2.html</code>, renómbrala a <code>index.html</code>), y sube también <code>guia_mejorada.html</code> y <code>sw.js</code>. Deja como están <code>manifest.json</code>, <code>icons/</code>, <code>tutoria/</code> y <code>.nojekyll</code>.</div>
+  <div class="step"><b>3.</b> Cada vez que subas cambios, <code>sw.js</code> debe llevar un número de versión nuevo en <code>CACHE_NAME</code> (p. ej. <code>geohist-suite-v71</code> → <code>v72</code>). Si no, el iPad seguiría mostrando la versión guardada.</div>
+  <div class="step"><b>4.</b> Espera uno o dos minutos y abre la app <strong>con conexión</strong>. La primera vez puede mostrar todavía la versión anterior: ciérrala del todo y vuelve a abrirla.</div>
+</div>
+<div class="tip">Actualizar los archivos no toca tus datos: los grupos, notas y diseños están en el navegador, no en GitHub. Aun así, la copia del paso 1 es tu red de seguridad.</div>
+
+<h2 id="faq">21. Preguntas frecuentes</h2>
 <h3>¿Puedo usar la app en el iPad y en el PC a la vez?</h3>
 <p>Sí, pero <strong>cada dispositivo tiene sus propios datos</strong> (no se sincronizan solos). El puente es Exportar copia en uno → Importar copia en el otro. Recomendación práctica: trabaja habitualmente en un solo dispositivo y usa el otro para consultar tras importar.</p>
 <h3>¿Un ítem de la rúbrica puede no tener criterio vinculado?</h3>
@@ -520,10 +697,20 @@
 <p>En la pestaña <strong>Resumen</strong> del grupo: cada evaluación tiene su gráfico de aprobados/suspensos, su porcentaje de Situaciones de Aprendizaje impartidas (calculado solo si el grupo tiene una Programación de Aula vinculada) y su cuadro de propuestas de mejora; y hay un bloque de evaluación final para la valoración de curso.</p>
 <h3>¿Cómo saco el informe de grupo de cada evaluación?</h3>
 <p>En Resultados, junto al botón <strong>Informe de grupo</strong> hay un selector con <em>1ª, 2ª, 3ª evaluación</em> y <em>Evaluación final (curso completo)</em>. Los informes de cada evaluación contienen solo lo de esa evaluación (resumen, notas, competencias y propuestas de mejora del periodo), sin ninguna referencia a la final. El de <strong>evaluación final</strong> es el más completo — resumen de las tres evaluaciones, notas de todo el curso, competencias anuales y todas las propuestas de mejora — y es el pensado para entregar a las familias.</p>
+<h3>¿Tengo que usar el Diseño para corregir con rúbrica?</h3>
+<p>No. El Diseño es opcional: puedes crear la rúbrica a mano como siempre. La ventaja de diseñar en la app es que la rúbrica sale sola, los enunciados aparecen al corregir y el Análisis puede decirte qué pregunta ha fallado.</p>
+<h3>Cambié los puntos de una pregunta después de corregir. ¿Qué pasa con las notas?</h3>
+<p>Al reimportar, la app te enseña qué cambia antes de hacerlo. Las puntuaciones que superen el nuevo máximo se ajustan a él y las notas se recalculan solas (<a href="#cx-importar">6.4</a>).</p>
+<h3>¿La Versión B necesita otra rúbrica?</h3>
+<p>No: comparte la del examen general, porque son las mismas preguntas en otro orden. Para un examen <em>distinto</em> (adaptado), crea una rúbrica adaptada (<a href="#cx-nese">6.6</a>).</p>
+<h3>El PDF del examen sale cortado o en varias páginas de más.</h3>
+<p>Revisa en el cuadro de impresión: márgenes <strong>Ninguno</strong>, escala <strong>100 %</strong>, el mismo tamaño de papel que el examen y sin encabezados ni pies del navegador. Usa <span class="kbd">Validar</span> en el editor para localizar bloques que no caben en una página.</p>
+<h3>He abierto la app en otro ordenador y está vacía. ¿Se ha perdido algo?</h3>
+<p>No. Cada dispositivo (y cada navegador) guarda sus propios datos; en uno nuevo la app arranca vacía. Importa tu última copia y lo tendrás todo, diseños incluidos.</p>
 <h3>He borrado los datos del navegador y lo he perdido todo. ¿Hay solución?</h3>
-<p>Primero abre la app: si solo se ha borrado el almacenamiento principal, recupera los datos sola desde la copia interna (verás un aviso). Si no, mira en <strong>🛟 Copias</strong>. Y si se ha borrado todo el sitio web del navegador, necesitas una copia exportada: Importar copia y listo (si es cifrada, te pedirá la contraseña). Por eso el apartado 7 es el más importante de esta guía.</p>
+<p>Primero abre la app: si solo se ha borrado el almacenamiento principal, recupera los datos sola desde la copia interna (verás un aviso). Si no, mira en <strong>🛟 Copias</strong>. Y si se ha borrado todo el sitio web del navegador, necesitas una copia exportada: Importar copia y listo (si es cifrada, te pedirá la contraseña). Por eso el <a href="#copias">apartado 18</a> es el más importante de esta guía.</p>
 
-<footer>Guía de uso · Cuaderno del profesor (versión mejorada) · Los datos nunca salen de tu dispositivo</footer>
+<footer>Guía de uso · Cuaderno del profesor · Incluye el diseño de exámenes · Los datos nunca salen de tu dispositivo</footer>
 </main>
 </body>
 </html>
