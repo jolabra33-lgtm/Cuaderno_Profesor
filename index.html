@@ -17314,7 +17314,7 @@ window.exCobertura=()=>{
   const grupo=grupoActual(), act=grupo&&grupo.actividades.find(a=>a.id===state.ui.corExamId);
   if(!act||!_exFrame||!_exFrame.contentWindow.__ee){ mostrarAviso("El editor todavía no ha cargado."); return; }
   exFlush();
-  const est=_exFrame.contentWindow.__ee.estructura(), hojas=[];
+  const est=exConReparto(_exFrame.contentWindow.__ee.estructura()), hojas=[];
   exHojas(est.nodos).forEach(n=>hojas.push(n));
   if(!hojas.length){ mostrarAviso("El examen aún no tiene preguntas con puntuación."); return; }
   const total=hojas.reduce((a,h)=>a+h.max,0), pts=new Map();
@@ -17325,6 +17325,7 @@ window.exCobertura=()=>{
   const sinCrit=hojas.filter(h=>!(h.crit||[]).length), av=[];
   if(Math.abs(total-10)>0.01) av.push(`El examen suma ${cxFmtPts(total)} puntos (no 10). Se escalará a 10 si la rúbrica está en «convertir a 10».`);
   (est.descuadres||[]).forEach(d=>av.push(`«${esc(String(d.label).slice(0,50))}» vale ${cxFmtPts(d.max)} pts, pero sus partes suman ${cxFmtPts(d.suma)}. La rúbrica copia las partes (${cxFmtPts(d.suma)} pts): corrige los puntos en el Diseño y vuelve a importar.`));
+  if((est.repartidos||[]).length) av.push(`${est.repartidos.length} pregunta${est.repartidos.length===1?"":"s"} con subpreguntas sin puntos propios (${est.repartidos.slice(0,4).map(s=>esc(String(s).slice(0,40))).join("; ")}${est.repartidos.length>4?"…":""}): la rúbrica reparte sus puntos a partes iguales. Pon puntos a cada subpregunta en el Diseño si quieres otro reparto.`);
   if(sinCrit.length) av.push(`${sinCrit.length} pregunta${sinCrit.length===1?"":"s"} sin criterio: ${sinCrit.slice(0,6).map(h=>esc(h.label.slice(0,40))).join("; ")}${sinCrit.length>6?"…":""}`);
   if(conPrev){ const f=lista.filter(c=>!pts.has(c.id)).length; if(f) av.push(`${f} criterio${f===1?"":"s"} previsto${f===1?"":"s"} para este examen no se evalúa${f===1?"":"n"} en ninguna pregunta.`); }
   exModal(`<h2 style="font-size:16.5px;margin-bottom:4px">📊 Cobertura de criterios</h2><p class="sub" style="margin:0 0 10px">${hojas.length} ${hojas.length===1?"ítem puntuable":"ítems puntuables"} · ${cxFmtPts(total)} puntos${conPrev?" · criterios previstos del examen":" · criterios marcados"}</p>
@@ -17621,6 +17622,23 @@ window.exComoPlantilla=async()=>{
 function exPuntua(n){ return n.max!=null||(n.hijos||[]).some(exPuntua); }      // ¿hay algo puntuable en este nodo?
 function exDesglosa(n){ return (n.hijos||[]).some(exPuntua); }                   // ¿se divide en partes puntuables?
 function exHojas(l){ return (l||[]).filter(exPuntua).flatMap(n=>exDesglosa(n)? exHojas(n.hijos) : [n]); }
+/* Subpreguntas sin puntos: si la pregunta (o subpregunta) tiene puntos y alguna de sus partes no, esas partes
+   se reparten a partes iguales lo que no han asignado las demás. Así la rúbrica copia siempre la estructura
+   completa y no cambia el total; los puntos se afinan después en el Diseño o en la propia rúbrica. */
+function exConReparto(est){
+  const e=JSON.parse(JSON.stringify(est)), rep=[], suma=n=>exHojas([n]).reduce((s,h)=>s+h.max,0);
+  (function w(l){ (l||[]).forEach(n=>{
+    const hs=n.hijos||[];
+    if(n.max!=null&&hs.length){
+      const sin=hs.filter(h=>!exPuntua(h)), resto=Math.round((n.max-hs.filter(exPuntua).reduce((s,h)=>s+suma(h),0))*100)/100;
+      if(sin.length&&resto>0.001){ const cada=Math.floor(resto/sin.length*100)/100; let ac=0;
+        sin.forEach((h,i)=>{ h.max=i<sin.length-1? cada : Math.round((resto-ac)*100)/100; ac+=h.max; });
+        rep.push(n.label); }
+    }
+    w(hs); }); })(e.nodos);
+  e.repartidos=rep; e.descuadres=(e.descuadres||[]).filter(d=>rep.indexOf(d.label)<0);   // lo repartido ya cuadra
+  return e;
+}
 async function cxImportarEstructura(grupo,act,est,dest){
   dest=dest||act; const _okC=cxCriteriosValidosEnCatalogo(grupo.catalogoKey);
   const viejas=new Map(), viejosN=new Map();
@@ -17704,7 +17722,7 @@ window.exImportar=async()=>{
   if(!act||!_exFrame||!_exFrame.contentWindow.__ee){ mostrarAviso("El editor todavía no ha cargado."); return; }
   if(state.ui.corVerB&&!cxVarEditando(act)){ mostrarAviso("La versión B es una copia del examen general con las preguntas en otro orden y comparte su rúbrica. Importa desde «Examen general»."); return; }
   exFlush();
-  const est=_exFrame.contentWindow.__ee.estructura();
+  const est=exConReparto(_exFrame.contentWindow.__ee.estructura());
   if(!est.nodos.length){ mostrarAviso("El examen aún no tiene preguntas ni apartados con puntuación. Añade puntos a las preguntas o a sus subpreguntas (campo «puntos») y vuelve a importar."); return; }
   if(!act.rubrica && !await cxPonerRubrica(grupo,act)) return;
   const dest=cxVarEditando(act)||act; const yaImp=cxItemsFlat(dest.rubrica).some(i=>i.fuenteId);
@@ -17728,7 +17746,7 @@ window.exImportar=async()=>{
   if(!r){ mostrarAviso("Ninguna pregunta tiene puntuación asignada, así que no hay nada que importar. Asigna puntos a las preguntas en el editor."); return; }
   save();
   state.ui.corTab="editor"; save(); render();
-  mostrarToast(`✓ Estructura importada: ${r.resumen||r.items+" ítems"} · total ${cxFmtPts(r.total)} pts`+(r.huerfanos?` · ${r.huerfanos} ya no existen en el examen`:"")+(r.recortes?` · ${r.recortes} puntuaci${r.recortes===1?"ón ajustada":"ones ajustadas"} al nuevo máximo`:"")+((est.descuadres||[]).length?` · ⚠️ ${est.descuadres.length} pregunta${est.descuadres.length===1?"":"s"} con partes que no suman lo que vale la pregunta (mira 📊 Cobertura)`:"")+(Math.abs(r.total-10)>0.01?" · ⚠️ no suma 10":""),"info");
+  mostrarToast(`✓ Estructura importada: ${r.resumen||r.items+" ítems"} · total ${cxFmtPts(r.total)} pts`+(r.huerfanos?` · ${r.huerfanos} ya no existen en el examen`:"")+(r.recortes?` · ${r.recortes} puntuaci${r.recortes===1?"ón ajustada":"ones ajustadas"} al nuevo máximo`:"")+((est.descuadres||[]).length?` · ⚠️ ${est.descuadres.length} pregunta${est.descuadres.length===1?"":"s"} con partes que no suman lo que vale la pregunta (mira 📊 Cobertura)`:"")+((est.repartidos||[]).length?` · ℹ️ ${est.repartidos.length} pregunta${est.repartidos.length===1?"":"s"} con subpreguntas sin puntos: se han repartido a partes iguales (ajústalas en el Diseño o en la rúbrica)`:"")+(Math.abs(r.total-10)>0.01?" · ⚠️ no suma 10":""),"info");
 };
 </script>
 </body>
